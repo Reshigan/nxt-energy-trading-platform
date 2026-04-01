@@ -1,0 +1,44 @@
+name: Deploy Cloudflare Pages Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloudflare-platform/pages/**'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Cloudflare Pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: cloudflare-platform/pages/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd cloudflare-platform/pages
+          npm ci
+
+      - name: Build Frontend
+        run: |
+          cd cloudflare-platform/pages
+          npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: nxt-energy-trading-platform
+          directory: cloudflare-platform/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

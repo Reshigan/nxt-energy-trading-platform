@@ -2,6 +2,16 @@
 
 The world's best energy trading platform running entirely on Cloudflare's edge infrastructure.
 
+## Deployment
+
+Follow the [Cloudflare Setup Guide](CLOUDFLARE_SETUP.md) to deploy this platform to `et.vantax.co.za` using your Cloudflare credentials.
+
+Quick deployment steps:
+1. Configure Cloudflare with your credentials
+2. Add GitHub secrets for automated deployment
+3. Push to main branch to trigger CI/CD pipelines
+4. Manually configure domain DNS records
+
 ## Architecture Overview
 
 This implementation leverages Cloudflare's powerful edge computing platform to deliver exceptional performance and global availability:
