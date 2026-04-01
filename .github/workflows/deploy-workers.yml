@@ -1,0 +1,41 @@
+name: Deploy Cloudflare Workers Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloudflare-platform/src/**'
+      - 'cloudflare-platform/package.json'
+      - 'cloudflare-platform/wrangler.toml'
+      - '.github/workflows/deploy-workers.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Cloudflare Workers
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: cloudflare-platform/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd cloudflare-platform
+          npm ci
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: 'cloudflare-platform'
+          command: deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
