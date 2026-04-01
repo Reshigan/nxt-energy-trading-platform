@@ -1,0 +1,31 @@
+{
+  "name": "nxt-energy-trading-platform-cloudflare",
+  "version": "1.0.0",
+  "description": "World's best energy trading platform running entirely on Cloudflare",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev src/index.ts",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev --env preview --test-scheduled",
+    "cf-typegen": "wrangler types"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "energy-trading",
+    "ai",
+    "blockchain"
+  ],
+  "author": "NXT Energy Solutions",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20231025.0",
+    "typescript": "^5.2.2",
+    "wrangler": "^3.13.2"
+  },
+  "dependencies": {
+    "hono": "^3.7.6",
+    "zod": "^3.22.4",
+    "@hono/zod-validator": "^0.1.11"
+  }
+}

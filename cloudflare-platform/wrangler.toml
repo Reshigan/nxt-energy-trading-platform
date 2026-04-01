@@ -1,0 +1,24 @@
+name = "nxt-energy-trading-platform"
+main = "src/index.ts"
+compatibility_date = "2023-10-01"
+
+[vars]
+ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nxt_energy_trading"
+database_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "nxt-energy-assets"
+preview_bucket_name = "nxt-energy-assets-preview"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
