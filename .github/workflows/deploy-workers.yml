@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - energy-trading-platform-v1
     paths:
       - 'cloudflare-platform/src/**'
       - 'cloudflare-platform/package.json'
