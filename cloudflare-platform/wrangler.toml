@@ -12,12 +12,12 @@ API_BASE_URL = "https://et.vantax.co.za/api"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+id = "0fd4da205bb54e8db8340c51c8865787"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "nxt_energy_trading"
-database_id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+database_id = "caa3ae48-3bdc-473b-b197-62c59288d9a9"
 
 [[r2_buckets]]
 binding = "BUCKET"
