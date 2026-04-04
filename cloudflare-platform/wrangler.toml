@@ -2,9 +2,10 @@ name = "nxt-energy-trading-api"
 main = "src/index.ts"
 compatibility_date = "2023-10-01"
 
-# Production environment
-[env.production]
-route = "et.vantax.co.za/api/*"
+# Route configuration for custom domain
+routes = [
+  { pattern = "et.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+]
 
 [vars]
 ENVIRONMENT = "production"
