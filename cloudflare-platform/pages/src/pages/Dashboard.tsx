@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiTrendingUp, FiDollarSign, FiZap, FiLeaf, FiBarChart2, FiClock, FiAlertCircle } from 'react-icons/fi';
+import { FiTrendingUp, FiDollarSign, FiZap, FiGlobe, FiBarChart2 } from 'react-icons/fi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import MetricCard from '../components/MetricCard';
 import MarketOverview from '../components/MarketOverview';
@@ -79,7 +79,7 @@ export default function Dashboard() {
           title="Carbon Credits"
           value="12,450 t"
           change="+3.8%"
-          icon={<FiLeaf className="w-6 h-6" />}
+          icon={<FiGlobe className="w-6 h-6" />}
           color="from-emerald-500 to-teal-500"
         />
       </div>
