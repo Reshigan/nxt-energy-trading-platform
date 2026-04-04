@@ -30,7 +30,7 @@ echo "Installing backend dependencies..."
 npm ci
 
 echo "Deploying to Cloudflare Workers..."
-npx wrangler deploy --env production
+npx wrangler deploy
 
 echo "🔧 Deploying Cloudflare Pages frontend..."
 
