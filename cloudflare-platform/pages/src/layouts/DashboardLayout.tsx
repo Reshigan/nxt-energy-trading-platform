@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiLeaf, FiZap, FiBarChart2, FiSettings, FiMenu, FiX } from 'react-icons/fi';
+import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIAdvisor } from '../hooks/useAIAdvisor';
 import AIChatWidget from '../components/AIChatWidget';
@@ -10,7 +10,7 @@ const navigation = [
   { name: 'Markets', href: '/markets', icon: FiTrendingUp },
   { name: 'Portfolio', href: '/portfolio', icon: FiPieChart },
   { name: 'Contracts', href: '/contracts', icon: FiFileText },
-  { name: 'Carbon', href: '/carbon', icon: FiLeaf },
+  { name: 'Carbon', href: '/carbon', icon: FiGlobe },
   { name: 'IPP Projects', href: '/ipp', icon: FiZap },
   { name: 'Analytics', href: '/analytics', icon: FiBarChart2 },
   { name: 'Settings', href: '/settings', icon: FiSettings },
