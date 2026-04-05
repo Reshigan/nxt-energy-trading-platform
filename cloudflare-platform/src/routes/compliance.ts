@@ -142,6 +142,53 @@ compliance.post('/statutory/:id/override', authMiddleware({ roles: ['admin'] }),
   return c.json({ success: true, message: 'Statutory check overridden' });
 });
 
+// POST /compliance/statutory/:id/review — Admin review (approve/reject manual checks)
+compliance.post('/statutory/:id/review', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  const user = c.get('user');
+  const body = await c.req.json() as { decision: 'pass' | 'fail'; notes?: string };
+
+  if (!body.decision || !['pass', 'fail'].includes(body.decision)) {
+    return c.json({ success: false, error: 'Decision must be "pass" or "fail"' }, 400);
+  }
+
+  const check = await c.env.DB.prepare('SELECT * FROM statutory_checks WHERE id = ?').bind(id).first();
+  if (!check) return c.json({ success: false, error: 'Statutory check not found' }, 404);
+
+  await c.env.DB.prepare(`
+    UPDATE statutory_checks SET status = ?, reviewed_by = ?, reviewed_at = ?, failure_reason = ?, checked_at = ?
+    WHERE id = ?
+  `).bind(body.decision, user.sub, nowISO(), body.decision === 'fail' ? (body.notes || 'Rejected by admin') : null, nowISO(), id).run();
+
+  // If this was a participant check, re-evaluate their overall status
+  if (check.entity_type === 'participant') {
+    const allChecks = await c.env.DB.prepare(
+      "SELECT status FROM statutory_checks WHERE entity_type = 'participant' AND entity_id = ?"
+    ).bind(check.entity_id).all();
+
+    const allPassed = allChecks.results.every(
+      (ch) => ch.status === 'pass' || ch.status === 'exempt' || ch.status === 'overridden'
+    );
+    const anyFailed = allChecks.results.some((ch) => ch.status === 'fail');
+
+    const newKycStatus = allPassed ? 'verified' : anyFailed ? 'rejected' : 'in_review';
+    await c.env.DB.prepare(
+      'UPDATE participants SET kyc_status = ?, trading_enabled = ?, updated_at = ? WHERE id = ?'
+    ).bind(newKycStatus, allPassed ? 1 : 0, nowISO(), check.entity_id).run();
+  }
+
+  await c.env.DB.prepare(`
+    INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+    VALUES (?, ?, 'review_statutory', 'statutory_check', ?, ?, ?)
+  `).bind(
+    generateId(), user.sub, id,
+    JSON.stringify({ decision: body.decision, notes: body.notes, regulation: check.regulation }),
+    c.req.header('CF-Connecting-IP') || 'unknown'
+  ).run();
+
+  return c.json({ success: true, message: `Statutory check ${body.decision === 'pass' ? 'approved' : 'rejected'}` });
+});
+
 // POST /compliance/statutory/:id/evidence — Upload manual evidence
 compliance.post('/statutory/:id/evidence', authMiddleware(), async (c) => {
   const { id } = c.req.param();

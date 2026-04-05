@@ -1,25 +1,37 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX } from 'react-icons/fi';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIAdvisor } from '../hooks/useAIAdvisor';
 import AIChatWidget from '../components/AIChatWidget';
+import { useAuthStore } from '../lib/store';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: FiHome },
   { name: 'Markets', href: '/markets', icon: FiTrendingUp },
+  { name: 'Trading', href: '/trading', icon: FiDollarSign },
   { name: 'Portfolio', href: '/portfolio', icon: FiPieChart },
   { name: 'Contracts', href: '/contracts', icon: FiFileText },
   { name: 'Carbon', href: '/carbon', icon: FiGlobe },
   { name: 'IPP Projects', href: '/ipp', icon: FiZap },
+  { name: 'Marketplace', href: '/marketplace', icon: FiShoppingBag },
+  { name: 'Settlement', href: '/settlement', icon: FiDollarSign },
+  { name: 'Compliance', href: '/compliance', icon: FiShield },
+  { name: 'Notifications', href: '/notifications', icon: FiBell },
+  { name: 'Admin', href: '/admin', icon: FiUsers },
   { name: 'Analytics', href: '/analytics', icon: FiBarChart2 },
   { name: 'Settings', href: '/settings', icon: FiSettings },
 ];
 
+const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'observer'] as const;
+
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { aiInsights, isLoading } = useAIAdvisor();
+  const { user, activeRole, switchRole, logout, isAuthenticated } = useAuthStore();
 
   const getCurrentPageTitle = () => {
     const currentPage = navigation.find(item => item.href === location.pathname);
@@ -117,15 +129,47 @@ export default function DashboardLayout() {
             </div>
 
             <div className="flex items-center space-x-4">
+              {/* Role Switcher */}
+              <div className="relative">
+                <button onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-800 text-sm transition-colors">
+                  <FiRefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="capitalize hidden sm:block">{activeRole || 'Select Role'}</span>
+                </button>
+                {showRoleSwitcher && (
+                  <div className="absolute right-0 mt-2 w-48 glass rounded-lg shadow-xl z-50 py-1">
+                    {roles.map((r) => (
+                      <button key={r} onClick={() => { switchRole(r); setShowRoleSwitcher(false); }}
+                        className={`block w-full text-left px-4 py-2 text-sm capitalize hover:bg-slate-700/50 ${activeRole === r ? 'text-cyan-400' : 'text-slate-300'}`}>
+                        {r.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Notifications */}
+              <Link to="/notifications" className="p-2 rounded-lg hover:bg-slate-800/50 text-slate-400 hover:text-white transition-colors relative">
+                <FiBell className="w-5 h-5" />
+              </Link>
+
+              {/* User / AI Status */}
               <div className="relative">
                 <div className="w-3 h-3 rounded-full bg-green-500 pulse absolute -top-1 -right-1"></div>
                 <div className="flex items-center space-x-2">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
-                    <span className="text-xs font-bold text-white">AI</span>
+                    <span className="text-xs font-bold text-white">{user?.company_name?.charAt(0) || 'AI'}</span>
                   </div>
-                  <span className="hidden sm:block text-sm">AI Assistant Active</span>
+                  <span className="hidden sm:block text-sm">{user?.company_name || 'AI Assistant Active'}</span>
                 </div>
               </div>
+
+              {/* Logout */}
+              {isAuthenticated && (
+                <button onClick={() => { logout(); navigate('/login'); }} className="p-2 rounded-lg hover:bg-slate-800/50 text-slate-400 hover:text-red-400 transition-colors" title="Logout">
+                  <FiLogOut className="w-5 h-5" />
+                </button>
+              )}
             </div>
           </div>
         </header>
