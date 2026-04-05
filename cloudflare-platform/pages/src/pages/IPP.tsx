@@ -227,7 +227,7 @@ export default function IPP() {
           {detailTab === 'docs' && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {['EIA ROD', 'NERSA Licence', 'Grid Agreement', 'PPA Draft', 'PPA Signed', 'EPC Contract', 'Insurance Pack', 'Land Lease', 'BBBEE Cert', 'Legal Opinion', 'IE Certificate', 'COD Certificate'].map((doc) => (
-                <div key={doc} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} hover:bg-slate-800 transition-colors cursor-pointer text-center`}>
+                <div key={doc} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} ${tc.isDark ? "hover:bg-white/[0.08]" : "hover:bg-slate-100"} transition-colors cursor-pointer text-center`}>
                   <FiUpload className="w-6 h-6 text-slate-500 mx-auto mb-2" />
                   <div className="text-xs font-medium">{doc}</div>
                   <div className="text-[10px] text-slate-500 mt-1">Click to upload</div>

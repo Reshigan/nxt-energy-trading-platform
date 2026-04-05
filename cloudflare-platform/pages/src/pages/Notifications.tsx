@@ -51,7 +51,7 @@ export default function Notifications() {
         <div className="space-y-3">
           {notifications.map((n) => (
             <div key={n.id}
-              className={`${tc.cardBg} p-4 border-l-4 ${typeColors[n.type] || 'border-l-slate-500'} ${!n.read ? 'bg-slate-800/80' : 'opacity-60'}`}>
+              className={`${tc.cardBg} p-4 border-l-4 ${typeColors[n.type] || 'border-l-slate-500'} ${!n.read ? (tc.isDark ? 'bg-slate-800/80' : 'bg-blue-50/50') : 'opacity-60'}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-medium text-sm">{n.title}</h3>
@@ -59,7 +59,7 @@ export default function Notifications() {
                   <span className="text-xs text-slate-500 mt-2 block">{n.created_at}</span>
                 </div>
                 {!n.read && (
-                  <button onClick={() => handleMarkRead(n.id)} className="p-1.5 rounded-lg hover:bg-slate-700 transition-colors ml-2" title="Mark as read">
+                  <button onClick={() => handleMarkRead(n.id)} className={`p-1.5 rounded-lg ${tc.isDark ? 'hover:bg-slate-700' : 'hover:bg-slate-200'} transition-colors ml-2`} title="Mark as read">
                     <FiCheck className="w-4 h-4 text-slate-400" />
                   </button>
                 )}
