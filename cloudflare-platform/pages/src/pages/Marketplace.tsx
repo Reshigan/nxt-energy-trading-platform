@@ -73,7 +73,7 @@ export default function Marketplace() {
       <div className="flex gap-2 flex-wrap">
         {['', 'energy', 'carbon', 'ppa', 'certificate'].map((t) => (
           <button key={t} onClick={() => setFilter({ ...filter, type: t })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filter.type === t ? 'bg-blue-500/15 text-blue-400' : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'}`}>
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filter.type === t ? 'bg-blue-500/15 text-blue-400' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'}`}>
             {t || 'All'}
           </button>
         ))}
