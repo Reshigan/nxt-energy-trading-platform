@@ -24,7 +24,8 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => {
   const storedToken = localStorage.getItem('nxt_token');
   const storedUser = localStorage.getItem('nxt_user');
-  const parsed = storedUser ? JSON.parse(storedUser) : null;
+  let parsed: User | null = null;
+  try { parsed = storedUser ? JSON.parse(storedUser) : null; } catch { parsed = null; }
 
   return {
     user: parsed,
