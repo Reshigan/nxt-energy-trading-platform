@@ -18,7 +18,7 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await authAPI.login(form);
-      login(res.data.data.token, res.data.data.user);
+      login(res.data.data.token, res.data.data.participant);
       navigate('/');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } };
@@ -36,8 +36,8 @@ export default function Login() {
         className="w-full max-w-md glass p-8"
       >
         <div className="flex items-center justify-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center mr-3">
-            <FiZap className="text-white w-6 h-6" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-r           from-[#d4e157] to-[#b8c43a] flex items-center justify-center mr-3">
+                      <FiZap className="text-slate-900 w-6 h-6" />
           </div>
           <h1 className="text-3xl font-bold gradient-text">NXT Energy</h1>
         </div>
@@ -57,8 +57,8 @@ export default function Login() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 transition-colors"
-                placeholder="you@company.co.za"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none                 focus:border-[#d4e157] transition-colors"
+                                placeholder="you@company.co.za"
                 required
               />
             </div>
@@ -72,8 +72,8 @@ export default function Login() {
                 type="password"
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 transition-colors"
-                placeholder="Enter password"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none                 focus:border-[#d4e157] transition-colors"
+                                placeholder="Enter password"
                 required
               />
             </div>
@@ -82,7 +82,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-medium rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-all disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-[#d4e157] to-[#b8c43a] text-slate-900 font-medium rounded-lg hover:from-[#e4f157] hover:to-[#c8d43a] transition-all disabled:opacity-50"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -90,7 +90,7 @@ export default function Login() {
 
         <p className="mt-6 text-center text-sm text-slate-400">
           Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-cyan-400 hover:text-cyan-300">Register</Link>
+          <Link to="/register" className="text-[#d4e157] hover:text-[#e4f157]">Register</Link>
         </p>
       </motion.div>
     </div>
