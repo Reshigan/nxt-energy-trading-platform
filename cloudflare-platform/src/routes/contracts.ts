@@ -443,15 +443,6 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
   }
 
   // Otherwise return metadata cover page as JSON (for MVP)
-  let documentHash = 'N/A';
-  if (doc.r2_key) {
-    const obj = await c.env.R2.get(doc.r2_key as string);
-    if (obj) {
-      const buffer = await obj.arrayBuffer();
-      documentHash = await sha256(buffer);
-    }
-  }
-
   return c.json({
     success: true,
     data: {
@@ -472,7 +463,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
           regulation: ch.regulation,
           status: ch.status,
         })),
-        document_hash: documentHash,
+        document_hash: 'N/A',
       },
     },
   });
