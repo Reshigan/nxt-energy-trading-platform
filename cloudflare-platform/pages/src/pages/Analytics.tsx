@@ -10,7 +10,7 @@ import {
 import { useAuthStore } from '../lib/store';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
-const CHART_COLORS = ['#d4e157', '#4caf50', '#42a5f5', '#ff9800', '#ef5350', '#ab47bc'];
+const CHART_COLORS = ['#3b82f6', '#4caf50', '#42a5f5', '#ff9800', '#ef5350', '#ab47bc'];
 
 const revenueData = [
   { month: 'Jan', revenue: 420000, profit: 180000 }, { month: 'Feb', revenue: 510000, profit: 220000 },
@@ -104,7 +104,7 @@ export default function Analytics() {
               <XAxis dataKey="month" stroke={tc.chartAxis} fontSize={12} />
               <YAxis stroke={tc.chartAxis} fontSize={12} />
               <Tooltip contentStyle={{ background: tc.chartTooltipBg, border: `1px solid ${tc.chartTooltipBorder}`, borderRadius: '8px' }} />
-              <Area type="monotone" dataKey="solar" stackId="1" stroke="#d4e157" fill="#3b82f6" fillOpacity={0.3} />
+              <Area type="monotone" dataKey="solar" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} />
               <Area type="monotone" dataKey="wind" stackId="1" stroke="#42a5f5" fill="#42a5f5" fillOpacity={0.3} />
               <Area type="monotone" dataKey="carbon" stackId="1" stroke="#4caf50" fill="#4caf50" fillOpacity={0.3} />
               <Area type="monotone" dataKey="gas" stackId="1" stroke="#ff9800" fill="#ff9800" fillOpacity={0.3} />
@@ -138,7 +138,7 @@ export default function Analytics() {
               <XAxis dataKey="day" stroke={tc.chartAxis} fontSize={11} />
               <YAxis stroke={tc.chartAxis} fontSize={11} />
               <Tooltip contentStyle={{ background: tc.chartTooltipBg, border: `1px solid ${tc.chartTooltipBorder}`, borderRadius: '8px' }} />
-              <Line type="monotone" dataKey="solar" stroke="#d4e157" dot={false} strokeWidth={2} name="Solar" />
+              <Line type="monotone" dataKey="solar" stroke="#3b82f6" dot={false} strokeWidth={2} name="Solar" />
               <Line type="monotone" dataKey="wind" stroke="#42a5f5" dot={false} strokeWidth={2} name="Wind" />
               <Line type="monotone" dataKey="carbon" stroke="#4caf50" dot={false} strokeWidth={2} name="Carbon" />
             </LineChart>
