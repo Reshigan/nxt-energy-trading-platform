@@ -20,7 +20,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?.url?.includes('/login')) {
       localStorage.removeItem('nxt_token');
       localStorage.removeItem('nxt_user');
       window.location.href = '/login';
@@ -32,7 +32,7 @@ api.interceptors.response.use(
 // Auth
 export const authAPI = {
   register: (data: Record<string, unknown>) => api.post('/register', data),
-  login: (data: { email: string; password: string }) => api.post('/register/login', data),
+  login: (data: { email: string; password: string }) => api.post('/register/auth/login', data),
   me: () => api.get('/register/me'),
   refresh: (refreshToken: string) => api.post('/register/refresh', { refreshToken }),
 };

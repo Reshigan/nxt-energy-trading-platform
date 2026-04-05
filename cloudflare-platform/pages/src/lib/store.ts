@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer';
+export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer' | 'lender';
 
 interface User {
   id: string;
@@ -77,8 +77,11 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     notifications,
     unreadCount: notifications.filter((n) => !n.read).length,
   }),
-  markRead: (id) => set((state) => ({
-    notifications: state.notifications.map((n) => n.id === id ? { ...n, read: true } : n),
-    unreadCount: Math.max(0, state.unreadCount - 1),
-  })),
+  markRead: (id) => set((state) => {
+    const wasUnread = state.notifications.some((n) => n.id === id && !n.read);
+    return {
+      notifications: state.notifications.map((n) => n.id === id ? { ...n, read: true } : n),
+      unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
+    };
+  }),
 }));
