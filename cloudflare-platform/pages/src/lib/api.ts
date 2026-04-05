@@ -128,4 +128,64 @@ export const participantsAPI = {
   markNotificationRead: (id: string) => api.post(`/marketplace/notifications/${id}/read`),
 };
 
+// AI Portfolio Optimisation
+export const aiAPI = {
+  optimise: (data: Record<string, unknown>) => api.post('/ai/optimise', data),
+  history: () => api.get('/ai/history'),
+  chat: (message: string) => api.post('/ai/chat', { message }),
+  weather: (projectId: string) => api.get(`/ai/weather/${projectId}`),
+  risk: (participantId: string) => api.get(`/ai/risk/${participantId}`),
+};
+
+// Reports
+export const reportsAPI = {
+  list: () => api.get('/reports'),
+  get: (id: string) => api.get(`/reports/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/reports', data),
+  generate: (id: string) => api.post(`/reports/${id}/generate`),
+  delete: (id: string) => api.delete(`/reports/${id}`),
+};
+
+// Tenants
+export const tenantsAPI = {
+  list: () => api.get('/tenants'),
+  get: (id: string) => api.get(`/tenants/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/tenants', data),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/tenants/${id}`, data),
+  resolve: (subdomain: string) => api.get(`/tenants/resolve/${subdomain}`),
+};
+
+// Developer Portal
+export const developerAPI = {
+  getKeys: () => api.get('/developer/keys'),
+  createKey: (data: Record<string, unknown>) => api.post('/developer/keys', data),
+  revokeKey: (id: string) => api.delete(`/developer/keys/${id}`),
+  getWebhooks: () => api.get('/developer/webhooks'),
+  createWebhook: (data: Record<string, unknown>) => api.post('/developer/webhooks', data),
+  deleteWebhook: (id: string) => api.delete(`/developer/webhooks/${id}`),
+  toggleWebhook: (id: string, active: boolean) => api.patch(`/developer/webhooks/${id}`, { active }),
+  getUsage: () => api.get('/developer/usage'),
+  getDocs: () => api.get('/developer/docs'),
+};
+
+// Metering & IoT
+export const meteringAPI = {
+  getReadings: (params?: Record<string, string>) => api.get('/metering/readings', { params }),
+  getSummary: (projectId: string) => api.get('/metering/summary', { params: { project_id: projectId } }),
+  getMeters: (projectId: string) => api.get('/metering/meters', { params: { project_id: projectId } }),
+  ingest: (data: Record<string, unknown>) => api.post('/metering/ingest', data),
+  validate: (readingIds: string[]) => api.post('/metering/validate', { reading_ids: readingIds }),
+};
+
+// P2P Trading
+export const p2pAPI = {
+  getOffers: (params?: Record<string, string>) => api.get('/p2p/offers', { params }),
+  createOffer: (data: Record<string, unknown>) => api.post('/p2p/offers', data),
+  acceptOffer: (id: string) => api.post(`/p2p/offers/${id}/accept`),
+  cancelOffer: (id: string) => api.delete(`/p2p/offers/${id}`),
+  settleOffer: (id: string) => api.post(`/p2p/offers/${id}/settle`),
+  getZones: () => api.get('/p2p/zones'),
+  getMyTrades: () => api.get('/p2p/my'),
+};
+
 export default api;

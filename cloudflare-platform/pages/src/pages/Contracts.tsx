@@ -11,7 +11,7 @@ const DOC_TYPES = ['LOI', 'term_sheet', 'hoa', 'draft_agreement', 'definitive', 
 
 export default function Contracts() {
   const { activeRole } = useAuthStore();
-  const [tab, setTab] = useState<'registry' | 'flow' | 'templates' | 'statutory'>('registry');
+  const [tab, setTab] = useState<'registry' | 'flow' | 'templates' | 'statutory' | 'smart_rules'>('registry');
   const [documents, setDocuments] = useState<Array<Record<string, unknown>>>([]);
   const [selectedDoc, setSelectedDoc] = useState<Record<string, unknown> | null>(null);
   const [signatures, setSignatures] = useState<Array<Record<string, unknown>>>([]);
@@ -101,6 +101,7 @@ export default function Contracts() {
     { id: 'flow' as const, label: 'Contract Flow' },
     { id: 'templates' as const, label: 'Templates' },
     { id: 'statutory' as const, label: 'Statutory Rules' },
+    { id: 'smart_rules' as const, label: 'Smart Rules' },
   ];
 
   // Statutory rules data
@@ -342,6 +343,73 @@ export default function Contracts() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Smart Rules Tab */}
+      {tab === 'smart_rules' && (
+        <div className="space-y-6">
+          <div className="chart-glass p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold">Smart Contract Rules</h3>
+              <button className="px-3 py-1.5 text-xs bg-gradient-to-r from-[#d4e157] to-[#b8c43a] text-slate-900 rounded-lg font-medium">Add Rule</button>
+            </div>
+            <p className="text-xs text-slate-400 mb-4">Automated rules that trigger actions based on metering data, payments, and contract events via the SmartContractDO.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-slate-400 text-xs">
+                  <th className="text-left py-2">Rule</th><th className="text-left py-2">Type</th>
+                  <th className="text-left py-2">Condition</th><th className="text-left py-2">Action</th>
+                  <th className="text-left py-2">Status</th><th className="text-right py-2">Triggers</th>
+                </tr></thead>
+                <tbody>
+                  {[
+                    { name: 'Auto-Invoice on Delivery', type: 'metering_trigger', condition: 'metering_validated && volume > 0', action: 'Generate invoice with VAT', status: 'enabled', triggers: 142 },
+                    { name: 'Payment Settlement', type: 'payment_trigger', condition: 'payment_confirmed', action: 'Release escrow to seller', status: 'enabled', triggers: 98 },
+                    { name: 'Generation Threshold Alert', type: 'threshold_alert', condition: 'generation < 80% contracted', action: 'Notify offtaker + log shortfall', status: 'enabled', triggers: 7 },
+                    { name: 'Auto-Penalty Calculation', type: 'auto_penalty', condition: 'shortfall > 5% for 3 consecutive months', action: 'Calculate penalty per PPA terms', status: 'enabled', triggers: 2 },
+                    { name: 'Contract Auto-Renewal', type: 'auto_renewal', condition: '90 days before expiry && no termination notice', action: 'Extend contract by 1 year', status: 'disabled', triggers: 0 },
+                    { name: 'Escalation Trigger', type: 'auto_escalation', condition: 'dispute unresolved > 30 days', action: 'Escalate to senior management', status: 'enabled', triggers: 1 },
+                    { name: 'Auto-Settle P2P', type: 'auto_settle', condition: 'metering_validated && payment_confirmed', action: 'Mark trade as settled', status: 'enabled', triggers: 45 },
+                  ].map((r, i) => (
+                    <tr key={i} className="border-t border-slate-800">
+                      <td className="py-2 font-medium">{r.name}</td>
+                      <td><span className="px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400">{r.type}</span></td>
+                      <td className="text-xs text-slate-400 font-mono max-w-[200px] truncate">{r.condition}</td>
+                      <td className="text-xs text-slate-300">{r.action}</td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded text-xs ${r.status === 'enabled' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                      <td className="text-right font-mono text-xs">{r.triggers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="chart-glass p-6">
+            <h3 className="text-sm font-semibold mb-3">Rule Types</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { type: 'metering_trigger', desc: 'Fires when meter readings are validated', count: 2 },
+                { type: 'payment_trigger', desc: 'Fires on payment confirmation', count: 1 },
+                { type: 'threshold_alert', desc: 'Fires when value crosses threshold', count: 1 },
+                { type: 'auto_invoice', desc: 'Auto-generates invoices', count: 1 },
+                { type: 'auto_settle', desc: 'Auto-settles matched trades', count: 1 },
+                { type: 'auto_penalty', desc: 'Calculates contractual penalties', count: 1 },
+                { type: 'auto_escalation', desc: 'Escalates unresolved disputes', count: 1 },
+                { type: 'auto_renewal', desc: 'Renews contracts before expiry', count: 1 },
+              ].map((rt) => (
+                <div key={rt.type} className="p-3 rounded-lg bg-slate-800/50">
+                  <div className="text-xs font-mono text-[#d4e157]">{rt.type}</div>
+                  <div className="text-[10px] text-slate-400 mt-1">{rt.desc}</div>
+                  <div className="text-xs text-slate-500 mt-1">{rt.count} active</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

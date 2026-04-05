@@ -15,7 +15,7 @@ const CHART_COLORS = ['#d4e157', '#4caf50', '#42a5f5', '#ff9800', '#ef5350', '#a
 
 export default function Carbon() {
   const { activeRole } = useAuthStore();
-  const [tab, setTab] = useState<'inventory' | 'options' | 'fund' | 'registry'>('inventory');
+  const [tab, setTab] = useState<'inventory' | 'options' | 'fund' | 'registry' | 'tokens' | 'recs'>('inventory');
   const [credits, setCredits] = useState<Array<Record<string, unknown>>>([]);
   const [options, setOptions] = useState<Array<Record<string, unknown>>>([]);
   const [fundNAV, setFundNAV] = useState<Record<string, unknown> | null>(null);
@@ -131,6 +131,8 @@ export default function Carbon() {
     { id: 'options' as const, label: 'Options' },
     { id: 'fund' as const, label: 'Fund Management' },
     { id: 'registry' as const, label: 'Registry' },
+    { id: 'tokens' as const, label: 'Tokens' },
+    { id: 'recs' as const, label: 'RECs' },
   ];
 
   return (
@@ -324,6 +326,108 @@ export default function Carbon() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Tokens Tab */}
+      {tab === 'tokens' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Tokenised', value: '12,450 tCO2e', color: 'text-[#d4e157]' },
+              { label: 'On-Chain Value', value: 'R2.4M', color: 'text-emerald-400' },
+              { label: 'Pending Mint', value: '850 tCO2e', color: 'text-orange-400' },
+              { label: 'Burned', value: '3,200 tCO2e', color: 'text-red-400' },
+            ].map((m) => (
+              <div key={m.label} className="chart-glass p-4 text-center">
+                <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
+                <div className="text-xs text-slate-400 mt-1">{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="chart-glass p-6">
+            <h3 className="text-sm font-semibold mb-4">Tokenised Carbon Assets</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-slate-400 text-xs">
+                  <th className="text-left py-2">Token ID</th><th className="text-left py-2">Standard</th>
+                  <th className="text-left py-2">Vintage</th><th className="text-right py-2">Quantity</th>
+                  <th className="text-left py-2">Chain</th><th className="text-left py-2">Status</th>
+                </tr></thead>
+                <tbody>
+                  {[
+                    { id: 'NXT-VCS-2024-001', standard: 'Verra VCS', vintage: '2024', qty: '5,000', chain: 'Polygon', status: 'minted' },
+                    { id: 'NXT-GS-2024-002', standard: 'Gold Standard', vintage: '2024', qty: '3,200', chain: 'Polygon', status: 'minted' },
+                    { id: 'NXT-VCS-2023-015', standard: 'Verra VCS', vintage: '2023', qty: '4,250', chain: 'Polygon', status: 'minted' },
+                    { id: 'NXT-GS-2024-003', standard: 'Gold Standard', vintage: '2024', qty: '850', chain: 'Polygon', status: 'pending' },
+                  ].map((t) => (
+                    <tr key={t.id} className="border-t border-slate-800">
+                      <td className="py-2 font-mono text-xs text-[#d4e157]">{t.id}</td>
+                      <td>{t.standard}</td>
+                      <td>{t.vintage}</td>
+                      <td className="text-right">{t.qty}</td>
+                      <td><span className="px-2 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400">{t.chain}</span></td>
+                      <td><StatusBadge status={t.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECs Tab */}
+      {tab === 'recs' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Active RECs', value: '8,200 MWh', color: 'text-[#d4e157]' },
+              { label: 'Redeemed', value: '15,400 MWh', color: 'text-emerald-400' },
+              { label: 'Pending Issuance', value: '2,100 MWh', color: 'text-orange-400' },
+              { label: 'Total Value', value: 'R1.8M', color: 'text-blue-400' },
+            ].map((m) => (
+              <div key={m.label} className="chart-glass p-4 text-center">
+                <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
+                <div className="text-xs text-slate-400 mt-1">{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="chart-glass p-6">
+            <h3 className="text-sm font-semibold mb-4">Renewable Energy Certificates</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-slate-400 text-xs">
+                  <th className="text-left py-2">Certificate</th><th className="text-left py-2">Technology</th>
+                  <th className="text-left py-2">Issuer</th><th className="text-right py-2">MWh</th>
+                  <th className="text-left py-2">Period</th><th className="text-left py-2">Status</th>
+                  <th className="text-right py-2">Action</th>
+                </tr></thead>
+                <tbody>
+                  {[
+                    { id: 'REC-ZA-2024-00145', tech: 'Solar PV', issuer: 'NERSA', mwh: '3,500', period: 'Q1 2024', status: 'active' },
+                    { id: 'REC-ZA-2024-00146', tech: 'Wind', issuer: 'NERSA', mwh: '2,800', period: 'Q1 2024', status: 'active' },
+                    { id: 'REC-ZA-2024-00147', tech: 'Solar PV', issuer: 'NERSA', mwh: '1,900', period: 'Q4 2023', status: 'redeemed' },
+                    { id: 'REC-ZA-2024-00148', tech: 'Biomass', issuer: 'NERSA', mwh: '2,100', period: 'Q1 2024', status: 'pending' },
+                  ].map((r) => (
+                    <tr key={r.id} className="border-t border-slate-800">
+                      <td className="py-2 font-mono text-xs">{r.id}</td>
+                      <td>{r.tech}</td>
+                      <td>{r.issuer}</td>
+                      <td className="text-right">{r.mwh}</td>
+                      <td>{r.period}</td>
+                      <td><StatusBadge status={r.status} /></td>
+                      <td className="text-right">
+                        {r.status === 'active' && (
+                          <button className="text-xs text-orange-400 hover:text-orange-300">Redeem</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
