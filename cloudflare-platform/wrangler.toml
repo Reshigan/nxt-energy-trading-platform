@@ -1,6 +1,7 @@
 name = "nxt-energy-trading-api"
 main = "src/index.ts"
-compatibility_date = "2023-10-01"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Route configuration for custom domain
 routes = [
@@ -9,21 +10,34 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
+JWT_ISSUER = "nxt-energy-platform"
 API_BASE_URL = "https://et.vantax.co.za/api"
-
-[[kv_namespaces]]
-binding = "KV"
-id = "0fd4da205bb54e8db8340c51c8865787"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "nxt_energy_trading"
 database_id = "caa3ae48-3bdc-473b-b197-62c59288d9a9"
 
+[[kv_namespaces]]
+binding = "KV"
+id = "0fd4da205bb54e8db8340c51c8865787"
+
 [[r2_buckets]]
-binding = "BUCKET"
+binding = "R2"
 bucket_name = "nxt-energy-assets"
-preview_bucket_name = "nxt-energy-assets-preview"
+
+[durable_objects]
+bindings = [
+  { name = "ORDER_BOOK", class_name = "OrderBookDO" },
+  { name = "ESCROW_MGR", class_name = "EscrowManagerDO" },
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OrderBookDO", "EscrowManagerDO"]
+
+[triggers]
+crons = ["0 6 * * *"]
 
 [observability]
 enabled = true
