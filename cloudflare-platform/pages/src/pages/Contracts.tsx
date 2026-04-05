@@ -137,7 +137,7 @@ export default function Contracts() {
       <div className="flex gap-2">
         {tabs.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'}`}>
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t.id ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'}`}>
             {t.label}
           </button>
         ))}
@@ -256,7 +256,7 @@ export default function Contracts() {
                     </tr></thead>
                     <tbody>
                       {documents.map((d) => (
-                        <tr key={d.id as string} className="border-t border-slate-200 dark:border-white/[0.06] cursor-pointer hover:bg-slate-800/30" onClick={() => loadDocDetail(d)}>
+                        <tr key={d.id as string} className="border-t border-slate-200 dark:border-white/[0.06] cursor-pointer hover:bg-slate-100 dark:hover:bg-white/[0.06]" onClick={() => loadDocDetail(d)}>
                           <td className="py-2 font-medium">{d.title as string}</td>
                           <td className="capitalize">{(d.document_type as string).replace('_', ' ')}</td>
                           <td><StatusBadge status={d.phase as string} /></td>
@@ -309,8 +309,8 @@ export default function Contracts() {
           <h3 className="text-sm font-semibold mb-4">Document Templates</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {DOC_TYPES.map((t) => (
-              <div key={t} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} hover:bg-slate-800 transition-colors cursor-pointer`}>
-                <FiFileText className="w-8 h-8 text-blue-400 mb-2" />
+              <div key={t} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"}               ${tc.isDark ? "hover:bg-white/[0.08]" : "hover:bg-slate-100"} transition-colors cursor-pointer`}>
+                              <FiFileText className="w-8 h-8 text-blue-400 mb-2" />
                 <div className="font-medium capitalize">{t.replace('_', ' ')}</div>
                 <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Standard template</div>
               </div>
