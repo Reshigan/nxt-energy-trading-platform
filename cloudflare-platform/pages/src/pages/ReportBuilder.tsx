@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { reportsAPI } from '../lib/api';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 const REPORT_TYPES = [
   { value: 'portfolio', label: 'Portfolio Report', icon: '📊', description: 'Positions, P&L, allocation breakdown' },
@@ -16,6 +17,7 @@ interface ReportDef {
 }
 
 export default function ReportBuilder() {
+  const tc = useThemeClasses();
   const [reports, setReports] = useState<ReportDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -65,14 +67,14 @@ export default function ReportBuilder() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a2e1a]">Report Builder</h1>
-          <p className="text-sm text-gray-500">Generate portfolio, trading, carbon, compliance & TCFD reports</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Report Builder</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Generate portfolio, trading, carbon, compliance & TCFD reports</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setShowTcfdModal(true)} className="px-4 py-2 border border-[#d4e157] text-[#1a2e1a] rounded-2xl text-sm font-semibold hover:bg-[#d4e157]/10 transition-colors">
+          <button onClick={() => setShowTcfdModal(true)} className="px-4 py-2 border border-[#d4e157] text-slate-900 dark:text-slate-100 rounded-2xl text-sm font-semibold hover:bg-[#d4e157]/10 transition-colors">
             TCFD Template
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-2xl font-semibold text-sm hover:bg-[#c0ca33] transition-colors">
+          <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-2xl font-semibold text-sm hover:bg-[#c0ca33] transition-colors">
             Generate Report
           </button>
         </div>
@@ -82,52 +84,52 @@ export default function ReportBuilder() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {REPORT_TYPES.map((rt) => (
           <button key={rt.value} onClick={() => { setForm({ ...form, report_type: rt.value, name: rt.label }); setShowCreateModal(true); }}
-            className="bg-white rounded-2xl p-5 border border-gray-100 text-left hover:border-[#d4e157] hover:shadow-sm transition-all">
+            className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06] text-left hover:border-[#d4e157] hover:shadow-sm transition-all`}>
             <span className="text-2xl">{rt.icon}</span>
-            <h3 className="font-semibold text-[#1a2e1a] mt-2">{rt.label}</h3>
-            <p className="text-xs text-gray-500 mt-1">{rt.description}</p>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 mt-2">{rt.label}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{rt.description}</p>
           </button>
         ))}
       </div>
 
       {/* Saved Reports */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100">
-          <h3 className="font-semibold text-[#1a2e1a]">Saved Reports</h3>
+      <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden`}>
+        <div className="p-4 border-b border-slate-200 dark:border-white/[0.06]">
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100">Saved Reports</h3>
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="text-left py-3 px-4 text-gray-500">Name</th>
-              <th className="text-left py-3 px-4 text-gray-500">Type</th>
-              <th className="text-left py-3 px-4 text-gray-500">Format</th>
-              <th className="text-left py-3 px-4 text-gray-500">Schedule</th>
-              <th className="text-left py-3 px-4 text-gray-500">Last Generated</th>
-              <th className="text-right py-3 px-4 text-gray-500">Actions</th>
+            <tr className="bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/[0.06]">
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Name</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Type</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Format</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Schedule</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Last Generated</th>
+              <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400">Actions</th>
             </tr>
           </thead>
           <tbody>
             {reports.map((r) => (
-              <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                <td className="py-3 px-4 font-medium text-[#1a2e1a]">{r.name}</td>
+              <tr key={r.id} className="border-b border-slate-100 dark:border-white/[0.04] hover:bg-slate-50 dark:bg-white/[0.02]/50">
+                <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">{r.name}</td>
                 <td className="py-3 px-4">
-                  <span className="px-2 py-0.5 rounded-full text-xs bg-[#d4e157]/20 text-[#1a2e1a]">
+                  <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/15 text-slate-900 dark:text-slate-100">
                     {r.report_type}
                   </span>
                 </td>
-                <td className="py-3 px-4 uppercase text-gray-500 text-xs">{r.output_format}</td>
-                <td className="py-3 px-4 text-gray-500">{r.schedule || '—'}</td>
-                <td className="py-3 px-4 text-gray-500">{r.last_generated_at ? new Date(r.last_generated_at).toLocaleDateString() : 'Never'}</td>
+                <td className="py-3 px-4 uppercase text-slate-500 dark:text-slate-500 dark:text-slate-400 text-xs">{r.output_format}</td>
+                <td className="py-3 px-4 text-slate-500 dark:text-slate-400">{r.schedule || '—'}</td>
+                <td className="py-3 px-4 text-slate-500 dark:text-slate-400">{r.last_generated_at ? new Date(r.last_generated_at).toLocaleDateString() : 'Never'}</td>
                 <td className="py-3 px-4 text-right">
                   <button onClick={() => handleGenerate(r.id)} disabled={generatingId === r.id}
-                    className="px-3 py-1 bg-[#d4e157] text-[#1a2e1a] rounded-lg text-xs font-semibold disabled:opacity-50">
+                    className="px-3 py-1 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold disabled:opacity-50">
                     {generatingId === r.id ? 'Generating...' : 'Generate'}
                   </button>
                 </td>
               </tr>
             ))}
             {reports.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400">No saved reports — create one above</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-slate-400 dark:text-slate-500">No saved reports — create one above</td></tr>
             )}
           </tbody>
         </table>
@@ -135,15 +137,15 @@ export default function ReportBuilder() {
 
       {/* Generated Data Preview */}
       {generatedData && (
-        <div className="bg-white rounded-2xl p-5 border border-gray-100">
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06]`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-[#1a2e1a]">Report Preview</h3>
-            <button onClick={() => setGeneratedData(null)} className="text-gray-400 hover:text-gray-600">Close</button>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Report Preview</h3>
+            <button onClick={() => setGeneratedData(null)} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400">Close</button>
           </div>
-          <pre className="text-xs bg-gray-50 p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(generatedData, null, 2)}</pre>
+          <pre className="text-xs bg-slate-50 dark:bg-white/[0.02] p-4 rounded-xl overflow-auto max-h-96">{JSON.stringify(generatedData, null, 2)}</pre>
           <div className="flex gap-2 mt-4">
             {['PDF', 'XLSX', 'CSV', 'JSON'].map((fmt) => (
-              <button key={fmt} className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium hover:bg-gray-50">
+              <button key={fmt} className="px-3 py-1.5 border border-slate-200 dark:border-white/[0.06] rounded-lg text-xs font-medium hover:bg-slate-50 dark:bg-white/[0.02]">
                 Export {fmt}
               </button>
             ))}
@@ -154,45 +156,45 @@ export default function ReportBuilder() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold text-[#1a2e1a] mb-4">Generate Report</h3>
+          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md`}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Generate Report</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Report Name</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="My Report" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Report Name</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" placeholder="My Report" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Type</label>
-                <select value={form.report_type} onChange={(e) => setForm({ ...form, report_type: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Type</label>
+                <select value={form.report_type} onChange={(e) => setForm({ ...form, report_type: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm">
                   {REPORT_TYPES.map((rt) => <option key={rt.value} value={rt.value}>{rt.label}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">From</label>
-                  <input type="date" value={form.date_from} onChange={(e) => setForm({ ...form, date_from: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">From</label>
+                  <input type="date" value={form.date_from} onChange={(e) => setForm({ ...form, date_from: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">To</label>
-                  <input type="date" value={form.date_to} onChange={(e) => setForm({ ...form, date_to: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">To</label>
+                  <input type="date" value={form.date_to} onChange={(e) => setForm({ ...form, date_to: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Format</label>
-                <select value={form.output_format} onChange={(e) => setForm({ ...form, output_format: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Format</label>
+                <select value={form.output_format} onChange={(e) => setForm({ ...form, output_format: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm">
                   <option value="pdf">PDF</option><option value="xlsx">XLSX</option><option value="csv">CSV</option><option value="json">JSON</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Schedule (optional)</label>
-                <select value={form.schedule} onChange={(e) => setForm({ ...form, schedule: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Schedule (optional)</label>
+                <select value={form.schedule} onChange={(e) => setForm({ ...form, schedule: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm">
                   <option value="">One-time</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
                 </select>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm">Cancel</button>
-              <button onClick={handleCreate} className="flex-1 px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create & Generate</button>
+              <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
+              <button onClick={handleCreate} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create & Generate</button>
             </div>
           </div>
         </div>
@@ -201,9 +203,9 @@ export default function ReportBuilder() {
       {/* TCFD Template Modal */}
       {showTcfdModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-[#1a2e1a] mb-4">TCFD Report Template</h3>
-            <p className="text-sm text-gray-500 mb-4">Auto-generated from platform data per Task Force on Climate-related Financial Disclosures framework.</p>
+          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto`}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">TCFD Report Template</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Auto-generated from platform data per Task Force on Climate-related Financial Disclosures framework.</p>
             {[
               { section: 'Governance', items: ['Board oversight of climate risks', 'Management role in ESG strategy', 'Integration with risk framework'] },
               { section: 'Strategy', items: ['Climate-related risks & opportunities', 'Impact on business & planning', 'Scenario analysis (1.5°C, 2°C, 4°C pathways)'] },
@@ -211,16 +213,16 @@ export default function ReportBuilder() {
               { section: 'Metrics & Targets', items: ['GHG emissions (Scope 1, 2, 3)', 'Carbon credits retired', 'Renewable energy capacity', 'ESG score and targets'] },
             ].map((s) => (
               <div key={s.section} className="mb-4">
-                <h4 className="font-semibold text-[#1a2e1a] mb-2">{s.section}</h4>
-                <ul className="text-sm text-gray-600 space-y-1 pl-4">
+                <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">{s.section}</h4>
+                <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1 pl-4">
                   {s.items.map((item) => <li key={item} className="list-disc">{item}</li>)}
                 </ul>
               </div>
             ))}
             <div className="flex gap-3 mt-4">
-              <button onClick={() => setShowTcfdModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm">Close</button>
+              <button onClick={() => setShowTcfdModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Close</button>
               <button onClick={() => { setShowTcfdModal(false); setForm({ ...form, report_type: 'tcfd', name: 'TCFD Climate Report' }); setShowCreateModal(true); }}
-                className="flex-1 px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Generate TCFD Report</button>
+                className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Generate TCFD Report</button>
             </div>
           </div>
         </div>
