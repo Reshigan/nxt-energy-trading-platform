@@ -2,8 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiHome, FiArrowLeft } from 'react-icons/fi';
 import { motion } from 'framer-motion';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function NotFound() {
+  const tc = useThemeClasses();
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -18,14 +20,14 @@ export default function NotFound() {
           transition={{ delay: 0.2, type: "spring" }}
           className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-r from-cyan-600/20 to-blue-600/20 flex items-center justify-center"
         >
-          <span className="text-4xl font-bold gradient-text">404</span>
+          <span className={`text-4xl font-bold ${tc.textPrimary}`}>404</span>
         </motion.div>
         
         <motion.h1
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="text-3xl font-bold gradient-text mb-4"
+          className={`text-3xl font-bold ${tc.textPrimary} mb-4`}
         >
           Page Not Found
         </motion.h1>
