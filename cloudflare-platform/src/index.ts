@@ -2,397 +2,197 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
 import { logger } from 'hono/logger';
-import { validator } from 'hono/validator';
+import { AppBindings, HonoEnv } from './utils/types';
+import { rateLimiter } from './auth/middleware';
 
-interface Bindings {
-  DB: D1Database;
-  KV: KVNamespace;
-  BUCKET: R2Bucket;
-  ENVIRONMENT: string;
-}
+// Route imports
+import register from './routes/register';
+import participants from './routes/participants';
+import contracts from './routes/contracts';
+import trading from './routes/trading';
+import carbon from './routes/carbon';
+import projectsRoute from './routes/projects';
+import settlement from './routes/settlement';
+import compliance from './routes/compliance';
+import marketplace from './routes/marketplace';
 
-const app = new Hono<{ Bindings: Bindings }>();
+// Durable Object exports
+export { OrderBookDO } from './durable-objects/OrderBookDO';
+export { EscrowManagerDO } from './durable-objects/EscrowManagerDO';
 
-// Middleware
+const app = new Hono<HonoEnv>();
+
+// Global middleware
 app.use(logger());
 app.use(prettyJSON());
-app.use('*', cors());
+app.use('*', cors({
+  origin: ['https://et.vantax.co.za', 'http://localhost:5173', 'http://localhost:8788'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  exposeHeaders: ['X-Request-Id'],
+  maxAge: 86400,
+}));
+
+// Rate limiting: 300 req/min for trading, 100 req/min general
+app.use('/api/v1/trading/*', rateLimiter({ maxRequests: 300, windowSeconds: 60 }));
+app.use('/api/v1/*', rateLimiter({ maxRequests: 100, windowSeconds: 60 }));
 
 // Welcome endpoint
 app.get('/', (c) => {
   return c.json({
-    message: "Welcome to NXT Energy Trading Platform",
-    version: "2.0.0",
-    status: "running",
-    platform: "Cloudflare Workers",
-    features: [
-      "AI-powered market simulation",
-      "Digital contract management",
-      "Carbon credit marketplace",
-      "IPP project lifecycle management",
-      "Real-time energy portfolio analytics"
-    ]
+    message: 'NXT Energy Trading Platform API',
+    version: '2.0.0',
+    status: 'running',
+    platform: 'Cloudflare Workers',
+    docs: 'https://et.vantax.co.za/api/v1',
   });
 });
 
-// Health check endpoint
+// Health check
 app.get('/health', (c) => {
   return c.json({
-    status: "healthy",
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    platform: "Cloudflare Workers Edge Network",
-    uptime: "Running globally at the edge"
+    platform: 'Cloudflare Workers Edge Network',
   });
 });
 
-// AI-powered market insights endpoint
-app.get('/api/v1/market/insights', async (c) => {
-  // Simulate AI-driven market insights
-  const insights = {
-    timestamp: new Date().toISOString(),
-    marketCondition: "Bullish",
-    confidence: 0.87,
-    predictions: {
-      nextHour: {
-        demandForecast: Math.floor(Math.random() * 5000) + 30000,
-        priceForecast: (Math.random() * 200 + 50).toFixed(2),
-        trend: Math.random() > 0.5 ? "up" : "down"
-      },
-      nextDay: {
-        demandForecast: Math.floor(Math.random() * 10000) + 100000,
-        priceForecast: (Math.random() * 250 + 40).toFixed(2),
-        trend: Math.random() > 0.3 ? "up" : "down"
-      }
-    },
-    recommendations: [
-      "Consider increasing solar portfolio exposure",
-      "Monitor natural gas prices for arbitrage opportunities",
-      "Prepare for potential demand spike in evening hours"
-    ],
-    riskIndicators: {
-      volatility: "Medium",
-      marketStress: "Low",
-      liquidity: "High"
-    }
-  };
+// API v1 routes
+const api = new Hono<HonoEnv>();
 
-  return c.json(insights);
+// Registration & Auth
+api.route('/register', register);
+api.post('/auth/login', async (c) => {
+  const registerApp = new Hono<HonoEnv>();
+  registerApp.route('/', register);
+  const url = new URL(c.req.url);
+  url.pathname = '/auth/login';
+  const newReq = new Request(url.toString(), c.req.raw);
+  return registerApp.fetch(newReq, c.env);
 });
 
-// Portfolio analytics endpoint
-app.get('/api/v1/portfolio/analytics/:portfolioId', async (c) => {
-  const { portfolioId } = c.req.param();
-  
-  // Simulate AI-powered portfolio analysis
-  const analytics = {
-    portfolioId,
-    timestamp: new Date().toISOString(),
-    energyMix: {
-      renewablePercentage: 68.5,
-      solarPercentage: 32.1,
-      windPercentage: 28.4,
-      hydroPercentage: 8.0,
-      fossilFuelsPercentage: 31.5
-    },
-    performanceMetrics: {
-      efficiencyScore: 87.3,
-      carbonIntensity: 125.4, // gCO2/kWh
-      revenueOptimization: 92.1 // %
-    },
-    aiRecommendations: [
-      {
-        action: "Increase solar capacity by 15%",
-        confidence: 0.91,
-        projectedROI: "12.4%"
-      },
-      {
-        action: "Shift trading window to peak hours",
-        confidence: 0.85,
-        projectedROI: "8.7%"
-      },
-      {
-        action: "Hedge against natural gas price volatility",
-        confidence: 0.78,
-        projectedRiskReduction: "23%"
-      }
-    ],
-    sustainabilityMetrics: {
-      renewableEnergyCertificates: 12500,
-      carbonCredits: 8450,
-      sdgImpactScore: 8.2
-    }
-  };
+// Participants
+api.route('/participants', participants);
 
-  return c.json(analytics);
+// Contracts
+api.route('/contracts', contracts);
+
+// Trading & Orders
+api.route('/trading', trading);
+
+// Carbon Credits & Options
+api.route('/carbon', carbon);
+
+// IPP Projects
+api.route('/projects', projectsRoute);
+
+// Settlement, Escrows, Invoices, Disputes
+api.route('/settlement', settlement);
+
+// Compliance, KYC, Audit
+api.route('/compliance', compliance);
+
+// Marketplace, Notifications
+api.route('/marketplace', marketplace);
+
+// Dashboard summary
+api.get('/dashboard/summary', async (c) => {
+  const counts = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM projects').first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM trades WHERE status = 'pending'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM contract_documents WHERE phase = 'active'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM carbon_credits WHERE status = 'active'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM disputes WHERE status NOT IN ('resolved', 'escalated')").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>(),
+  ]);
+
+  return c.json({
+    success: true,
+    data: {
+      participants: counts[0]?.count || 0,
+      projects: counts[1]?.count || 0,
+      pending_trades: counts[2]?.count || 0,
+      active_contracts: counts[3]?.count || 0,
+      active_credits: counts[4]?.count || 0,
+      open_disputes: counts[5]?.count || 0,
+      total_traded_cents: counts[6]?.total || 0,
+    },
+  });
 });
 
-// Trading AI advisor endpoint
-app.post('/api/v1/trading/advisor', async (c) => {
-  const body = await c.req.json();
-  
-  // Parse request body
-  const { energyType, volume, preferredPriceRange, marketConditions } = body;
-  
-  // Simulate AI trading recommendations
-  const recommendations = {
-    timestamp: new Date().toISOString(),
-    analysis: {
-      marketSentiment: "Positive",
-      supplyDemandRatio: 0.95,
-      volatilityIndex: 0.34
-    },
-    optimalTrades: [
-      {
-        action: "BUY",
-        energyType: energyType || "Solar",
-        volume: volume || Math.floor(Math.random() * 1000) + 500,
-        recommendedPrice: (Math.random() * 150 + 30).toFixed(2),
-        timing: "Immediate",
-        confidence: 0.89,
-        rationale: "Market oversupply detected with favorable weather conditions"
-      },
-      {
-        action: "SELL",
-        energyType: "NaturalGas",
-        volume: Math.floor(Math.random() * 800) + 300,
-        recommendedPrice: (Math.random() * 180 + 40).toFixed(2),
-        timing: "Next 2 hours",
-        confidence: 0.76,
-        rationale: "Expected demand reduction during off-peak hours"
-      }
-    ],
-    riskAssessment: {
-      overallRisk: "Medium",
-      keyRisks: [
-        "Potential weather disruption affecting solar generation",
-        "Grid congestion in key transmission zones"
-      ],
-      mitigationStrategies: [
-        "Diversify geographically across multiple regions",
-        "Establish backup contracts with alternative suppliers"
-      ]
-    }
-  };
+// Legacy market insights (backward compatibility)
+api.get('/market/insights', async (c) => {
+  const markets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery'];
+  const indices: Record<string, unknown> = {};
 
-  return c.json(recommendations);
-});
-
-// Carbon credit AI valuation endpoint
-app.get('/api/v1/carbon/valuation', async (c) => {
-  // Simulate AI-powered carbon credit valuation
-  const valuation = {
-    timestamp: new Date().toISOString(),
-    marketOverview: {
-      totalSupply: 50000000, // tons
-      averagePrice: 18.75, // USD/ton
-      marketCap: 937500000 // USD
-    },
-    aiInsights: {
-      priceTrend: "Bullish",
-      volatility: "Low-Medium",
-      confidence: 0.84
-    },
-    investmentOpportunities: [
-      {
-        projectType: "Solar PV",
-        expectedROI: "15.2%",
-        riskLevel: "Low",
-        recommendation: "Strong Buy",
-        timeframe: "12-18 months"
-      },
-      {
-        projectType: "Wind Energy",
-        expectedROI: "12.8%",
-        riskLevel: "Medium",
-        recommendation: "Buy",
-        timeframe: "18-24 months"
-      },
-      {
-        projectType: "Reforestation",
-        expectedROI: "9.5%",
-        riskLevel: "Medium-High",
-        recommendation: "Hold",
-        timeframe: "24-36 months"
-      }
-    ],
-    forecast: {
-      "30days": {
-        predictedPrice: 19.45,
-        confidenceInterval: "17.80-21.10"
-      },
-      "90days": {
-        predictedPrice: 21.30,
-        confidenceInterval: "18.90-23.70"
-      },
-      "1year": {
-        predictedPrice: 25.60,
-        confidenceInterval: "21.50-29.70"
-      }
-    }
-  };
-
-  return c.json(valuation);
-});
-
-// Contract negotiation AI endpoint
-app.post('/api/v1/contracts/negotiate', async (c) => {
-  const body = await c.req.json();
-  
-  // Parse contract details
-  const { contractType, terms, parties } = body;
-  
-  // Simulate AI contract negotiation
-  const negotiation = {
-    timestamp: new Date().toISOString(),
-    contractType,
-    aiAnalysis: {
-      fairnessScore: 0.87,
-      riskProfile: "Balanced",
-      optimizationOpportunities: [
-        "Adjust pricing mechanism to indexed + cap structure",
-        "Include force majeure clauses for extreme weather events",
-        "Add automatic renewal clause with price adjustment"
-      ]
-    },
-    suggestedTerms: {
-      pricing: {
-        mechanism: "BlockAndIndex",
-        basePrice: (Math.random() * 100 + 50).toFixed(2),
-        ceilingPrice: (Math.random() * 200 + 100).toFixed(2),
-        floorPrice: (Math.random() * 80 + 30).toFixed(2)
-      },
-      volume: {
-        committed: Math.floor(Math.random() * 50000) + 10000,
-        flexibility: "±15% monthly adjustment allowed"
-      },
-      duration: "24 months with quarterly review",
-      penalties: {
-        deliveryShortfall: "5% of shortfall value",
-        lateDelivery: "0.1% per day overdue"
-      }
-    },
-    blockchainIntegration: {
-      smartContractReady: true,
-      deploymentRecommended: true,
-      estimatedGasCost: "0.024 ETH",
-      executionTime: "30 seconds"
-    }
-  };
-
-  return c.json(negotiation);
-});
-
-// IPP project management endpoint
-app.get('/api/v1/ipp/projects', async (c) => {
-  // Simulate AI-enhanced IPP project tracking
-  const projects = [
-    {
-      projectId: "IPP-SOLAR-2023-001",
-      name: "California Solar Farm Phase 3",
-      technology: "Solar PV",
-      capacity: "150 MW",
-      location: "San Bernardino, CA",
-      status: "Construction",
-      progress: 78,
-      estimatedCOD: "2024-03-15",
-      financialClose: {
-        completed: true,
-        closureDate: "2023-06-30",
-        totalCost: "$185M",
-        financingStructure: "60% Debt, 40% Equity"
-      },
-      aiInsights: {
-        riskAssessment: "Low",
-        weatherImpact: "Minimal delays expected",
-        constructionEfficiency: "Above average",
-        recommendation: "Proceed with planned grid connection timeline"
-      }
-    },
-    {
-      projectId: "IPP-WIND-2023-002",
-      name: "Texas Wind Complex",
-      technology: "Wind",
-      capacity: "300 MW",
-      location: "Amarillo, TX",
-      status: "Development",
-      progress: 45,
-      estimatedCOD: "2024-12-01",
-      financialClose: {
-        completed: false,
-        nextMilestone: "Tax equity placement Q3 2023"
-      },
-      aiInsights: {
-        riskAssessment: "Medium",
-        permittingRisk: "High - Environmental review pending",
-        recommendation: "Accelerate permitting process through expedited review channels"
-      }
-    }
-  ];
+  for (const market of markets) {
+    const indexStr = await c.env.KV.get(`index:${market}`);
+    indices[market] = indexStr ? JSON.parse(indexStr) : {
+      price: 0, change_24h: 0, volume_24h: 0, last_trade: null,
+    };
+  }
 
   return c.json({
     timestamp: new Date().toISOString(),
-    projects,
-    summary: {
-      totalProjects: projects.length,
-      projectsByStatus: {
-        Development: projects.filter(p => p.status === "Development").length,
-        Construction: projects.filter(p => p.status === "Construction").length,
-        Operational: projects.filter(p => p.status === "Operational").length
-      },
-      totalCapacity: "450 MW",
-      estimatedAnnualGeneration: "1,200,000 MWh"
-    }
+    marketCondition: 'Bullish',
+    confidence: 0.87,
+    indices,
+    recommendations: [
+      'Consider increasing solar portfolio exposure',
+      'Monitor natural gas prices for arbitrage opportunities',
+      'Prepare for potential demand spike in evening hours',
+    ],
   });
 });
 
-// Carbon credit portfolio AI endpoint
-app.get('/api/v1/carbon/portfolio', async (c) => {
-  // Simulate AI-managed carbon credit portfolio
-  const portfolio = {
-    timestamp: new Date().toISOString(),
-    portfolioId: "CARBON-PORT-2023-001",
-    totalCredits: 12500,
-    vintageBreakdown: {
-      "2023": 4500,
-      "2022": 3800,
-      "2021": 2900,
-      "2020": 1300
-    },
-    projectTypes: {
-      "Solar": 35,
-      "Wind": 25,
-      "Hydro": 15,
-      "Reforestation": 20,
-      "MethaneCapture": 5
-    },
-    aiRecommendations: [
-      {
-        action: "Purchase additional wind credits",
-        rationale: "Market undervaluation identified with strong ESG alignment",
-        confidence: 0.92,
-        projectedROI: "18% over 12 months"
-      },
-      {
-        action: "Sell 2020 vintage credits",
-        rationale: "Premium pricing opportunity before regulatory changes",
-        confidence: 0.85,
-        urgency: "High - act within 30 days"
-      }
-    ],
-    marketOutlook: {
-      shortTerm: "Bullish - Government policy support increasing",
-      mediumTerm: "Stable growth with volatility in specific sectors",
-      longTerm: "Structural demand increase expected"
-    },
-    sustainabilityMetrics: {
-      totalCO2Offset: "12,500 tons",
-      SDGAlignment: "7, 13",
-      communityImpact: "Job creation in rural areas: 25 positions"
-    }
-  };
-
-  return c.json(portfolio);
+// Fee schedule
+api.get('/fees', async (c) => {
+  const fees = await c.env.DB.prepare('SELECT * FROM fee_schedule WHERE active = 1').all();
+  return c.json({ success: true, data: fees.results });
 });
 
-// Export the app
-export default app;
+// Mount API
+app.route('/api/v1', api);
+
+// Cron trigger handler (daily re-verification at 06:00 UTC)
+const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env) => {
+  const { generateId } = await import('./utils/id');
+
+  // Re-verify expiring licences
+  const expiringLicences = await env.DB.prepare(`
+    SELECT l.id, l.participant_id, l.type, l.expiry_date
+    FROM licences l
+    WHERE l.status = 'active'
+    AND l.expiry_date <= date('now', '+90 days')
+    AND l.expiry_date > date('now')
+  `).all();
+
+  for (const licence of expiringLicences.results) {
+    await env.DB.prepare(`
+      INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+      VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)
+    `).bind(
+      generateId(), licence.participant_id,
+      `Your ${licence.type} licence expires on ${licence.expiry_date}. Please renew.`,
+      licence.id
+    ).run();
+  }
+
+  // Check overdue invoices
+  await env.DB.prepare(`
+    UPDATE invoices SET status = 'overdue'
+    WHERE status = 'outstanding' AND due_date < date('now')
+  `).run();
+
+  // Check expired marketplace listings
+  await env.DB.prepare(`
+    UPDATE marketplace_listings SET status = 'expired'
+    WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now')
+  `).run();
+};
+
+export default {
+  fetch: app.fetch,
+  scheduled,
+};
