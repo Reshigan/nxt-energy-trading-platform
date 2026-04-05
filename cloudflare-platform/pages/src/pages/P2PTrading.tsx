@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { p2pAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 const STATUS_COLORS: Record<string, string> = {
   open: '#d4e157',
@@ -18,6 +19,7 @@ interface P2POffer {
 }
 
 export default function P2PTrading() {
+  const tc = useThemeClasses();
   const { user } = useAuthStore();
   const [offers, setOffers] = useState<P2POffer[]>([]);
   const [myTrades, setMyTrades] = useState<P2POffer[]>([]);
@@ -66,30 +68,30 @@ export default function P2PTrading() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a2e1a]">P2P Energy Trading</h1>
-          <p className="text-sm text-gray-500">Peer-to-peer prosumer energy marketplace by distribution zone</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">P2P Energy Trading</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Peer-to-peer prosumer energy marketplace by distribution zone</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-2xl font-semibold text-sm hover:bg-[#c0ca33] transition-colors">
+        <button onClick={() => setShowCreateModal(true)} className="px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-2xl font-semibold text-sm hover:bg-[#c0ca33] transition-colors">
           Create Offer
         </button>
       </div>
 
       {/* Zone Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 lg:col-span-2">
-          <h3 className="font-semibold text-[#1a2e1a] mb-4">Offers by Distribution Zone</h3>
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06] lg:col-span-2`}>
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Offers by Distribution Zone</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={zoneChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={tc.chartGrid} />
               <XAxis dataKey="zone" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="offers" radius={[8, 8, 0, 0]} fill="#d4e157" />
+              <Bar dataKey="offers" radius={[8, 8, 0, 0]} fill="#3b82f6" />
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 space-y-3">
-          <h3 className="font-semibold text-[#1a2e1a] mb-2">Market Stats</h3>
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06] space-y-3`}>
+          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-2">Market Stats</h3>
           {[
             { label: 'Open Offers', value: offers.filter((o) => o.status === 'open').length },
             { label: 'Total Volume', value: `${offers.reduce((s, o) => s + o.volume_kwh, 0).toLocaleString()} kWh` },
@@ -97,45 +99,45 @@ export default function P2PTrading() {
             { label: 'Active Zones', value: zones.length },
           ].map((s) => (
             <div key={s.label} className="flex justify-between text-sm">
-              <span className="text-gray-500">{s.label}</span>
-              <span className="font-medium text-[#1a2e1a]">{s.value}</span>
+              <span className="text-slate-500 dark:text-slate-400">{s.label}</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{s.value}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-slate-100 dark:bg-white/[0.04] p-1 rounded-xl w-fit">
         {(['market', 'my'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white text-[#1a2e1a] shadow-sm' : 'text-gray-500'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
             {t === 'market' ? 'Market Offers' : 'My Trades'}
           </button>
         ))}
       </div>
 
       {/* Offer Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden`}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="text-left py-3 px-4 text-gray-500 font-medium">Type</th>
-              <th className="text-left py-3 px-4 text-gray-500 font-medium">Zone</th>
-              <th className="text-right py-3 px-4 text-gray-500 font-medium">Volume (kWh)</th>
-              <th className="text-right py-3 px-4 text-gray-500 font-medium">Price (c/kWh)</th>
-              <th className="text-right py-3 px-4 text-gray-500 font-medium">Total</th>
-              <th className="text-left py-3 px-4 text-gray-500 font-medium">Status</th>
-              <th className="text-right py-3 px-4 text-gray-500 font-medium">Action</th>
+            <tr className="bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/[0.06]">
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Type</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Zone</th>
+              <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Volume (kWh)</th>
+              <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Price (c/kWh)</th>
+              <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Total</th>
+              <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Status</th>
+              <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400 font-medium">Action</th>
             </tr>
           </thead>
           <tbody>
             {(tab === 'market' ? offers : myTrades).map((o) => (
-              <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+              <tr key={o.id} className="border-b border-slate-100 dark:border-white/[0.04] hover:bg-slate-50 dark:bg-white/[0.02]/50">
                 <td className="py-3 px-4">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${o.offer_type === 'sell' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                     {o.offer_type.toUpperCase()}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-gray-700">{o.distribution_zone}</td>
+                <td className="py-3 px-4 text-slate-700 dark:text-slate-200">{o.distribution_zone}</td>
                 <td className="py-3 px-4 text-right font-mono">{o.volume_kwh.toLocaleString()}</td>
                 <td className="py-3 px-4 text-right font-mono">{o.price_cents_per_kwh}</td>
                 <td className="py-3 px-4 text-right font-mono">R{((o.total_cents || o.volume_kwh * o.price_cents_per_kwh) / 100).toLocaleString()}</td>
@@ -146,13 +148,13 @@ export default function P2PTrading() {
                 </td>
                 <td className="py-3 px-4 text-right">
                   {tab === 'market' && o.status === 'open' && o.seller_id !== user?.id && (
-                    <button onClick={() => handleAccept(o.id)} className="px-3 py-1 bg-[#d4e157] text-[#1a2e1a] rounded-lg text-xs font-semibold">Accept</button>
+                    <button onClick={() => handleAccept(o.id)} className="px-3 py-1 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-lg text-xs font-semibold">Accept</button>
                   )}
                 </td>
               </tr>
             ))}
             {(tab === 'market' ? offers : myTrades).length === 0 && (
-              <tr><td colSpan={7} className="py-8 text-center text-gray-400">No offers yet</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400 dark:text-slate-500">No offers yet</td></tr>
             )}
           </tbody>
         </table>
@@ -161,30 +163,30 @@ export default function P2PTrading() {
       {/* Create Offer Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold text-[#1a2e1a] mb-4">Create P2P Offer</h3>
+          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md`}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Create P2P Offer</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Offer Type</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Offer Type</label>
                 <div className="flex gap-2">
                   {(['sell', 'buy'] as const).map((t) => (
-                    <button key={t} onClick={() => setForm({ ...form, offer_type: t })} className={`flex-1 py-2 rounded-xl text-sm font-medium ${form.offer_type === t ? 'bg-[#d4e157] text-[#1a2e1a]' : 'bg-gray-100 text-gray-500'}`}>
+                    <button key={t} onClick={() => setForm({ ...form, offer_type: t })} className={`flex-1 py-2 rounded-xl text-sm font-medium ${form.offer_type === t ? 'bg-[#d4e157] text-slate-900 dark:text-slate-100' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400'}`}>
                       {t.toUpperCase()}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Volume (kWh) — min 10</label>
-                <input value={form.volume_kwh} onChange={(e) => setForm({ ...form, volume_kwh: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" type="number" min="10" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Volume (kWh) — min 10</label>
+                <input value={form.volume_kwh} onChange={(e) => setForm({ ...form, volume_kwh: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" type="number" min="10" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Price (cents/kWh)</label>
-                <input value={form.price_cents_per_kwh} onChange={(e) => setForm({ ...form, price_cents_per_kwh: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" type="number" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Price (cents/kWh)</label>
+                <input value={form.price_cents_per_kwh} onChange={(e) => setForm({ ...form, price_cents_per_kwh: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" type="number" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Distribution Zone</label>
-                <select value={form.distribution_zone} onChange={(e) => setForm({ ...form, distribution_zone: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Distribution Zone</label>
+                <select value={form.distribution_zone} onChange={(e) => setForm({ ...form, distribution_zone: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm">
                   {['Eskom Dx - Gauteng', 'Eskom Dx - Western Cape', 'Eskom Dx - KZN', 'City of Cape Town', 'City of Johannesburg', 'eThekwini Metro'].map((z) => (
                     <option key={z}>{z}</option>
                   ))}
@@ -192,8 +194,8 @@ export default function P2PTrading() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm">Cancel</button>
-              <button onClick={handleCreate} className="flex-1 px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create Offer</button>
+              <button onClick={() => setShowCreateModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
+              <button onClick={handleCreate} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create Offer</button>
             </div>
           </div>
         </div>

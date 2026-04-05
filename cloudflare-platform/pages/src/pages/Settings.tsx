@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiSettings, FiDownload, FiSave, FiShield, FiBell, FiUser, FiGlobe, FiDatabase } from 'react-icons/fi';
 import { useAuthStore } from '../lib/store';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function Settings() {
+  const tc = useThemeClasses();
   const { user, activeRole } = useAuthStore();
   const [saved, setSaved] = useState(false);
 
@@ -15,8 +17,8 @@ export default function Settings() {
 
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
-  const inputClass = 'w-full px-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:border-[#d4e157] text-sm';
-  const labelClass = 'block text-xs text-slate-400 mb-1';
+  const inputClass = `w-full px-3 py-2 ${tc.input} rounded-lg text-sm`;
+  const labelClass = 'block text-xs text-slate-500 dark:text-slate-400 mb-1';
   const toggleClass = (on: boolean) => `relative w-10 h-5 rounded-full transition-colors cursor-pointer ${on ? 'bg-[#d4e157]' : 'bg-slate-700'}`;
 
   const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
@@ -28,21 +30,21 @@ export default function Settings() {
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold gradient-text">Settings</h1>
+        <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>Settings</h1>
         <div className="flex gap-2">
-          <button className="flex items-center gap-1 px-3 py-1.5 bg-slate-800/50 text-slate-400 rounded-lg text-xs hover:text-white">
+          <button className={`flex items-center gap-1 px-3 py-1.5 ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} text-slate-400 rounded-lg text-xs hover:text-slate-900 dark:hover:text-white`}>
             <FiDownload className="w-3 h-3" /> Export Data
           </button>
-          <button onClick={handleSave} className="flex items-center gap-1 px-4 py-1.5 bg-gradient-to-r from-[#d4e157] to-[#b8c43a] text-slate-900 rounded-lg text-sm font-medium">
+          <button onClick={handleSave} className="flex items-center gap-1 px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 rounded-lg text-sm font-medium">
             <FiSave className="w-3.5 h-3.5" /> {saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
       </div>
 
       {/* Profile Settings */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiUser className="w-5 h-5 text-[#d4e157]" />
+          <FiUser className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Profile</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -70,9 +72,9 @@ export default function Settings() {
       </div>
 
       {/* Notification Settings */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiBell className="w-5 h-5 text-[#d4e157]" />
+          <FiBell className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Notifications</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -93,9 +95,9 @@ export default function Settings() {
       </div>
 
       {/* Trading Preferences */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiSettings className="w-5 h-5 text-[#d4e157]" />
+          <FiSettings className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Trading Preferences</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -131,9 +133,9 @@ export default function Settings() {
       </div>
 
       {/* Security */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiShield className="w-5 h-5 text-[#d4e157]" />
+          <FiShield className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Security</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -155,9 +157,9 @@ export default function Settings() {
       </div>
 
       {/* Display */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiGlobe className="w-5 h-5 text-[#d4e157]" />
+          <FiGlobe className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Display & Localization</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -197,9 +199,9 @@ export default function Settings() {
       </div>
 
       {/* Data Export */}
-      <div className="chart-glass p-6">
+      <div className={`${tc.cardBg} p-6`}>
         <div className="flex items-center gap-2 mb-4">
-          <FiDatabase className="w-5 h-5 text-[#d4e157]" />
+          <FiDatabase className="w-5 h-5 text-blue-400" />
           <h3 className="font-semibold">Data Export</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -211,11 +213,11 @@ export default function Settings() {
             { label: 'Invoice Archive', desc: 'All invoices as PDF bundle', icon: '🧾' },
             { label: 'Audit Log', desc: 'Complete audit trail', icon: '📋' },
           ].map((ex) => (
-            <button key={ex.label} className="p-4 rounded-lg bg-slate-800/50 hover:bg-slate-800 transition-colors text-left">
+            <button key={ex.label} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} hover:bg-slate-800 transition-colors text-left`}>
               <div className="text-2xl mb-2">{ex.icon}</div>
               <div className="font-medium text-sm">{ex.label}</div>
-              <div className="text-xs text-slate-400 mt-1">{ex.desc}</div>
-              <div className="flex items-center gap-1 text-xs text-[#d4e157] mt-2">
+              <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{ex.desc}</div>
+              <div className="flex items-center gap-1 text-xs text-blue-400 mt-2">
                 <FiDownload className="w-3 h-3" /> Download
               </div>
             </button>

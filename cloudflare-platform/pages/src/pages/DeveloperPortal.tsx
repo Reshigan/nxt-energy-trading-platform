@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { developerAPI } from '../lib/api';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 interface ApiKey {
   id: string; name: string; key_prefix: string; permissions: string[]; rate_limit_per_minute: number;
@@ -28,6 +29,7 @@ const WEBHOOK_EVENTS = [
 ];
 
 export default function DeveloperPortal() {
+  const tc = useThemeClasses();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [tab, setTab] = useState<'keys' | 'webhooks' | 'docs'>('keys');
@@ -90,8 +92,8 @@ export default function DeveloperPortal() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a2e1a]">Developer Portal</h1>
-          <p className="text-sm text-gray-500">API keys, webhooks, usage tracking & documentation</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Developer Portal</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">API keys, webhooks, usage tracking & documentation</p>
         </div>
       </div>
 
@@ -118,11 +120,11 @@ export default function DeveloperPortal() {
       )}
 
       {/* Usage Chart */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-100">
-        <h3 className="font-semibold text-[#1a2e1a] mb-4">API Usage (30 days)</h3>
+      <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06]`}>
+        <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">API Usage (30 days)</h3>
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={usageData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke={tc.chartGrid} />
             <XAxis dataKey="day" tick={{ fontSize: 10 }} interval={4} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
@@ -132,9 +134,9 @@ export default function DeveloperPortal() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-slate-100 dark:bg-white/[0.04] p-1 rounded-xl w-fit">
         {([['keys', 'API Keys'], ['webhooks', 'Webhooks'], ['docs', 'Documentation']] as const).map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white text-[#1a2e1a] shadow-sm' : 'text-gray-500'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === t ? 'bg-white text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}>
             {label}
           </button>
         ))}
@@ -142,36 +144,36 @@ export default function DeveloperPortal() {
 
       {/* API Keys Tab */}
       {tab === 'keys' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-semibold text-[#1a2e1a]">API Keys</h3>
-            <button onClick={() => setShowKeyModal(true)} className="px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create Key</button>
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden`}>
+          <div className="p-4 border-b border-slate-200 dark:border-white/[0.06] flex justify-between items-center">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">API Keys</h3>
+            <button onClick={() => setShowKeyModal(true)} className="px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create Key</button>
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left py-3 px-4 text-gray-500">Name</th>
-                <th className="text-left py-3 px-4 text-gray-500">Key</th>
-                <th className="text-left py-3 px-4 text-gray-500">Permissions</th>
-                <th className="text-right py-3 px-4 text-gray-500">Rate Limit</th>
-                <th className="text-left py-3 px-4 text-gray-500">Status</th>
-                <th className="text-right py-3 px-4 text-gray-500">Action</th>
+              <tr className="bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/[0.06]">
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Name</th>
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Key</th>
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Permissions</th>
+                <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400">Rate Limit</th>
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Status</th>
+                <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400">Action</th>
               </tr>
             </thead>
             <tbody>
               {keys.map((k) => (
-                <tr key={k.id} className="border-b border-gray-50">
-                  <td className="py-3 px-4 font-medium text-[#1a2e1a]">{k.name}</td>
-                  <td className="py-3 px-4 font-mono text-xs text-gray-500">{k.key_prefix}...****</td>
+                <tr key={k.id} className="border-b border-slate-100 dark:border-white/[0.04]">
+                  <td className="py-3 px-4 font-medium text-slate-900 dark:text-slate-100">{k.name}</td>
+                  <td className="py-3 px-4 font-mono text-xs text-slate-500 dark:text-slate-400">{k.key_prefix}...****</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {(k.permissions || []).slice(0, 3).map((p) => (
-                        <span key={p} className="px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-600">{p}</span>
+                        <span key={p} className="px-1.5 py-0.5 rounded text-xs bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-slate-400">{p}</span>
                       ))}
-                      {(k.permissions || []).length > 3 && <span className="text-xs text-gray-400">+{k.permissions.length - 3}</span>}
+                      {(k.permissions || []).length > 3 && <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">+{k.permissions.length - 3}</span>}
                     </div>
                   </td>
-                  <td className="py-3 px-4 text-right text-gray-500">{k.rate_limit_per_minute}/min</td>
+                  <td className="py-3 px-4 text-right text-slate-500 dark:text-slate-400">{k.rate_limit_per_minute}/min</td>
                   <td className="py-3 px-4">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${k.revoked ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                       {k.revoked ? 'Revoked' : 'Active'}
@@ -191,34 +193,34 @@ export default function DeveloperPortal() {
 
       {/* Webhooks Tab */}
       {tab === 'webhooks' && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-semibold text-[#1a2e1a]">Webhook Subscriptions</h3>
-            <button onClick={() => setShowWebhookModal(true)} className="px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create Webhook</button>
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden`}>
+          <div className="p-4 border-b border-slate-200 dark:border-white/[0.06] flex justify-between items-center">
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Webhook Subscriptions</h3>
+            <button onClick={() => setShowWebhookModal(true)} className="px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create Webhook</button>
           </div>
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left py-3 px-4 text-gray-500">URL</th>
-                <th className="text-left py-3 px-4 text-gray-500">Events</th>
-                <th className="text-left py-3 px-4 text-gray-500">Status</th>
-                <th className="text-right py-3 px-4 text-gray-500">Failures</th>
+              <tr className="bg-slate-50 dark:bg-white/[0.02] border-b border-slate-200 dark:border-white/[0.06]">
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">URL</th>
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Events</th>
+                <th className="text-left py-3 px-4 text-slate-500 dark:text-slate-400">Status</th>
+                <th className="text-right py-3 px-4 text-slate-500 dark:text-slate-400">Failures</th>
               </tr>
             </thead>
             <tbody>
               {webhooks.map((w) => (
-                <tr key={w.id} className="border-b border-gray-50">
-                  <td className="py-3 px-4 font-mono text-xs text-gray-700 max-w-[200px] truncate">{w.url}</td>
+                <tr key={w.id} className="border-b border-slate-100 dark:border-white/[0.04]">
+                  <td className="py-3 px-4 font-mono text-xs text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{w.url}</td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">
                       {(w.events || []).slice(0, 2).map((e) => (
                         <span key={e} className="px-1.5 py-0.5 rounded text-xs bg-blue-50 text-blue-600">{e}</span>
                       ))}
-                      {(w.events || []).length > 2 && <span className="text-xs text-gray-400">+{w.events.length - 2}</span>}
+                      {(w.events || []).length > 2 && <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500">+{w.events.length - 2}</span>}
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${w.active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${w.active ? 'bg-green-100 text-green-600' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400'}`}>
                       {w.active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -232,20 +234,20 @@ export default function DeveloperPortal() {
 
       {/* Docs Tab */}
       {tab === 'docs' && (
-        <div className="bg-white rounded-2xl p-6 border border-gray-100 space-y-6">
+        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 border border-slate-200 dark:border-white/[0.06] space-y-6`}>
           <div>
-            <h3 className="font-semibold text-[#1a2e1a] text-lg">NXT Energy Trading API</h3>
-            <p className="text-sm text-gray-500 mt-1">OpenAPI 3.1 — Base URL: <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">https://et.vantax.co.za/api/v1</code></p>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-lg">NXT Energy Trading API</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">OpenAPI 3.1 — Base URL: <code className="bg-slate-100 dark:bg-white/[0.04] px-2 py-0.5 rounded text-xs">https://et.vantax.co.za/api/v1</code></p>
           </div>
           <div>
-            <h4 className="font-semibold text-[#1a2e1a] mb-3">Authentication</h4>
-            <div className="bg-gray-50 p-4 rounded-xl text-sm space-y-2">
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Authentication</h4>
+            <div className="bg-slate-50 dark:bg-white/[0.02] p-4 rounded-xl text-sm space-y-2">
               <p><strong>Bearer Token:</strong> <code>Authorization: Bearer &lt;JWT&gt;</code></p>
               <p><strong>API Key:</strong> <code>X-API-Key: nxt_&lt;key&gt;</code></p>
             </div>
           </div>
           <div>
-            <h4 className="font-semibold text-[#1a2e1a] mb-3">Endpoints</h4>
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Endpoints</h4>
             <div className="space-y-2">
               {[
                 { method: 'POST', path: '/trading/orders', desc: 'Place order' },
@@ -258,18 +260,18 @@ export default function DeveloperPortal() {
                 { method: 'GET', path: '/p2p/offers', desc: 'List P2P offers' },
                 { method: 'GET', path: '/reports', desc: 'List reports' },
               ].map((ep) => (
-                <div key={ep.path} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
+                <div key={ep.path} className="flex items-center gap-3 p-2 bg-slate-50 dark:bg-white/[0.02] rounded-lg">
                   <span className={`px-2 py-0.5 rounded text-xs font-mono font-bold ${ep.method === 'GET' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{ep.method}</span>
-                  <code className="text-xs text-gray-700">{ep.path}</code>
-                  <span className="text-xs text-gray-400 ml-auto">{ep.desc}</span>
+                  <code className="text-xs text-slate-700 dark:text-slate-200">{ep.path}</code>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 ml-auto">{ep.desc}</span>
                 </div>
               ))}
             </div>
           </div>
           <div>
-            <h4 className="font-semibold text-[#1a2e1a] mb-3">Webhook Events</h4>
+            <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-3">Webhook Events</h4>
             <div className="flex flex-wrap gap-2">
-              {WEBHOOK_EVENTS.map((e) => <span key={e} className="px-2 py-1 rounded-lg text-xs bg-gray-50 border border-gray-100 font-mono">{e}</span>)}
+              {WEBHOOK_EVENTS.map((e) => <span key={e} className="px-2 py-1 rounded-lg text-xs bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.06] font-mono">{e}</span>)}
             </div>
           </div>
         </div>
@@ -278,19 +280,19 @@ export default function DeveloperPortal() {
       {/* Create Key Modal */}
       {showKeyModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-[#1a2e1a] mb-4">Create API Key</h3>
+          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto`}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Create API Key</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Key Name</label>
-                <input value={keyForm.name} onChange={(e) => setKeyForm({ ...keyForm, name: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="Production Key" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Key Name</label>
+                <input value={keyForm.name} onChange={(e) => setKeyForm({ ...keyForm, name: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" placeholder="Production Key" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Rate Limit (req/min)</label>
-                <input value={keyForm.rate_limit} onChange={(e) => setKeyForm({ ...keyForm, rate_limit: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" type="number" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Rate Limit (req/min)</label>
+                <input value={keyForm.rate_limit} onChange={(e) => setKeyForm({ ...keyForm, rate_limit: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" type="number" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Permissions</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Permissions</label>
                 <div className="grid grid-cols-2 gap-2">
                   {PERMISSIONS.map((p) => (
                     <label key={p} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -307,8 +309,8 @@ export default function DeveloperPortal() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowKeyModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm">Cancel</button>
-              <button onClick={handleCreateKey} className="flex-1 px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create Key</button>
+              <button onClick={() => setShowKeyModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
+              <button onClick={handleCreateKey} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create Key</button>
             </div>
           </div>
         </div>
@@ -317,15 +319,15 @@ export default function DeveloperPortal() {
       {/* Create Webhook Modal */}
       {showWebhookModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-            <h3 className="text-lg font-bold text-[#1a2e1a] mb-4">Create Webhook</h3>
+          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto`}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Create Webhook</h3>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Endpoint URL</label>
-                <input value={webhookForm.url} onChange={(e) => setWebhookForm({ ...webhookForm, url: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="https://your-app.com/webhooks/nxt" />
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Endpoint URL</label>
+                <input value={webhookForm.url} onChange={(e) => setWebhookForm({ ...webhookForm, url: e.target.value })} className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" placeholder="https://your-app.com/webhooks/nxt" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-2">Events</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Events</label>
                 <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
                   {WEBHOOK_EVENTS.map((e) => (
                     <label key={e} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -342,8 +344,8 @@ export default function DeveloperPortal() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowWebhookModal(false)} className="flex-1 px-4 py-2 border border-gray-200 rounded-xl text-sm">Cancel</button>
-              <button onClick={handleCreateWebhook} className="flex-1 px-4 py-2 bg-[#d4e157] text-[#1a2e1a] rounded-xl text-sm font-semibold">Create Webhook</button>
+              <button onClick={() => setShowWebhookModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
+              <button onClick={handleCreateWebhook} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Create Webhook</button>
             </div>
           </div>
         </div>
