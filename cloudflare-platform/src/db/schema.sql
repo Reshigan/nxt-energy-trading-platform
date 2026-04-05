@@ -388,6 +388,210 @@ CREATE TABLE IF NOT EXISTS document_templates (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
+-- 23. Meter Readings (IoT)
+CREATE TABLE IF NOT EXISTS meter_readings (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  meter_id TEXT NOT NULL,
+  meter_type TEXT NOT NULL CHECK (meter_type IN ('grid_import','grid_export','solar_gen','wind_gen','consumption','battery_charge','battery_discharge')),
+  timestamp TEXT NOT NULL,
+  value_kwh REAL NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('eskom_ami','solaredge','fronius','sma','manual','webhook')),
+  quality TEXT NOT NULL DEFAULT 'actual' CHECK (quality IN ('actual','estimated','validated')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 24. Weather Data
+CREATE TABLE IF NOT EXISTS weather_data (
+  id TEXT PRIMARY KEY,
+  location_lat REAL NOT NULL,
+  location_lng REAL NOT NULL,
+  timestamp TEXT NOT NULL,
+  solar_irradiance_whm2 REAL,
+  temperature_c REAL,
+  wind_speed_ms REAL,
+  wind_direction_deg REAL,
+  cloud_cover_pct REAL,
+  humidity_pct REAL,
+  source TEXT NOT NULL DEFAULT 'openmeteo',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 25. AI Optimisations
+CREATE TABLE IF NOT EXISTS ai_optimisations (
+  id TEXT PRIMARY KEY,
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  algorithm TEXT NOT NULL CHECK (algorithm IN ('min_cost','min_carbon','balanced','max_reliability')),
+  demand_profile TEXT, -- JSON array
+  available_sources TEXT, -- JSON array
+  constraints TEXT, -- JSON
+  result_mix TEXT, -- JSON array
+  result_cost_cents INTEGER,
+  result_carbon_g REAL,
+  result_reliability_pct REAL,
+  result_saving_cents INTEGER,
+  scenarios TEXT, -- JSON array of 4 scenarios
+  execution_time_ms INTEGER,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 26. Risk Metrics
+CREATE TABLE IF NOT EXISTS risk_metrics (
+  id TEXT PRIMARY KEY,
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  var_95 REAL,
+  var_99 REAL,
+  cvar REAL,
+  sharpe_ratio REAL,
+  max_drawdown REAL,
+  delta REAL,
+  gamma REAL,
+  theta REAL,
+  vega REAL,
+  counterparty_exposure TEXT, -- JSON
+  stress_test_results TEXT, -- JSON
+  calculated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 27. Tokenised Assets
+CREATE TABLE IF NOT EXISTS tokenised_assets (
+  id TEXT PRIMARY KEY,
+  asset_type TEXT NOT NULL CHECK (asset_type IN ('carbon_credit','rec')),
+  source_id TEXT NOT NULL,
+  token_id TEXT NOT NULL UNIQUE,
+  token_hash TEXT NOT NULL,
+  owner_id TEXT NOT NULL REFERENCES participants(id),
+  provenance_chain TEXT NOT NULL DEFAULT '[]', -- JSON array
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','transferred','retired','burned')),
+  minted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 28. Renewable Energy Certificates (RECs)
+CREATE TABLE IF NOT EXISTS recs (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  certificate_number TEXT NOT NULL UNIQUE,
+  standard TEXT NOT NULL DEFAULT 'i_rec' CHECK (standard IN ('i_rec','tigr','go')),
+  volume_mwh REAL NOT NULL,
+  vintage_year INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','transferred','redeemed','cancelled')),
+  owner_id TEXT NOT NULL REFERENCES participants(id),
+  beneficiary TEXT,
+  purpose TEXT,
+  redeemed_at TEXT,
+  token_id TEXT REFERENCES tokenised_assets(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 29. P2P Trades
+CREATE TABLE IF NOT EXISTS p2p_trades (
+  id TEXT PRIMARY KEY,
+  seller_id TEXT NOT NULL REFERENCES participants(id),
+  buyer_id TEXT REFERENCES participants(id),
+  volume_kwh REAL NOT NULL,
+  price_cents_per_kwh INTEGER NOT NULL,
+  total_cents INTEGER,
+  distribution_zone TEXT NOT NULL,
+  offer_type TEXT NOT NULL CHECK (offer_type IN ('sell','buy')),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','matched','settled','cancelled','expired')),
+  settlement_agent TEXT,
+  matched_at TEXT,
+  settled_at TEXT,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 30. Smart Contract Rules
+CREATE TABLE IF NOT EXISTS smart_contract_rules (
+  id TEXT PRIMARY KEY,
+  contract_doc_id TEXT NOT NULL REFERENCES contract_documents(id),
+  rule_type TEXT NOT NULL CHECK (rule_type IN ('auto_invoice','auto_settle','auto_penalty','auto_escalation','auto_renewal','metering_trigger','payment_trigger','threshold_alert')),
+  trigger_condition TEXT NOT NULL, -- JSON
+  action TEXT NOT NULL, -- JSON
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_triggered_at TEXT,
+  trigger_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 31. Tenants (Multi-Tenant / White-Label)
+CREATE TABLE IF NOT EXISTS tenants (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  subdomain TEXT NOT NULL UNIQUE,
+  industry TEXT,
+  primary_color TEXT DEFAULT '#d4e157',
+  secondary_color TEXT DEFAULT '#1a2e1a',
+  logo_r2_key TEXT,
+  branding TEXT, -- JSON
+  active INTEGER NOT NULL DEFAULT 1,
+  admin_participant_id TEXT REFERENCES participants(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 32. Report Definitions
+CREATE TABLE IF NOT EXISTS report_definitions (
+  id TEXT PRIMARY KEY,
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  name TEXT NOT NULL,
+  report_type TEXT NOT NULL CHECK (report_type IN ('portfolio','trading','carbon','compliance','tcfd','custom')),
+  query_definition TEXT, -- JSON
+  date_range TEXT, -- JSON {from, to}
+  filters TEXT, -- JSON
+  grouping TEXT, -- JSON array
+  metrics TEXT, -- JSON array
+  output_format TEXT NOT NULL DEFAULT 'pdf' CHECK (output_format IN ('pdf','xlsx','csv','json')),
+  schedule TEXT, -- cron expression
+  last_generated_at TEXT,
+  r2_key TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 33. API Keys (Developer Portal)
+CREATE TABLE IF NOT EXISTS api_keys (
+  id TEXT PRIMARY KEY,
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  name TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  key_prefix TEXT NOT NULL, -- first 8 chars for identification
+  permissions TEXT NOT NULL DEFAULT '[]', -- JSON array
+  rate_limit_per_minute INTEGER NOT NULL DEFAULT 60,
+  last_used_at TEXT,
+  expires_at TEXT,
+  revoked INTEGER NOT NULL DEFAULT 0,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 34. Generation Forecasts
+CREATE TABLE IF NOT EXISTS generation_forecasts (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id),
+  forecast_date TEXT NOT NULL,
+  hour INTEGER NOT NULL CHECK (hour BETWEEN 0 AND 23),
+  predicted_kwh REAL NOT NULL,
+  actual_kwh REAL,
+  accuracy_pct REAL,
+  weather_data_id TEXT REFERENCES weather_data(id),
+  model_version TEXT NOT NULL DEFAULT 'v1',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- 35. Webhooks (Developer Portal)
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  participant_id TEXT NOT NULL REFERENCES participants(id),
+  url TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT '[]', -- JSON array
+  secret TEXT, -- HMAC signing secret
+  active INTEGER NOT NULL DEFAULT 1,
+  last_triggered_at TEXT,
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_participants_email ON participants(email);
 CREATE INDEX IF NOT EXISTS idx_participants_role ON participants(role);
@@ -420,3 +624,21 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_marketplace_listings_seller ON marketplace_listings(seller_id);
 CREATE INDEX IF NOT EXISTS idx_marketplace_listings_type ON marketplace_listings(type, status);
+CREATE INDEX IF NOT EXISTS idx_meter_readings_project ON meter_readings(project_id, meter_id);
+CREATE INDEX IF NOT EXISTS idx_meter_readings_timestamp ON meter_readings(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_weather_data_location ON weather_data(location_lat, location_lng);
+CREATE INDEX IF NOT EXISTS idx_ai_optimisations_participant ON ai_optimisations(participant_id);
+CREATE INDEX IF NOT EXISTS idx_risk_metrics_participant ON risk_metrics(participant_id);
+CREATE INDEX IF NOT EXISTS idx_tokenised_assets_owner ON tokenised_assets(owner_id);
+CREATE INDEX IF NOT EXISTS idx_tokenised_assets_token ON tokenised_assets(token_id);
+CREATE INDEX IF NOT EXISTS idx_recs_project ON recs(project_id);
+CREATE INDEX IF NOT EXISTS idx_recs_owner ON recs(owner_id);
+CREATE INDEX IF NOT EXISTS idx_p2p_trades_seller ON p2p_trades(seller_id);
+CREATE INDEX IF NOT EXISTS idx_p2p_trades_zone ON p2p_trades(distribution_zone, status);
+CREATE INDEX IF NOT EXISTS idx_smart_contract_rules_doc ON smart_contract_rules(contract_doc_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_subdomain ON tenants(subdomain);
+CREATE INDEX IF NOT EXISTS idx_report_definitions_participant ON report_definitions(participant_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_participant ON api_keys(participant_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_prefix ON api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_generation_forecasts_project ON generation_forecasts(project_id, forecast_date);
+CREATE INDEX IF NOT EXISTS idx_webhooks_participant ON webhooks(participant_id);
