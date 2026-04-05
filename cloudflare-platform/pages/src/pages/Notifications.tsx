@@ -3,8 +3,10 @@ import { motion } from 'framer-motion';
 import { FiBell, FiCheck } from 'react-icons/fi';
 import { participantsAPI } from '../lib/api';
 import { useNotificationStore } from '../lib/store';
+import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function Notifications() {
+  const tc = useThemeClasses();
   const { notifications, setNotifications, markRead } = useNotificationStore();
   const [loading, setLoading] = useState(true);
 
@@ -36,12 +38,12 @@ export default function Notifications() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <h1 className="text-2xl font-bold gradient-text">Notifications</h1>
+      <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>Notifications</h1>
 
       {loading ? (
         <div className="text-center py-12 text-slate-400">Loading...</div>
       ) : notifications.length === 0 ? (
-        <div className="chart-glass p-12 text-center">
+        <div className={`${tc.cardBg} p-12 text-center`}>
           <FiBell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400">No notifications</p>
         </div>
@@ -49,7 +51,7 @@ export default function Notifications() {
         <div className="space-y-3">
           {notifications.map((n) => (
             <div key={n.id}
-              className={`chart-glass p-4 border-l-4 ${typeColors[n.type] || 'border-l-slate-500'} ${!n.read ? 'bg-slate-800/80' : 'opacity-60'}`}>
+              className={`${tc.cardBg} p-4 border-l-4 ${typeColors[n.type] || 'border-l-slate-500'} ${!n.read ? 'bg-slate-800/80' : 'opacity-60'}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="font-medium text-sm">{n.title}</h3>
