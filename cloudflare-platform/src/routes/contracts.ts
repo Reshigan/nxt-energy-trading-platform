@@ -417,6 +417,64 @@ contracts.get('/documents/:id/versions', authMiddleware(), async (c) => {
   return c.json({ success: true, data: versions });
 });
 
+// GET /contracts/documents/:id/pdf — Download document PDF (or cover page with metadata)
+contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  const user = c.get('user');
+  const doc = await c.env.DB.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(id).first();
+  if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
+
+  // Access check
+  if (user.role !== 'admin' && doc.creator_id !== user.sub && doc.counterparty_id !== user.sub) {
+    return c.json({ success: false, error: 'Access denied' }, 403);
+  }
+
+  const sigs = await c.env.DB.prepare(
+    'SELECT signatory_name, signatory_designation, signed, signed_at FROM document_signatories WHERE document_id = ?'
+  ).bind(id).all();
+
+  const checks = await c.env.DB.prepare(
+    "SELECT regulation, status FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
+  ).bind(id).all();
+
+  // If document has R2 key, return the actual document
+  if (doc.r2_key) {
+    const obj = await c.env.R2.get(doc.r2_key as string);
+    if (obj) {
+      const headers = new Headers();
+      headers.set('Content-Type', 'application/pdf');
+      headers.set('Content-Disposition', `attachment; filename="${(doc.title as string).replace(/["\r\n]/g, '_')}.pdf"`);
+      return new Response(obj.body, { headers });
+    }
+  }
+
+  // Otherwise return metadata cover page as JSON (for MVP)
+  return c.json({
+    success: true,
+    data: {
+      cover_page: {
+        document_id: doc.id,
+        title: doc.title,
+        document_type: doc.document_type,
+        version: doc.version,
+        phase: doc.phase,
+        created_at: doc.created_at,
+        parties: sigs.results.map((s) => ({
+          name: s.signatory_name,
+          designation: s.signatory_designation,
+          signed: s.signed === 1,
+          signed_at: s.signed_at,
+        })),
+        statutory_compliance: checks.results.map((ch) => ({
+          regulation: ch.regulation,
+          status: ch.status,
+        })),
+        document_hash: 'N/A',
+      },
+    },
+  });
+});
+
 // GET /contracts/documents/:id/audit-trail — Document audit trail
 contracts.get('/documents/:id/audit-trail', authMiddleware(), async (c) => {
   const { id } = c.req.param();

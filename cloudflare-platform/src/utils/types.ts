@@ -3,8 +3,12 @@ export interface AppBindings extends Record<string, unknown> {
   DB: D1Database;
   KV: KVNamespace;
   R2: R2Bucket;
+  AI: Ai;
   ORDER_BOOK: DurableObjectNamespace;
   ESCROW_MGR: DurableObjectNamespace;
+  P2P_MATCHER: DurableObjectNamespace;
+  SMART_CONTRACT: DurableObjectNamespace;
+  RISK_ENGINE: DurableObjectNamespace;
   ENVIRONMENT: string;
   JWT_ISSUER: string;
   API_BASE_URL: string;
