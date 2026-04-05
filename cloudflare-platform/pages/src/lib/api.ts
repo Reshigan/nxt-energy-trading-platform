@@ -16,14 +16,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 responses
+// Handle 401 responses — only redirect if user had an active session (token existed before this request)
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && !error.config?.url?.includes('/login')) {
+      const hadToken = !!localStorage.getItem('nxt_token');
       localStorage.removeItem('nxt_token');
       localStorage.removeItem('nxt_user');
-      window.location.href = '/login';
+      // Only redirect if user previously had a session (expired token), not for unauthenticated API calls
+      if (hadToken && error.config?.headers?.Authorization) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
