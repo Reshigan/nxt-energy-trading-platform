@@ -26,15 +26,25 @@ id = "0fd4da205bb54e8db8340c51c8865787"
 binding = "R2"
 bucket_name = "nxt-energy-assets"
 
+[ai]
+binding = "AI"
+
 [durable_objects]
 bindings = [
   { name = "ORDER_BOOK", class_name = "OrderBookDO" },
   { name = "ESCROW_MGR", class_name = "EscrowManagerDO" },
+  { name = "P2P_MATCHER", class_name = "P2PMatcherDO" },
+  { name = "SMART_CONTRACT", class_name = "SmartContractDO" },
+  { name = "RISK_ENGINE", class_name = "RiskEngineDO" },
 ]
 
 [[migrations]]
 tag = "v1"
 new_classes = ["OrderBookDO", "EscrowManagerDO"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["P2PMatcherDO", "SmartContractDO", "RiskEngineDO"]
 
 [triggers]
 crons = ["0 6 * * *"]
