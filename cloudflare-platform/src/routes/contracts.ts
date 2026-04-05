@@ -420,8 +420,14 @@ contracts.get('/documents/:id/versions', authMiddleware(), async (c) => {
 // GET /contracts/documents/:id/pdf — Download document PDF (or cover page with metadata)
 contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
   const { id } = c.req.param();
+  const user = c.get('user');
   const doc = await c.env.DB.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(id).first();
   if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
+
+  // Access check
+  if (user.role !== 'admin' && doc.creator_id !== user.sub && doc.counterparty_id !== user.sub) {
+    return c.json({ success: false, error: 'Access denied' }, 403);
+  }
 
   const sigs = await c.env.DB.prepare(
     'SELECT signatory_name, signatory_designation, signed, signed_at FROM document_signatories WHERE document_id = ?'
@@ -437,7 +443,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
     if (obj) {
       const headers = new Headers();
       headers.set('Content-Type', 'application/pdf');
-      headers.set('Content-Disposition', `attachment; filename="${doc.title}.pdf"`);
+      headers.set('Content-Disposition', `attachment; filename="${(doc.title as string).replace(/["\r\n]/g, '_')}.pdf"`);
       return new Response(obj.body, { headers });
     }
   }

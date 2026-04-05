@@ -123,7 +123,7 @@ export default function Carbon() {
 
   // Chart data
   const inventoryChart = ['solar', 'wind', 'hydro', 'biomass', 'other'].map((tech) => ({
-    name: tech, value: credits.filter((c) => c.project_type === tech || c.technology === tech).length || Math.floor(Math.random() * 50),
+    name: tech, value: credits.filter((c) => c.project_type === tech || c.technology === tech).length,
   }));
 
   const tabs = [

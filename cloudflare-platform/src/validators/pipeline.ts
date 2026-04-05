@@ -183,6 +183,57 @@ export const STATUTORY_RULES: StatutoryRule[] = [
 ];
 
 /**
+ * Compute next check date based on frequency
+ */
+function computeNextCheckDate(frequency: string): string {
+  const now = new Date();
+  switch (frequency) {
+    case 'ongoing':
+    case 'daily':
+      now.setDate(now.getDate() + 1);
+      break;
+    case 'quarterly':
+      now.setMonth(now.getMonth() + 3);
+      break;
+    case 'annual':
+      now.setFullYear(now.getFullYear() + 1);
+      break;
+    default:
+      // For per_contract, per_instrument, etc. — recheck in 30 days
+      now.setDate(now.getDate() + 30);
+      break;
+  }
+  return now.toISOString().split('T')[0];
+}
+
+/**
+ * Re-evaluate participant KYC/trading status based on all statutory checks
+ */
+async function reevaluateParticipantStatus(entityId: string, db: D1Database): Promise<void> {
+  const allChecks = await db.prepare(
+    "SELECT status FROM statutory_checks WHERE entity_type = 'participant' AND entity_id = ?"
+  ).bind(entityId).all();
+
+  const anyFailed = allChecks.results.some((c) => c.status === 'fail');
+  const anyPending = allChecks.results.some((c) => c.status === 'pending' || c.status === 'running');
+  const newStatus = anyFailed ? 'failed' : anyPending ? 'in_review' : 'verified';
+
+  await db.prepare(
+    'UPDATE participants SET kyc_status = ?, updated_at = ? WHERE id = ?'
+  ).bind(newStatus, nowISO(), entityId).run();
+
+  if (anyFailed) {
+    await db.prepare(
+      'UPDATE participants SET trading_enabled = 0, updated_at = ? WHERE id = ?'
+    ).bind(nowISO(), entityId).run();
+  } else if (newStatus === 'verified') {
+    await db.prepare(
+      'UPDATE participants SET trading_enabled = 1, updated_at = ? WHERE id = ?'
+    ).bind(nowISO(), entityId).run();
+  }
+}
+
+/**
  * Daily re-verification cron handler
  */
 export async function dailyRecheck(db: D1Database): Promise<void> {
@@ -191,16 +242,24 @@ export async function dailyRecheck(db: D1Database): Promise<void> {
     "SELECT * FROM statutory_checks WHERE next_check_due <= date('now') AND method = 'auto' AND status IN ('pass', 'fail')"
   ).all();
 
+  const affectedEntities = new Set<string>();
+
   for (const check of due.results) {
     const regulation = check.regulation as string;
     const entityId = check.entity_id as string;
     const validator = validators[regulation];
     if (!validator) continue;
 
+    // Compute next_check_due based on regulation frequency
+    const rule = STATUTORY_RULES.find((r) => r.regulation === regulation);
+    const nextCheckDue = computeNextCheckDate(rule?.frequency || 'annual');
+
     const result = await validator(entityId, db);
     await db.prepare(
-      'UPDATE statutory_checks SET status = ?, source = ?, failure_reason = ?, checked_at = ? WHERE id = ?'
-    ).bind(result.status, result.source, result.reason || null, nowISO(), check.id).run();
+      'UPDATE statutory_checks SET status = ?, source = ?, failure_reason = ?, checked_at = ?, next_check_due = ? WHERE id = ?'
+    ).bind(result.status, result.source, result.reason || null, nowISO(), nextCheckDue, check.id).run();
+
+    affectedEntities.add(entityId);
 
     // If now failed, create notification
     if (result.status === 'fail') {
@@ -213,5 +272,10 @@ export async function dailyRecheck(db: D1Database): Promise<void> {
         check.id as string
       ).run();
     }
+  }
+
+  // Re-evaluate KYC/trading status for all affected participants
+  for (const entityId of affectedEntities) {
+    await reevaluateParticipantStatus(entityId, db);
   }
 }

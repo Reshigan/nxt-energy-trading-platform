@@ -124,8 +124,8 @@ export const marketplaceAPI = {
 export const participantsAPI = {
   list: (params?: Record<string, string>) => api.get('/participants', { params }),
   get: (id: string) => api.get(`/participants/${id}`),
-  getNotifications: (params?: Record<string, string>) => api.get('/participants/notifications', { params }),
-  markNotificationRead: (id: string) => api.patch(`/participants/notifications/${id}/read`),
+  getNotifications: (params?: Record<string, string>) => api.get('/marketplace/notifications', { params }),
+  markNotificationRead: (id: string) => api.post(`/marketplace/notifications/${id}/read`),
 };
 
 export default api;
