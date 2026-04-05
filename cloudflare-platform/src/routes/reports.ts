@@ -1,0 +1,171 @@
+import { Hono } from 'hono';
+import { HonoEnv } from '../utils/types';
+import { authMiddleware } from '../auth/middleware';
+import { generateId, nowISO } from '../utils/id';
+
+const reports = new Hono<HonoEnv>();
+reports.use('*', authMiddleware());
+
+// POST /reports — Create report definition
+reports.post('/', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json() as {
+    name: string;
+    report_type: string;
+    date_range?: { from: string; to: string };
+    filters?: Record<string, unknown>;
+    grouping?: string[];
+    metrics?: string[];
+    output_format?: string;
+    schedule?: string;
+  };
+
+  const id = generateId();
+  await c.env.DB.prepare(`
+    INSERT INTO report_definitions (id, participant_id, name, report_type, date_range, filters, grouping, metrics, output_format, schedule)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    id, user.sub, body.name, body.report_type,
+    body.date_range ? JSON.stringify(body.date_range) : null,
+    body.filters ? JSON.stringify(body.filters) : null,
+    body.grouping ? JSON.stringify(body.grouping) : null,
+    body.metrics ? JSON.stringify(body.metrics) : null,
+    body.output_format || 'pdf',
+    body.schedule || null,
+  ).run();
+
+  return c.json({ success: true, data: { id, name: body.name } }, 201);
+});
+
+// GET /reports — List report definitions
+reports.get('/', async (c) => {
+  const user = c.get('user');
+  const results = await c.env.DB.prepare(
+    'SELECT * FROM report_definitions WHERE participant_id = ? ORDER BY created_at DESC'
+  ).bind(user.sub).all();
+  return c.json({ success: true, data: results.results });
+});
+
+// GET /reports/:id — Get report definition
+reports.get('/:id', async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  const report = await c.env.DB.prepare(
+    'SELECT * FROM report_definitions WHERE id = ? AND participant_id = ?'
+  ).bind(id, user.sub).first();
+  if (!report) return c.json({ success: false, error: 'Report not found' }, 404);
+  return c.json({ success: true, data: report });
+});
+
+// POST /reports/:id/generate — Generate report data
+reports.post('/:id/generate', async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  const report = await c.env.DB.prepare(
+    'SELECT * FROM report_definitions WHERE id = ? AND participant_id = ?'
+  ).bind(id, user.sub).first();
+  if (!report) return c.json({ success: false, error: 'Report not found' }, 404);
+
+  const reportType = report.report_type as string;
+  const dateRange = report.date_range ? JSON.parse(report.date_range as string) : { from: '2024-01-01', to: nowISO() };
+
+  let data: Record<string, unknown> = {};
+
+  switch (reportType) {
+    case 'portfolio': {
+      const positions = await c.env.DB.prepare(
+        "SELECT market, SUM(volume) as volume, AVG(price_cents) as avg_price FROM orders WHERE participant_id = ? AND status IN ('open','partial') GROUP BY market"
+      ).bind(user.sub).all();
+      const trades = await c.env.DB.prepare(
+        "SELECT COUNT(*) as count, SUM(total_cents) as total FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= ? AND created_at <= ?"
+      ).bind(user.sub, user.sub, dateRange.from, dateRange.to).first();
+      data = { positions: positions.results, trades, period: dateRange };
+      break;
+    }
+    case 'trading': {
+      const trades = await c.env.DB.prepare(
+        "SELECT * FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC"
+      ).bind(user.sub, user.sub, dateRange.from, dateRange.to).all();
+      data = { trades: trades.results, period: dateRange, total: trades.results.length };
+      break;
+    }
+    case 'carbon': {
+      const credits = await c.env.DB.prepare(
+        "SELECT * FROM carbon_credits WHERE owner_id = ? AND created_at >= ? AND created_at <= ?"
+      ).bind(user.sub, dateRange.from, dateRange.to).all();
+      const retired = credits.results.filter((cr) => (cr.status as string) === 'retired');
+      data = { credits: credits.results, retired_count: retired.length, period: dateRange };
+      break;
+    }
+    case 'compliance': {
+      const checks = await c.env.DB.prepare(
+        "SELECT sc.*, p.company_name FROM statutory_checks sc JOIN participants p ON sc.entity_id = p.id WHERE sc.entity_type = 'participant' ORDER BY sc.checked_at DESC LIMIT 100"
+      ).all();
+      data = { checks: checks.results, period: dateRange };
+      break;
+    }
+    case 'tcfd': {
+      // TCFD auto-generation: Governance, Strategy, Risk Management, Metrics & Targets
+      const credits = await c.env.DB.prepare(
+        "SELECT SUM(quantity) as total_retired FROM carbon_credits WHERE owner_id = ? AND status = 'retired'"
+      ).bind(user.sub).first<{ total_retired: number | null }>();
+      const trades = await c.env.DB.prepare(
+        "SELECT COUNT(*) as count, SUM(total_cents) as total FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND market = 'carbon'"
+      ).bind(user.sub, user.sub).first();
+      const projects = await c.env.DB.prepare(
+        "SELECT technology, capacity_mw, phase FROM projects WHERE developer_id = ?"
+      ).bind(user.sub).all();
+
+      data = {
+        governance: {
+          board_oversight: 'Climate risk integrated into board-level risk management framework',
+          management_role: 'Sustainability team reports to CEO with quarterly ESG metrics',
+        },
+        strategy: {
+          climate_risks: ['Physical risk from extreme weather events on generation assets', 'Transition risk from regulatory changes in carbon pricing'],
+          opportunities: ['Renewable energy cost reduction', 'Carbon market growth', 'Green financing premiums'],
+          scenario_analysis: 'Platform models Eskom tariff increase (+40%), solar generation decrease (-30%), and carbon price crash (-50%) scenarios',
+        },
+        risk_management: {
+          identification: 'Automated statutory checks across 14 SA regulations',
+          assessment: `Portfolio VaR calculated daily across ${projects.results.length} projects`,
+          mitigation: 'Escrow-backed settlements, counterparty credit limits, diversified energy mix',
+        },
+        metrics_and_targets: {
+          total_retired_tonnes: credits?.total_retired || 0,
+          carbon_trades: trades,
+          renewable_capacity_mw: projects.results.reduce((s, p) => s + (p.capacity_mw as number || 0), 0),
+          projects_by_technology: projects.results.reduce((acc: Record<string, number>, p) => {
+            const tech = p.technology as string;
+            acc[tech] = (acc[tech] || 0) + 1;
+            return acc;
+          }, {}),
+        },
+        period: dateRange,
+      };
+      break;
+    }
+    default: {
+      data = { message: 'Custom report - configure metrics in report definition', period: dateRange };
+    }
+  }
+
+  // Update last generated
+  await c.env.DB.prepare(
+    'UPDATE report_definitions SET last_generated_at = ? WHERE id = ?'
+  ).bind(nowISO(), id).run();
+
+  return c.json({ success: true, data: { report_id: id, report_type: reportType, generated_at: nowISO(), data } });
+});
+
+// DELETE /reports/:id — Delete report definition
+reports.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  await c.env.DB.prepare(
+    'DELETE FROM report_definitions WHERE id = ? AND participant_id = ?'
+  ).bind(id, user.sub).run();
+  return c.json({ success: true });
+});
+
+export default reports;

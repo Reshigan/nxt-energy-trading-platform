@@ -18,6 +18,11 @@ import Admin from './pages/Admin';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import NotFound from './pages/NotFound';
+import RiskDashboard from './pages/RiskDashboard';
+import Metering from './pages/Metering';
+import P2PTrading from './pages/P2PTrading';
+import ReportBuilder from './pages/ReportBuilder';
+import DeveloperPortal from './pages/DeveloperPortal';
 
 function App() {
   return (
@@ -41,6 +46,11 @@ function App() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/risk" element={<RiskDashboard />} />
+        <Route path="/metering" element={<Metering />} />
+        <Route path="/p2p" element={<P2PTrading />} />
+        <Route path="/reports" element={<ReportBuilder />} />
+        <Route path="/developer" element={<DeveloperPortal />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<NotFound />} />
       </Route>
