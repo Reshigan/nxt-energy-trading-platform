@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icons/icon-96x96.png" />
@@ -12,54 +12,23 @@
     <meta name="apple-mobile-web-app-title" content="NXT Energy" />
     <title>NXT Energy Trading Platform | Award-Winning Energy Trading</title>
     <meta name="description" content="South Africa's premier energy trading platform with AI-powered portfolio optimisation, digital contracts, carbon credit marketplace, and IoT metering">
-    <meta name="theme-color" content="#1a2e1a">
+    <meta name="theme-color" content="#0a1628">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Prevent FOUC: apply saved theme before first paint
+      (function() {
+        var t = localStorage.getItem('nxt_theme') || 'dark';
+        if (t === 'dark') document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+      })();
+    </script>
     <style>
-      :root {
-        --energy-primary: #d4e157;
-        --energy-secondary: #b8c43a;
-        --energy-accent: #4caf50;
-        --dark-bg: #0f172a;
-        --dark-card: #1e293b;
-        --dark-text: #f1f5f9;
-        --glass-bg: rgba(30, 41, 59, 0.7);
-        --glass-border: rgba(255, 255, 255, 0.1);
-      }
-      
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      
-      body {
-        font-family: 'DM Sans', sans-serif;
-        background: var(--dark-bg);
-        color: var(--dark-text);
-        min-height: 100vh;
-        background-image: 
-                    radial-gradient(circle at 10% 20%, rgba(212, 225, 87, 0.08) 0%, transparent 20%),
-                    radial-gradient(circle at 90% 80%, rgba(76, 175, 80, 0.08) 0%, transparent 20%);
-      }
-      
-      .glass {
-        background: var(--glass-bg);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid var(--glass-border);
-        border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(2, 12, 25, 0.2);
-      }
-      
-      .gradient-text {
-            background: linear-gradient(90deg, var(--energy-primary), var(--energy-accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
-        </style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Inter', 'DM Sans', sans-serif; min-height: 100vh; background: #f8fafc; color: #0f172a; }
+      .dark body, html.dark body { background: #0a1628; color: #f1f5f9; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
