@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +33,7 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const { aiInsights, isLoading } = useAIAdvisor();
   const { user, activeRole, switchRole, logout, isAuthenticated } = useAuthStore();
+  const roleBtnRef = useRef<HTMLButtonElement>(null);
 
   const getCurrentPageTitle = () => {
     const currentPage = navigation.find(item => item.href === location.pathname);
@@ -128,21 +130,11 @@ export default function DashboardLayout() {
             <div className="flex items-center space-x-4">
               {/* Role Switcher */}
               <div className="relative">
-                <button onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+                <button ref={roleBtnRef} onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/50 hover:bg-slate-800 text-sm transition-colors">
                   <FiRefreshCw className="w-3.5 h-3.5 text-[#d4e157]" />
                   <span className="capitalize hidden sm:block">{activeRole || 'Select Role'}</span>
                 </button>
-                {showRoleSwitcher && (
-                  <div className="absolute right-0 mt-2 w-48 glass rounded-lg shadow-xl z-50 py-1">
-                    {roles.map((r) => (
-                      <button key={r} onClick={() => { switchRole(r); setShowRoleSwitcher(false); }}
-                        className={`block w-full text-left px-4 py-2 text-sm capitalize hover:bg-slate-700/50 ${activeRole === r ? 'text-[#d4e157]' : 'text-slate-300'}`}>
-                        {r.replace('_', ' ')}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Notifications */}
@@ -179,6 +171,28 @@ export default function DashboardLayout() {
 
       {/* AI Chat Widget */}
       <AIChatWidget />
+
+      {/* Role Switcher Dropdown Portal - rendered outside header to avoid backdrop-filter clipping */}
+      {showRoleSwitcher && createPortal(
+        <div className="fixed inset-0 z-[9998]" onClick={() => setShowRoleSwitcher(false)}>
+          <div
+            className="absolute w-48 rounded-lg shadow-xl z-[9999] py-1 bg-slate-800 border border-slate-700"
+            style={{
+              top: roleBtnRef.current ? roleBtnRef.current.getBoundingClientRect().bottom + 8 : 0,
+              left: roleBtnRef.current ? roleBtnRef.current.getBoundingClientRect().right - 192 : 0,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {roles.map((r) => (
+              <button key={r} onClick={() => { switchRole(r); setShowRoleSwitcher(false); }}
+                className={`block w-full text-left px-4 py-2 text-sm capitalize hover:bg-slate-700/50 ${activeRole === r ? 'text-[#d4e157]' : 'text-slate-300'}`}>
+                {r.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
