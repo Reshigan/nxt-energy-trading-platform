@@ -3,9 +3,11 @@ import { motion } from 'framer-motion';
 import { FiSettings, FiDownload, FiSave, FiShield, FiBell, FiUser, FiGlobe, FiDatabase } from 'react-icons/fi';
 import { useAuthStore } from '../lib/store';
 import { useThemeClasses } from '../hooks/useThemeClasses';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function Settings() {
   const tc = useThemeClasses();
+  const { theme: currentTheme, setTheme: applyTheme } = useTheme();
   const { user, activeRole } = useAuthStore();
   const [saved, setSaved] = useState(false);
 
@@ -13,7 +15,7 @@ export default function Settings() {
   const [notifications, setNotifications] = useState({ email_trades: true, email_contracts: true, email_compliance: false, push_trades: true, push_alerts: true, push_settlements: false });
   const [trading, setTrading] = useState({ default_market: 'solar', order_confirmation: true, auto_hedge: false, max_order_size: '1000', fee_display: 'inclusive' });
   const [security, setSecurity] = useState({ two_factor: false, session_timeout: '24', ip_whitelist: '' });
-  const [display, setDisplay] = useState({ theme: 'dark', currency: 'ZAR', date_format: 'DD/MM/YYYY', language: 'en' });
+  const [display, setDisplay] = useState({ theme: currentTheme, currency: 'ZAR', date_format: 'DD/MM/YYYY', language: 'en' });
 
   const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
@@ -165,7 +167,7 @@ export default function Settings() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={labelClass}>Theme</label>
-            <select className={inputClass} value={display.theme} onChange={(e) => setDisplay({ ...display, theme: e.target.value })}>
+            <select className={inputClass} value={display.theme} onChange={(e) => { const t = e.target.value as 'dark' | 'light' | 'system'; setDisplay({ ...display, theme: t }); applyTheme(t); }}>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
               <option value="system">System</option>
@@ -213,7 +215,7 @@ export default function Settings() {
             { label: 'Invoice Archive', desc: 'All invoices as PDF bundle', icon: '🧾' },
             { label: 'Audit Log', desc: 'Complete audit trail', icon: '📋' },
           ].map((ex) => (
-            <button key={ex.label} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} hover:bg-slate-800 transition-colors text-left`}>
+            <button key={ex.label} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} ${tc.isDark ? "hover:bg-white/[0.08]" : "hover:bg-slate-100"} transition-colors text-left`}>
               <div className="text-2xl mb-2">{ex.icon}</div>
               <div className="font-medium text-sm">{ex.label}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{ex.desc}</div>
