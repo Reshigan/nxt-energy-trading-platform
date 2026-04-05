@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw } from 'react-icons/fi';
+import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw, FiAlertTriangle, FiCpu, FiRepeat, FiBook, FiCode } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIAdvisor } from '../hooks/useAIAdvisor';
 import AIChatWidget from '../components/AIChatWidget';
@@ -11,16 +11,21 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: FiHome },
   { name: 'Markets', href: '/markets', icon: FiTrendingUp },
   { name: 'Trading', href: '/trading', icon: FiDollarSign },
-  { name: 'Portfolio', href: '/portfolio', icon: FiPieChart },
+  { name: 'AI Portfolio', href: '/portfolio', icon: FiPieChart },
+  { name: 'Risk Dashboard', href: '/risk', icon: FiAlertTriangle },
   { name: 'Contracts', href: '/contracts', icon: FiFileText },
   { name: 'Carbon', href: '/carbon', icon: FiGlobe },
+  { name: 'Metering & IoT', href: '/metering', icon: FiCpu },
+  { name: 'P2P Trading', href: '/p2p', icon: FiRepeat },
   { name: 'IPP Projects', href: '/ipp', icon: FiZap },
   { name: 'Marketplace', href: '/marketplace', icon: FiShoppingBag },
   { name: 'Settlement', href: '/settlement', icon: FiDollarSign },
   { name: 'Compliance', href: '/compliance', icon: FiShield },
+  { name: 'Report Builder', href: '/reports', icon: FiBook },
+  { name: 'Analytics', href: '/analytics', icon: FiBarChart2 },
+  { name: 'Developer Portal', href: '/developer', icon: FiCode },
   { name: 'Notifications', href: '/notifications', icon: FiBell },
   { name: 'Admin', href: '/admin', icon: FiUsers },
-  { name: 'Analytics', href: '/analytics', icon: FiBarChart2 },
   { name: 'Settings', href: '/settings', icon: FiSettings },
 ];
 

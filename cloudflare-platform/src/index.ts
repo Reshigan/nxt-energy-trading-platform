@@ -15,10 +15,19 @@ import projectsRoute from './routes/projects';
 import settlement from './routes/settlement';
 import compliance from './routes/compliance';
 import marketplace from './routes/marketplace';
+import aiRoutes from './routes/ai';
+import reports from './routes/reports';
+import tenantsRoute from './routes/tenants';
+import developer from './routes/developer';
+import metering from './routes/metering';
+import p2p from './routes/p2p';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
 export { EscrowManagerDO } from './durable-objects/EscrowManagerDO';
+export { P2PMatcherDO } from './durable-objects/P2PMatcherDO';
+export { SmartContractDO } from './durable-objects/SmartContractDO';
+export { RiskEngineDO } from './durable-objects/RiskEngineDO';
 
 const app = new Hono<HonoEnv>();
 
@@ -94,6 +103,24 @@ api.route('/compliance', compliance);
 
 // Marketplace, Notifications
 api.route('/marketplace', marketplace);
+
+// Spec 7: AI Portfolio Optimisation & Weather
+api.route('/ai', aiRoutes);
+
+// Spec 7: Custom Report Builder
+api.route('/reports', reports);
+
+// Spec 7: Multi-Tenant White-Label
+api.route('/tenants', tenantsRoute);
+
+// Spec 7: Developer Portal & API Marketplace
+api.route('/developer', developer);
+
+// Spec 7: IoT Metering Ingestion
+api.route('/metering', metering);
+
+// Spec 7: P2P Energy Trading
+api.route('/p2p', p2p);
 
 // Dashboard summary
 api.get('/dashboard/summary', async (c) => {
