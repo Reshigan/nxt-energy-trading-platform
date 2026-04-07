@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 import Dashboard from './pages/Dashboard';
 import Markets from './pages/Markets';
 import Portfolio from './pages/Portfolio';
@@ -23,13 +24,32 @@ import Metering from './pages/Metering';
 import P2PTrading from './pages/P2PTrading';
 import ReportBuilder from './pages/ReportBuilder';
 import DeveloperPortal from './pages/DeveloperPortal';
+// Spec 8: Production readiness pages
+import Landing from './pages/Landing';
+import Signup from './pages/Signup';
+import TermsPage from './pages/Terms';
+import PrivacyPage from './pages/Privacy';
+import CookiesPage from './pages/Cookies';
+import RulesPage from './pages/Rules';
+import RiskDisclosurePage from './pages/Risk';
+import AMLPage from './pages/AML';
 
 function App() {
   return (
+    <ErrorBoundary>
     <Routes>
-      {/* Auth routes (no layout) */}
+      {/* Public routes (no layout) */}
+      <Route path="/landing" element={<Landing />} />
+      <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      {/* Legal pages (public) */}
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/cookies" element={<CookiesPage />} />
+      <Route path="/rules" element={<RulesPage />} />
+      <Route path="/risk-disclosure" element={<RiskDisclosurePage />} />
+      <Route path="/aml" element={<AMLPage />} />
 
       {/* Dashboard routes */}
       <Route element={<DashboardLayout />}>
@@ -55,6 +75,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
+    </ErrorBoundary>
   );
 }
 

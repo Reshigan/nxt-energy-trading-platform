@@ -1,10 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw, FiAlertTriangle, FiCpu, FiRepeat, FiBook, FiCode, FiSun, FiMoon } from 'react-icons/fi';
+import { FiHome, FiTrendingUp, FiPieChart, FiFileText, FiGlobe, FiZap, FiBarChart2, FiSettings, FiMenu, FiX, FiShoppingBag, FiDollarSign, FiShield, FiBell, FiUsers, FiLogOut, FiRefreshCw, FiAlertTriangle, FiCpu, FiRepeat, FiBook, FiCode, FiSun, FiMoon, FiHelpCircle } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAIAdvisor } from '../hooks/useAIAdvisor';
 import AIChatWidget from '../components/AIChatWidget';
+import GuidedTour from '../components/GuidedTour';
+import KYCBanner from '../components/KYCBanner';
+import HelpPanel from '../components/HelpPanel';
 import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -35,6 +38,7 @@ const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { aiInsights, isLoading } = useAIAdvisor();
@@ -89,6 +93,7 @@ export default function DashboardLayout() {
               <Link
                 key={item.name}
                 to={item.href}
+                data-tour={`nav-${item.href.replace('/', '') || 'dashboard'}`}
                 className={`flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium rounded-xl transition-all duration-200 ${
                   isActive
                     ? isDark
@@ -132,11 +137,15 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button onClick={() => setHelpOpen(true)} className={`p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`} title="Help">
+              <FiHelpCircle className="w-[18px] h-[18px]" />
+            </button>
+
             <button onClick={toggleTheme} className={`p-2 rounded-xl transition-all duration-200 ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-500 hover:bg-slate-100'}`} title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
               {isDark ? <FiSun className="w-[18px] h-[18px]" /> : <FiMoon className="w-[18px] h-[18px]" />}
             </button>
 
-            <div className="relative">
+            <div className="relative" data-tour="role-switcher">
               <button ref={roleBtnRef} onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-all duration-200 ${isDark ? 'bg-white/[0.06] hover:bg-white/[0.1] text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}>
                 <FiRefreshCw className="w-3.5 h-3.5 text-blue-400" />
@@ -170,12 +179,15 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6" data-tour="dashboard">
+          <KYCBanner />
           <Outlet />
         </main>
       </div>
 
       <AIChatWidget />
+      <GuidedTour />
+      <HelpPanel open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {showRoleSwitcher && createPortal(
         <div className="fixed inset-0 z-[9998]" onClick={() => setShowRoleSwitcher(false)}>
