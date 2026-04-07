@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { FiZap } from 'react-icons/fi';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import { useTheme } from '../contexts/ThemeContext';
 
 const ROLES = [
   { value: 'trader', label: 'Energy Trader' },
@@ -16,7 +15,7 @@ const ROLES = [
 ];
 
 export default function Register() {
-  const tc = useThemeClasses();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
   const [step, setStep] = useState(1);
@@ -60,38 +59,33 @@ export default function Register() {
     }
   };
 
-  const inputClass = `w-full px-3 py-2 ${tc.input} rounded-lg text-sm`;
+  const inputClass = `w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500' : 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500'}`;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-2xl glass p-8"
-      >
+    <div className={`min-h-screen flex items-center justify-center px-4 py-8 ${isDark ? 'bg-[#0B1221]' : 'bg-[#EEF1F6]'}`}>
+      <div className="w-full max-w-2xl" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div className="flex items-center justify-center mb-6">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 flex items-center justify-center mr-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-blue-500/25">
             <FiZap className="text-white w-5 h-5" />
           </div>
-          <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>NXT Energy</h1>
+          <h1 className={`text-2xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>NXT Energy</h1>
         </div>
 
-        <h2 className="text-xl font-semibold text-center mb-2">Create Account</h2>
-        <p className="text-sm text-slate-400 text-center mb-6">Step {step} of 3</p>
+        <h2 className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Create Account</h2>
+        <p className="text-sm text-slate-500 text-center mb-6">Step {step} of 3</p>
 
-        {/* Progress bar */}
         <div className="flex gap-2 mb-6">
           {[1, 2, 3].map((s) => (
-            <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-cyan-500' : 'bg-slate-700'}`} />
+            <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${s <= step ? 'bg-blue-500' : isDark ? 'bg-white/[0.06]' : 'bg-slate-200'}`} />
           ))}
         </div>
 
-        {error && <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">{error}</div>}
+        {error && <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           {step === 1 && (
             <div className="space-y-4">
-              <h3 className="font-medium text-slate-300">Company Information</h3>
+              <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Company Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Company Name *</label>
@@ -123,7 +117,7 @@ export default function Register() {
                   </select>
                 </div>
               </div>
-              <button type="button" onClick={() => setStep(2)} className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 font-medium rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-all">
+              <button type="button" onClick={() => setStep(2)} className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold rounded-2xl transition-all">
                 Next
               </button>
             </div>
@@ -131,7 +125,7 @@ export default function Register() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="font-medium text-slate-300">Contact & Address</h3>
+              <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Contact & Address</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Contact Person *</label>
@@ -155,15 +149,15 @@ export default function Register() {
                 <textarea className={inputClass} rows={2} value={form.physical_address} onChange={(e) => updateField('physical_address', e.target.value)} required />
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">Back</button>
-                <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 font-medium rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-all">Next</button>
+                <button type="button" onClick={() => setStep(1)} className={`flex-1 py-3 rounded-2xl font-semibold transition-colors ${isDark ? 'bg-white/[0.06] text-white hover:bg-white/[0.1]' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Back</button>
+                <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold rounded-2xl transition-all">Next</button>
               </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-4">
-              <h3 className="font-medium text-slate-300">Regulatory Information (Optional)</h3>
+              <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Regulatory Information (Optional)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">SA ID Number</label>
@@ -178,12 +172,12 @@ export default function Register() {
                   <input className={inputClass} value={form.fsca_licence} onChange={(e) => updateField('fsca_licence', e.target.value)} />
                 </div>
               </div>
-              <div className="p-3 rounded-lg bg-cyan-500/10 text-blue-400 text-xs">
+              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 dark:text-blue-400 text-xs border border-blue-500/10">
                 After registration, our auto-validation pipeline will verify your CIPC registration, SARS tax number, FICA compliance, and sanctions screening. KYC documents can be uploaded from your dashboard.
               </div>
               <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">Back</button>
-                <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 font-medium rounded-lg hover:from-cyan-500 hover:to-blue-500 transition-all disabled:opacity-50">
+                <button type="button" onClick={() => setStep(2)} className={`flex-1 py-3 rounded-2xl font-semibold transition-colors ${isDark ? 'bg-white/[0.06] text-white hover:bg-white/[0.1]' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Back</button>
+                <button type="submit" disabled={loading} className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold rounded-2xl transition-all disabled:opacity-50">
                   {loading ? 'Registering...' : 'Create Account'}
                 </button>
               </div>
@@ -192,9 +186,9 @@ export default function Register() {
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-400">
-          Already have an account? <Link to="/login" className="text-blue-400 hover:text-blue-300">Sign In</Link>
+          Already have an account? <Link to="/login" className="text-blue-500 hover:text-blue-600 font-semibold">Sign In</Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

@@ -1,104 +1,89 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { FiRefreshCw, FiFilter, FiSearch, FiStar, FiChevronUp, FiChevronDown } from 'react-icons/fi';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter } from 'react-icons/fi';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { useTheme } from '../contexts/ThemeContext';
 
-interface MarketData {
-  id: number; energyType: string; region: string; price: number; change: number; volume: number; trend: 'up' | 'down' | 'stable'; isFavorite: boolean;
-}
+const sparkline = (seed: number, trend: boolean) =>
+  Array.from({ length: 12 }, (_, i) => ({ v: (seed + (trend ? i * 3 : -i * 2) + Math.random() * 15) }));
 
-const mockMarketData: MarketData[] = [
-  { id: 1, energyType: 'Solar', region: 'California', price: 48.5, change: 2.3, volume: 12500, trend: 'up', isFavorite: true },
-  { id: 2, energyType: 'Wind', region: 'Texas', price: 38.2, change: -1.2, volume: 9800, trend: 'down', isFavorite: false },
-  { id: 3, energyType: 'Hydro', region: 'Pacific NW', price: 32.7, change: 0.8, volume: 7600, trend: 'up', isFavorite: true },
-  { id: 4, energyType: 'Natural Gas', region: 'Northeast', price: 52.1, change: 3.5, volume: 15200, trend: 'up', isFavorite: false },
-  { id: 5, energyType: 'Coal', region: 'Midwest', price: 41.8, change: -0.5, volume: 6800, trend: 'down', isFavorite: false },
-  { id: 6, energyType: 'Nuclear', region: 'Southeast', price: 36.4, change: 1.1, volume: 8900, trend: 'stable', isFavorite: false },
+const markets = [
+  { name: 'Solar PPA Spot', price: 'R847.20', change: '+4.3%', positive: true, volume: '24.8K MWh', cap: 'R12.4B', spark: sparkline(700, true) },
+  { name: 'Wind Forward H2', price: 'R623.50', change: '+2.1%', positive: true, volume: '18.2K MWh', cap: 'R8.7B', spark: sparkline(580, true) },
+  { name: 'Gas Spot', price: 'R412.80', change: '-1.8%', positive: false, volume: '15.6K MWh', cap: 'R6.2B', spark: sparkline(440, false) },
+  { name: 'Carbon Credit', price: 'R285.00', change: '+8.8%', positive: true, volume: '32.1K t', cap: 'R4.1B', spark: sparkline(240, true) },
+  { name: 'Biogas PPA', price: 'R520.40', change: '+1.2%', positive: true, volume: '8.4K MWh', cap: 'R2.8B', spark: sparkline(490, true) },
+  { name: 'Nuclear Base', price: 'R380.00', change: '-0.5%', positive: false, volume: '42.0K MWh', cap: 'R18.6B', spark: sparkline(390, false) },
+  { name: 'Hydro Peak', price: 'R695.80', change: '+3.4%', positive: true, volume: '11.2K MWh', cap: 'R5.4B', spark: sparkline(650, true) },
+  { name: 'REC Certificate', price: 'R145.20', change: '+5.6%', positive: true, volume: '28.6K', cap: 'R1.9B', spark: sparkline(120, true) },
 ];
 
 export default function Markets() {
-  const [markets, setMarkets] = useState<MarketData[]>(mockMarketData);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'price' | 'change' | 'volume'>('price');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const tc = useThemeClasses();
-
-  const toggleFavorite = (id: number) => {
-    setMarkets(markets.map(m => m.id === id ? { ...m, isFavorite: !m.isFavorite } : m));
-  };
-
-  const sortedMarkets = [...markets]
-    .filter(m => m.energyType.toLowerCase().includes(searchTerm.toLowerCase()) || m.region.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => sortOrder === 'asc' ? a[sortBy] - b[sortBy] : b[sortBy] - a[sortBy]);
+  const { isDark } = useTheme();
+  const [search, setSearch] = useState('');
+  const filtered = markets.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className={`text-3xl font-bold ${tc.textPrimary}`}>Energy Markets</h1>
-          <p className={`mt-1 ${tc.textSecondary}`}>Real-time pricing and trading opportunities</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <button className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-colors ${tc.btnSecondary}`}>
-            <FiRefreshCw className="w-4 h-4 mr-2" /> Refresh
-          </button>
-          <button className={`flex items-center px-4 py-2 rounded-xl text-sm font-medium transition-colors ${tc.btnSecondary}`}>
-            <FiFilter className="w-4 h-4 mr-2" /> Filters
-          </button>
-        </div>
+    <div className="space-y-6">
+      <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
+        <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Markets</h1>
+        <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Live energy & carbon market overview</p>
       </div>
 
-      <div className={`rounded-2xl p-4 ${tc.cardBg}`}>
-        <div className="relative">
-          <FiSearch className={`absolute left-3.5 top-1/2 transform -translate-y-1/2 ${tc.textMuted}`} />
-          <input type="text" placeholder="Search energy types or regions..."
-            className={`w-full pl-10 pr-4 py-3 rounded-xl text-sm ${tc.input}`}
-            value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+      {/* Search + Filter */}
+      <div className="flex gap-3" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        <div className={`flex-1 flex items-center gap-2 px-4 py-2.5 rounded-2xl ${isDark ? 'bg-[#151F32] border border-white/[0.06]' : 'bg-white border border-black/[0.06]'}`}>
+          <FiSearch className="w-4 h-4 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search markets..." className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400" />
         </div>
+        <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`}>
+          <FiFilter className="w-4 h-4" /> Filter
+        </button>
       </div>
 
-      <div className={`rounded-2xl overflow-hidden ${tc.cardBg}`}>
+      {/* Markets Table */}
+      <div className={`cp-card !p-0 overflow-hidden ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr className={`border-b ${tc.border}`}>
-                {['Energy Type', 'Region'].map(h => (
-                  <th key={h} className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${tc.textMuted}`}>{h}</th>
-                ))}
-                {(['price', 'change', 'volume'] as const).map(key => (
-                  <th key={key} className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider cursor-pointer hover:text-blue-500 ${tc.textMuted}`}
-                    onClick={() => { setSortBy(key); setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc'); }}>
-                    <div className="flex items-center">
-                      {key === 'price' ? 'Price ($/MWh)' : key === 'change' ? 'Change (%)' : 'Volume (MWh)'}
-                      {sortBy === key && <span className="ml-1">{sortOrder === 'asc' ? <FiChevronUp className="inline" /> : <FiChevronDown className="inline" />}</span>}
-                    </div>
-                  </th>
-                ))}
-                <th className={`px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider ${tc.textMuted}`}>Actions</th>
+              <tr className={`text-xs border-b ${isDark ? 'border-white/[0.06] text-slate-500' : 'border-black/[0.06] text-slate-400'}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Market</th>
+                <th className="text-right py-3.5 px-4 font-medium">Price</th>
+                <th className="text-right py-3.5 px-4 font-medium">24h Change</th>
+                <th className="text-right py-3.5 px-4 font-medium">Volume</th>
+                <th className="text-right py-3.5 px-4 font-medium">Market Cap</th>
+                <th className="text-right py-3.5 px-5 font-medium w-28">7D</th>
               </tr>
             </thead>
             <tbody>
-              {sortedMarkets.map((market) => (
-                <tr key={market.id} className={`border-b transition-colors ${tc.tableRow}`}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <button onClick={() => toggleFavorite(market.id)} className="mr-3 text-amber-400 hover:text-amber-300">
-                        {market.isFavorite ? <FiStar fill="currentColor" /> : <FiStar />}
-                      </button>
-                      <span className={`font-medium ${tc.textPrimary}`}>{market.energyType}</span>
-                    </div>
+              {filtered.map((m, i) => (
+                <tr key={m.name} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer`}
+                  style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}>
+                  <td className="py-3.5 px-5">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap ${tc.textSecondary}`}>{market.region}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap font-medium ${tc.textPrimary}`}>${market.price.toFixed(2)}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap ${market.change > 0 ? 'text-emerald-500' : market.change < 0 ? 'text-rose-500' : tc.textMuted}`}>
-                    <div className="flex items-center">
-                      {market.trend === 'up' ? <FiChevronUp className="w-4 h-4" /> : market.trend === 'down' ? <FiChevronDown className="w-4 h-4" /> : null}
-                      {market.change > 0 ? '+' : ''}{market.change.toFixed(1)}%
-                    </div>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{m.price}</td>
+                  <td className="py-3.5 px-4 text-right">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${m.positive ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>
+                      {m.positive ? <FiTrendingUp className="w-3 h-3" /> : <FiTrendingDown className="w-3 h-3" />}
+                      {m.change}
+                    </span>
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap ${tc.textSecondary}`}>{market.volume.toLocaleString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors">Trade</button>
+                  <td className="py-3.5 px-4 text-right text-slate-500 dark:text-slate-400 mono text-xs">{m.volume}</td>
+                  <td className="py-3.5 px-4 text-right text-slate-500 dark:text-slate-400 mono text-xs">{m.cap}</td>
+                  <td className="py-3.5 px-5 text-right">
+                    <div className="w-24 h-8 ml-auto">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={m.spark}>
+                          <defs>
+                            <linearGradient id={`sg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={m.positive ? '#10B981' : '#EF4444'} stopOpacity={0.2} />
+                              <stop offset="100%" stopColor={m.positive ? '#10B981' : '#EF4444'} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="v" stroke={m.positive ? '#10B981' : '#EF4444'} strokeWidth={1.5} fill={`url(#sg-${i})`} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -106,53 +91,6 @@ export default function Markets() {
           </table>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className={`rounded-2xl p-6 ${tc.cardBg}`}>
-          <h3 className={`text-lg font-bold mb-4 ${tc.textPrimary}`}>Top Performing</h3>
-          <div className="space-y-3">
-            {sortedMarkets.filter(m => m.change > 0).sort((a, b) => b.change - a.change).slice(0, 3).map(m => (
-              <div key={m.id} className="flex items-center justify-between">
-                <div><div className={`font-medium text-sm ${tc.textPrimary}`}>{m.energyType}</div><div className={`text-xs ${tc.textMuted}`}>{m.region}</div></div>
-                <div className="text-emerald-500 font-medium">+{m.change.toFixed(1)}%</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className={`rounded-2xl p-6 ${tc.cardBg}`}>
-          <h3 className={`text-lg font-bold mb-4 ${tc.textPrimary}`}>Volatility Indicators</h3>
-          <div className="space-y-4">
-            {[{ n: 'Solar', v: 65, l: 'Medium', c: 'bg-amber-500' }, { n: 'Wind', v: 85, l: 'High', c: 'bg-rose-500' }, { n: 'Natural Gas', v: 30, l: 'Low', c: 'bg-emerald-500' }].map(x => (
-              <div key={x.n}>
-                <div className="flex justify-between mb-1.5">
-                  <span className={`text-sm ${tc.textPrimary}`}>{x.n}</span>
-                  <span className={`text-sm ${tc.textMuted}`}>{x.l}</span>
-                </div>
-                <div className={`w-full rounded-full h-1.5 ${tc.isDark ? 'bg-white/[0.06]' : 'bg-slate-100'}`}>
-                  <div className={`${x.c} h-1.5 rounded-full`} style={{ width: `${x.v}%` }}></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className={`rounded-2xl p-6 ${tc.cardBg}`}>
-          <h3 className={`text-lg font-bold mb-4 ${tc.textPrimary}`}>AI Trading Signals</h3>
-          <div className="space-y-3">
-            <div className={`p-3 rounded-xl border ${tc.isDark ? 'bg-emerald-500/[0.06] border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-              <div className="font-medium text-emerald-500 text-sm">BUY Signal</div>
-              <div className={`text-xs mt-1 ${tc.textSecondary}`}>Solar prices favorable in CA. Confidence: 87%</div>
-            </div>
-            <div className={`p-3 rounded-xl border ${tc.isDark ? 'bg-amber-500/[0.06] border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-              <div className="font-medium text-amber-500 text-sm">HOLD Signal</div>
-              <div className={`text-xs mt-1 ${tc.textSecondary}`}>Wind market stabilizing. Confidence: 72%</div>
-            </div>
-            <div className={`p-3 rounded-xl border ${tc.isDark ? 'bg-white/[0.03] border-white/[0.06]' : 'bg-slate-50 border-slate-200'}`}>
-              <div className={`font-medium text-sm ${tc.textSecondary}`}>NEUTRAL Signal</div>
-              <div className={`text-xs mt-1 ${tc.textMuted}`}>Coal market unchanged. Monitor risks.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+    </div>
   );
 }
