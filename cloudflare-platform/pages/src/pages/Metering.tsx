@@ -1,235 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { meteringAPI, projectsAPI } from '../lib/api';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import React, { useState } from 'react';
+import { FiActivity, FiUpload, FiCheck, FiClock, FiZap } from 'react-icons/fi';
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
+import { useTheme } from '../contexts/ThemeContext';
 
-const COLORS = ['#d4e157', '#66bb6a', '#42a5f5', '#ef5350', '#ab47bc'];
+const readingsData = Array.from({ length: 24 }, (_, i) => ({
+  time: `${String(i).padStart(2, '0')}:00`,
+  solar: Math.max(0, 45 + Math.sin((i - 6) * 0.5) * 40),
+  wind: 20 + Math.sin(i * 0.3) * 15,
+  demand: 50 + Math.sin((i - 8) * 0.4) * 30,
+}));
 
-interface MeterReading {
-  id: string; meter_id: string; meter_type: string; timestamp: string; value_kwh: number; source: string; quality: string;
-}
+const monthlyData = [
+  { month: 'Jan', generation: 12400, consumption: 10800 },
+  { month: 'Feb', generation: 14200, consumption: 11200 },
+  { month: 'Mar', generation: 15800, consumption: 11600 },
+  { month: 'Apr', generation: 13200, consumption: 12400 },
+  { month: 'May', generation: 11800, consumption: 13200 },
+  { month: 'Jun', generation: 10200, consumption: 14800 },
+];
 
-interface MeterSummary {
-  meter_type: string; reading_count: number; total_kwh: number; avg_kwh: number; first_reading: string; last_reading: string;
-}
+const meters = [
+  { id: 'MTR-SOL-001', project: 'Limpopo Solar Farm', type: 'Generation', reading: '48.2 MW', status: 'Online', quality: '99.2%', lastReading: '2 min ago' },
+  { id: 'MTR-WND-002', project: 'Eastern Cape Wind', type: 'Generation', reading: '32.8 MW', status: 'Online', quality: '98.8%', lastReading: '5 min ago' },
+  { id: 'MTR-DEM-003', project: 'BevCo Main Meter', type: 'Demand', reading: '24.1 MW', status: 'Online', quality: '99.5%', lastReading: '1 min ago' },
+  { id: 'MTR-SOL-004', project: 'Northern Cape CSP', type: 'Generation', reading: '0 MW', status: 'Offline', quality: '0%', lastReading: '2 days ago' },
+  { id: 'MTR-GRD-005', project: 'Grid Connection Point', type: 'Grid', reading: '156.4 MW', status: 'Online', quality: '99.9%', lastReading: '30 sec ago' },
+];
 
 export default function Metering() {
-  const tc = useThemeClasses();
-  const [readings, setReadings] = useState<MeterReading[]>([]);
-  const [summary, setSummary] = useState<{ by_meter_type: MeterSummary[]; total_generated_mwh: number; contracted_annual_mwh: number; performance_ratio: number } | null>(null);
-  const [projects, setProjects] = useState<Array<{ id: string; name: string; technology: string; capacity_mw: number }>>([]);
-  const [selectedProject, setSelectedProject] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showAlertModal, setShowAlertModal] = useState(false);
-
-  useEffect(() => {
-    projectsAPI.list().then((r) => {
-      const p = r.data?.data?.results || r.data?.data || [];
-      setProjects(p);
-      if (p.length > 0) setSelectedProject(p[0].id);
-    }).catch(() => {
-      // Demo projects
-      const demo = [
-        { id: 'proj1', name: 'Sunfields 50MW Solar', technology: 'solar', capacity_mw: 50 },
-        { id: 'proj2', name: 'Cape Wind Farm', technology: 'wind', capacity_mw: 100 },
-      ];
-      setProjects(demo);
-      setSelectedProject(demo[0].id);
-    }).finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedProject) return;
-    Promise.all([
-      meteringAPI.getReadings({ project_id: selectedProject, limit: '96' }).catch(() => ({ data: { data: [] } })),
-      meteringAPI.getSummary(selectedProject).catch(() => ({
-        data: { data: { by_meter_type: demoSummary(), total_generated_mwh: 12450.5, contracted_annual_mwh: 109500, performance_ratio: 11.37 } },
-      })),
-    ]).then(([readingsRes, summaryRes]) => {
-      const r = readingsRes.data?.data || [];
-      setReadings(r.length > 0 ? r : demoReadings());
-      setSummary(summaryRes.data?.data || null);
-    });
-  }, [selectedProject]);
-
-  if (loading) return <div className="flex items-center justify-center h-full"><div className="animate-spin h-8 w-8 border-2 border-[#d4e157] border-t-transparent rounded-full" /></div>;
-
-  // Chart data: 15-min interval readings
-  const chartData = readings.slice(0, 96).reverse().map((r) => ({
-    time: new Date(r.timestamp).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }),
-    value: r.value_kwh,
-    type: r.meter_type,
-  }));
-
-  // Summary bar chart
-  const summaryChart = (summary?.by_meter_type || []).map((s) => ({
-    type: s.meter_type.replace(/_/g, ' '),
-    total: Math.round(s.total_kwh / 1000), // MWh
-    readings: s.reading_count,
-  }));
-
-  const currentProject = projects.find((p) => p.id === selectedProject);
+  const { isDark } = useTheme();
+  const c = (d: string, l: string) => isDark ? d : l;
+  const [showUpload, setShowUpload] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Metering & IoT</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Real-time 15-min interval data from connected meters</p>
+          <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Metering & IoT</h1>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Real-time meter readings & generation data</p>
         </div>
-        <div className="flex gap-2">
-          <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm bg-white">
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <button onClick={() => setShowUploadModal(true)} className="px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-2xl font-semibold text-sm hover:bg-[#c0ca33] transition-colors">Upload Reading</button>
-          <button onClick={() => setShowAlertModal(true)} className="px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-2xl text-sm">Configure Alerts</button>
-        </div>
+        <button onClick={() => setShowUpload(!showUpload)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-600 transition-all flex items-center gap-2">
+          <FiUpload className="w-4 h-4" /> Upload Readings
+        </button>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         {[
-          { label: 'Total Generated', value: `${summary?.total_generated_mwh?.toLocaleString() || '0'} MWh`, color: '#d4e157' },
-          { label: 'Contracted Annual', value: `${summary?.contracted_annual_mwh?.toLocaleString() || '0'} MWh`, color: '#42a5f5' },
-          { label: 'Performance Ratio', value: `${summary?.performance_ratio || 0}%`, color: summary && summary.performance_ratio > 10 ? '#66bb6a' : '#ef5350' },
-          { label: 'Capacity', value: `${currentProject?.capacity_mw || 0} MW ${currentProject?.technology || ''}`, color: '#ab47bc' },
-        ].map((m) => (
-          <div key={m.label} className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-4 border border-slate-200 dark:border-white/[0.06]`}>
-            <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{m.label}</p>
-            <p className="text-lg font-bold mt-1" style={{ color: m.color }}>{m.value}</p>
+          { label: 'Active Meters', value: '4/5', icon: FiActivity, color: 'text-cyan-500' },
+          { label: 'Total Generation', value: '81.0 MW', icon: FiZap, color: 'text-amber-500' },
+          { label: 'Total Demand', value: '24.1 MW', icon: FiActivity, color: 'text-blue-500' },
+          { label: 'Avg Quality', value: '99.1%', icon: FiCheck, color: 'text-emerald-500' },
+        ].map((kpi, i) => (
+          <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${100 + i * 60}ms both` }}>
+            <kpi.icon className={`w-4 h-4 ${kpi.color} mb-2`} />
+            <p className="text-2xl font-bold text-slate-900 dark:text-white mono">{kpi.value}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{kpi.label}</p>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Real-time 15-min Chart */}
-        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06] lg:col-span-2`}>
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Real-Time Generation (15-min intervals)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke={tc.chartGrid} />
-              <XAxis dataKey="time" tick={{ fontSize: 11 }} interval={11} />
-              <YAxis tickFormatter={(v: number) => `${v} kWh`} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Area type="monotone" dataKey="value" stroke="#d4e157" fill="#d4e15730" strokeWidth={2} />
+        <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Today&apos;s Generation & Demand (15-min intervals)</h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={readingsData}>
+              <defs>
+                <linearGradient id="solGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F59E0B" stopOpacity={0.2} /><stop offset="100%" stopColor="#F59E0B" stopOpacity={0} /></linearGradient>
+                <linearGradient id="wndGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3B82F6" stopOpacity={0.2} /><stop offset="100%" stopColor="#3B82F6" stopOpacity={0} /></linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={c('#1e293b', '#f1f5f9')} />
+              <XAxis dataKey="time" tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} width={35} unit=" MW" />
+              <Tooltip contentStyle={{ background: c('#151F32', '#fff'), border: c('1px solid rgba(255,255,255,0.08)', '1px solid rgba(0,0,0,0.06)'), borderRadius: 12, fontSize: 12 }} />
+              <Area type="monotone" dataKey="solar" stroke="#F59E0B" strokeWidth={2} fill="url(#solGrad)" name="Solar" />
+              <Area type="monotone" dataKey="wind" stroke="#3B82F6" strokeWidth={2} fill="url(#wndGrad)" name="Wind" />
+              <Area type="monotone" dataKey="demand" stroke="#EF4444" strokeWidth={1.5} fill="none" strokeDasharray="4 3" name="Demand" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Metered vs Contracted */}
-        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06]`}>
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Generation by Meter Type (MWh)</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={summaryChart}>
-              <CartesianGrid strokeDasharray="3 3" stroke={tc.chartGrid} />
-              <XAxis dataKey="type" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="total" radius={[8, 8, 0, 0]}>
-                {summaryChart.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Bar>
+        <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Monthly Generation vs Consumption</h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke={c('#1e293b', '#f1f5f9')} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip contentStyle={{ background: c('#151F32', '#fff'), border: c('1px solid rgba(255,255,255,0.08)', '1px solid rgba(0,0,0,0.06)'), borderRadius: 12, fontSize: 12 }} />
+              <Bar dataKey="generation" fill="#10B981" radius={[4, 4, 0, 0]} name="Generation (MWh)" />
+              <Bar dataKey="consumption" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Consumption (MWh)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
+      </div>
 
-        {/* Meter Status Table */}
-        <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-5 border border-slate-200 dark:border-white/[0.06]`}>
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-4">Meter Status</h3>
+      <div className={`cp-card !p-0 overflow-hidden ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 500ms both' }}>
+        <div className={`px-5 py-3.5 border-b ${c('border-white/[0.06]', 'border-black/[0.06]')}`}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Connected Meters</h3>
+        </div>
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 dark:border-white/[0.06]">
-                <th className="text-left py-2 text-slate-500 dark:text-slate-400">Meter</th>
-                <th className="text-left py-2 text-slate-500 dark:text-slate-400">Type</th>
-                <th className="text-right py-2 text-slate-500 dark:text-slate-400">Readings</th>
-                <th className="text-left py-2 pl-3 text-slate-500 dark:text-slate-400">Quality</th>
+            <thead><tr className={`text-xs border-b ${c('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+              <th className="text-left py-3 px-5 font-medium">Meter ID</th>
+              <th className="text-left py-3 px-4 font-medium">Project</th>
+              <th className="text-left py-3 px-4 font-medium">Type</th>
+              <th className="text-right py-3 px-4 font-medium">Reading</th>
+              <th className="text-left py-3 px-4 font-medium">Status</th>
+              <th className="text-right py-3 px-4 font-medium">Quality</th>
+              <th className="text-right py-3 px-5 font-medium">Last</th>
+            </tr></thead>
+            <tbody>{meters.map(m => (
+              <tr key={m.id} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                <td className="py-3 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{m.id}</td>
+                <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{m.project}</td>
+                <td className="py-3 px-4 text-slate-500">{m.type}</td>
+                <td className="py-3 px-4 text-right font-bold text-slate-900 dark:text-white mono">{m.reading}</td>
+                <td className="py-3 px-4">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${m.status === 'Online' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{m.status}</span>
+                </td>
+                <td className="py-3 px-4 text-right text-slate-500 mono text-xs">{m.quality}</td>
+                <td className="py-3 px-5 text-right text-slate-400 text-xs flex items-center justify-end gap-1"><FiClock className="w-3 h-3" />{m.lastReading}</td>
               </tr>
-            </thead>
-            <tbody>
-              {(summary?.by_meter_type || []).map((m, i) => (
-                <tr key={i} className="border-b border-slate-100 dark:border-white/[0.04]">
-                  <td className="py-2 font-medium text-slate-900 dark:text-slate-100">MTR-{String(i + 1).padStart(3, '0')}</td>
-                  <td className="py-2 text-slate-600 dark:text-slate-400">{m.meter_type.replace(/_/g, ' ')}</td>
-                  <td className="py-2 text-right font-mono">{m.reading_count.toLocaleString()}</td>
-                  <td className="py-2 pl-3"><span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">actual</span></td>
-                </tr>
-              ))}
-              {(summary?.by_meter_type || []).length === 0 && (
-                <tr><td colSpan={4} className="py-4 text-center text-slate-400 dark:text-slate-500">No meter data yet</td></tr>
-              )}
-            </tbody>
+            ))}</tbody>
           </table>
         </div>
       </div>
-
-      {/* Upload Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md`}>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Upload Meter Reading</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Source</label>
-                <select className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm">
-                  <option>Eskom AMI</option><option>SolarEdge</option><option>Fronius</option><option>SMA</option><option>Manual</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">CSV File</label>
-                <input type="file" accept=".csv" className="w-full border border-slate-200 dark:border-white/[0.06] rounded-xl px-3 py-2 text-sm" />
-                <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-1">Format: meter_id, meter_type, timestamp, value_kwh</p>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowUploadModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
-              <button onClick={() => setShowUploadModal(false)} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Upload</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Alert Config Modal */}
-      {showAlertModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className={`${tc.isDark ? "bg-[#0f1d32]" : "bg-white"} rounded-2xl p-6 w-full max-w-md`}>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">Configure Meter Alerts</h3>
-            <div className="space-y-3">
-              {['Generation below threshold', 'No data for 30 minutes', 'Quality downgrade to estimated', 'Contracted volume shortfall'].map((alert) => (
-                <label key={alert} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-white/[0.02] rounded-xl cursor-pointer">
-                  <input type="checkbox" defaultChecked className="accent-[#d4e157]" />
-                  <span className="text-sm text-slate-900 dark:text-slate-100">{alert}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowAlertModal(false)} className="flex-1 px-4 py-2 border border-slate-200 dark:border-white/[0.06] rounded-xl text-sm">Cancel</button>
-              <button onClick={() => setShowAlertModal(false)} className="flex-1 px-4 py-2 bg-[#d4e157] text-slate-900 dark:text-slate-100 rounded-xl text-sm font-semibold">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
-}
-
-// Demo data generators
-function demoReadings(): MeterReading[] {
-  const now = Date.now();
-  return Array.from({ length: 96 }, (_, i) => ({
-    id: `r${i}`,
-    meter_id: 'MTR-001',
-    meter_type: 'solar_gen',
-    timestamp: new Date(now - (95 - i) * 15 * 60 * 1000).toISOString(),
-    value_kwh: Math.max(0, Math.sin((i - 24) * Math.PI / 48) * 450 + Math.random() * 50),
-    source: 'solaredge',
-    quality: 'actual',
-  }));
-}
-
-function demoSummary(): MeterSummary[] {
-  return [
-    { meter_type: 'solar_gen', reading_count: 2880, total_kwh: 1245000, avg_kwh: 432, first_reading: '2024-01-01', last_reading: '2024-01-31' },
-    { meter_type: 'grid_export', reading_count: 2880, total_kwh: 980000, avg_kwh: 340, first_reading: '2024-01-01', last_reading: '2024-01-31' },
-    { meter_type: 'consumption', reading_count: 2880, total_kwh: 265000, avg_kwh: 92, first_reading: '2024-01-01', last_reading: '2024-01-31' },
-  ];
 }
