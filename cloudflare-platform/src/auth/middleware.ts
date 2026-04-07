@@ -1,18 +1,26 @@
 import { Context, Next } from 'hono';
-import { verifyJwt } from './jwt';
+import { verifyJwt, isTokenBlacklisted } from './jwt';
 import { Role, JwtPayload, HonoEnv } from '../utils/types';
 import { hasPermission, Permission } from './permissions';
 
-// Extend Hono context variables
 declare module 'hono' {
   interface ContextVariableMap {
     user: JwtPayload;
+    requestId: string;
   }
 }
 
-/**
- * Auth middleware — validates JWT and optionally checks roles/permissions
- */
+/** Request ID middleware */
+export function requestIdMiddleware() {
+  return async (c: Context<HonoEnv>, next: Next) => {
+    const requestId = crypto.randomUUID();
+    c.set('requestId', requestId);
+    c.header('X-Request-Id', requestId);
+    await next();
+  };
+}
+
+/** Auth middleware with blacklist check */
 export function authMiddleware(options?: {
   roles?: Role[];
   permissions?: Permission[];
@@ -21,37 +29,44 @@ export function authMiddleware(options?: {
   return async (c: Context<HonoEnv>, next: Next) => {
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ success: false, error: 'Missing or invalid Authorization header' }, 401);
+      return c.json({ success: false, error: 'Missing or invalid Authorization header', code: 'AUTH_FAILED' }, 401);
     }
 
     const token = authHeader.substring(7);
-    const payload = await verifyJwt(token);
-    if (!payload) {
-      return c.json({ success: false, error: 'Invalid or expired token' }, 401);
+
+    try {
+      const blacklisted = await isTokenBlacklisted(c.env.KV, token);
+      if (blacklisted) {
+        return c.json({ success: false, error: 'Token has been revoked', code: 'AUTH_FAILED' }, 401);
+      }
+    } catch {
+      // If KV fails, allow through
     }
 
-    // Check KYC status for protected routes
-    const requireKyc = options?.requireKyc !== false; // default true
+    const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+    const payload = await verifyJwt(token, secret);
+    if (!payload) {
+      return c.json({ success: false, error: 'Invalid or expired token', code: 'AUTH_FAILED' }, 401);
+    }
+
+    const requireKyc = options?.requireKyc !== false;
     if (requireKyc && payload.kyc_status !== 'verified') {
-      // Allow access to registration status check and document upload
       const path = c.req.path;
       const allowedPaths = ['/api/v1/register/status', '/api/v1/register/', '/api/v1/auth/'];
       const isAllowed = allowedPaths.some((p) => path.startsWith(p));
       if (!isAllowed) {
-        return c.json({ success: false, error: 'KYC verification required' }, 403);
+        return c.json({ success: false, error: 'KYC verification required', code: 'AUTH_FAILED' }, 403);
       }
     }
 
-    // Check role
     if (options?.roles && !options.roles.includes(payload.role)) {
-      return c.json({ success: false, error: 'Insufficient permissions' }, 403);
+      return c.json({ success: false, error: 'Insufficient permissions', code: 'AUTH_FAILED' }, 403);
     }
 
-    // Check permissions
     if (options?.permissions) {
       const hasAll = options.permissions.every((p) => hasPermission(payload.role, p));
       if (!hasAll) {
-        return c.json({ success: false, error: 'Insufficient permissions' }, 403);
+        return c.json({ success: false, error: 'Insufficient permissions', code: 'AUTH_FAILED' }, 403);
       }
     }
 
@@ -60,15 +75,14 @@ export function authMiddleware(options?: {
   };
 }
 
-/**
- * Optional auth — sets user if token present, but doesn't require it
- */
+/** Optional auth */
 export function optionalAuth() {
   return async (c: Context<HonoEnv>, next: Next) => {
     const authHeader = c.req.header('Authorization');
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
-      const payload = await verifyJwt(token);
+      const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+      const payload = await verifyJwt(token, secret);
       if (payload) {
         c.set('user', payload);
       }
@@ -77,25 +91,34 @@ export function optionalAuth() {
   };
 }
 
-/**
- * Rate limiting middleware using KV
- */
+/** Rate limiter with stricter auth limits (5 req/15min for login/register) */
 export function rateLimiter(options: { maxRequests: number; windowSeconds: number }) {
   return async (c: Context<HonoEnv>, next: Next) => {
     const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown';
-    const key = `ratelimit:${ip}:${Math.floor(Date.now() / (options.windowSeconds * 1000))}`;
+    const path = c.req.path;
+
+    let max = options.maxRequests;
+    let window = options.windowSeconds;
+    if (path.includes('/auth/login') || path.endsWith('/register')) {
+      max = 5;
+      window = 900;
+    }
+
+    const key = `ratelimit:${ip}:${path.split('/').slice(0, 5).join('/')}:${Math.floor(Date.now() / (window * 1000))}`;
 
     try {
       const current = await c.env.KV.get(key);
       const count = current ? parseInt(current, 10) : 0;
 
-      if (count >= options.maxRequests) {
-        return c.json({ success: false, error: 'Rate limit exceeded' }, 429);
+      if (count >= max) {
+        const retryAfter = window - (Math.floor(Date.now() / 1000) % window);
+        c.header('Retry-After', String(retryAfter));
+        return c.json({ success: false, error: 'Rate limit exceeded', code: 'RATE_LIMITED' }, 429);
       }
 
-      await c.env.KV.put(key, String(count + 1), { expirationTtl: options.windowSeconds });
+      await c.env.KV.put(key, String(count + 1), { expirationTtl: window });
     } catch {
-      // If KV fails, allow the request through
+      // If KV fails, allow through
     }
 
     await next();
