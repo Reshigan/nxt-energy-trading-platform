@@ -8,6 +8,7 @@ interface User {
   role: UserRole;
   company_name: string;
   kyc_status: string;
+  kyc_checks_passed?: number;
 }
 
 interface AuthState {
