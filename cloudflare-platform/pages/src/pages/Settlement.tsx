@@ -1,243 +1,147 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FiDollarSign, FiAlertTriangle, FiPlus, FiFileText } from 'react-icons/fi';
-import { settlementAPI } from '../lib/api';
-import Modal from '../components/Modal';
-import StatusBadge from '../components/StatusBadge';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import React, { useState } from 'react';
+import { FiFileText, FiShield, FiAlertTriangle, FiPlus } from 'react-icons/fi';
+import { useTheme } from '../contexts/ThemeContext';
+
+const tabs = ['Invoices', 'Escrows', 'Disputes'];
+
+const invoices = [
+  { id: 'INV-2024-001', counterparty: 'Eskom Holdings', amount: 'R842,000', status: 'Paid', due: '2024-04-15', type: 'Solar PPA' },
+  { id: 'INV-2024-002', counterparty: 'BevCo Power', amount: 'R1,240,000', status: 'Pending', due: '2024-04-30', type: 'Wind Contract' },
+  { id: 'INV-2024-003', counterparty: 'GreenFund SA', amount: 'R430,000', status: 'Overdue', due: '2024-03-31', type: 'Carbon Credits' },
+  { id: 'INV-2024-004', counterparty: 'TerraVolt Energy', amount: 'R680,000', status: 'Paid', due: '2024-04-10', type: 'Gas Forward' },
+  { id: 'INV-2024-005', counterparty: 'Carbon Bridge', amount: 'R125,000', status: 'Draft', due: '2024-05-15', type: 'RECs' },
+];
+
+const escrows = [
+  { id: 'ESC-001', parties: 'TerraVolt <> Eskom', amount: 'R2.4M', status: 'Funded', conditions: '3/4 met', created: '2024-03-01' },
+  { id: 'ESC-002', parties: 'BevCo <> GreenFund', amount: 'R800K', status: 'Pending', conditions: '1/3 met', created: '2024-03-15' },
+  { id: 'ESC-003', parties: 'Envera <> Carbon Bridge', amount: 'R1.2M', status: 'Released', conditions: '4/4 met', created: '2024-02-15' },
+  { id: 'ESC-004', parties: 'NXT Admin <> TerraVolt', amount: 'R500K', status: 'Disputed', conditions: '2/3 met', created: '2024-03-20' },
+];
+
+const disputes = [
+  { id: 'DSP-001', parties: 'TerraVolt vs Eskom', amount: 'R340,000', status: 'Under Review', type: 'Delivery Shortfall', filed: '2024-03-25' },
+  { id: 'DSP-002', parties: 'BevCo vs GreenFund', amount: 'R180,000', status: 'Mediation', type: 'Quality Issue', filed: '2024-03-20' },
+  { id: 'DSP-003', parties: 'Envera vs Carbon Bridge', amount: 'R95,000', status: 'Resolved', type: 'Payment Delay', filed: '2024-02-28' },
+];
+
+const sc: Record<string, { bg: string; text: string }> = {
+  Paid: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
+  Pending: { bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400' },
+  Overdue: { bg: 'bg-red-50 dark:bg-red-500/10', text: 'text-red-600 dark:text-red-400' },
+  Draft: { bg: 'bg-slate-100 dark:bg-slate-500/10', text: 'text-slate-600 dark:text-slate-400' },
+  Funded: { bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
+  Released: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
+  Disputed: { bg: 'bg-red-50 dark:bg-red-500/10', text: 'text-red-600 dark:text-red-400' },
+  'Under Review': { bg: 'bg-amber-50 dark:bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400' },
+  Mediation: { bg: 'bg-purple-50 dark:bg-purple-500/10', text: 'text-purple-600 dark:text-purple-400' },
+  Resolved: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
+};
+
+function Badge({ status }: { status: string }) {
+  const s = sc[status] || sc.Draft;
+  return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.text}`}>{status}</span>;
+}
 
 export default function Settlement() {
-  const tc = useThemeClasses();
-  const [tab, setTab] = useState<'invoices' | 'escrows' | 'disputes'>('invoices');
-  const [invoices, setInvoices] = useState<Array<Record<string, unknown>>>([]);
-  const [escrows, setEscrows] = useState<Array<Record<string, unknown>>>([]);
-  const [disputes, setDisputes] = useState<Array<Record<string, unknown>>>([]);
-  const [showDisputeModal, setShowDisputeModal] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [disputeForm, setDisputeForm] = useState({ respondent_id: '', category: 'billing', description: '', value_cents: '', trade_id: '' });
-  const [invoiceForm, setInvoiceForm] = useState({ trade_id: '', metered_volume: '', unit_rate_cents: '' });
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => { loadData(); }, [tab]);
-
-  const loadData = async () => {
-    try {
-      if (tab === 'invoices') { const r = await settlementAPI.getInvoices(); setInvoices(r.data.data); }
-      else if (tab === 'escrows') { const r = await settlementAPI.getEscrows(); setEscrows(r.data.data); }
-      else { const r = await settlementAPI.getDisputes(); setDisputes(r.data.data); }
-    } catch { /* ignore */ }
-  };
-
-  const fileDispute = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await settlementAPI.fileDispute({
-        respondent_id: disputeForm.respondent_id,
-        category: disputeForm.category,
-        description: disputeForm.description,
-        value_cents: parseInt(disputeForm.value_cents, 10),
-        trade_id: disputeForm.trade_id || undefined,
-      });
-      setShowDisputeModal(false);
-      loadData();
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const generateInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await settlementAPI.generateInvoice({
-        trade_id: invoiceForm.trade_id,
-        metered_volume: invoiceForm.metered_volume ? parseFloat(invoiceForm.metered_volume) : undefined,
-        unit_rate_cents: invoiceForm.unit_rate_cents ? parseInt(invoiceForm.unit_rate_cents, 10) : undefined,
-      });
-      setShowInvoiceModal(false);
-      loadData();
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const payInvoice = async (id: string) => {
-    try { await settlementAPI.payInvoice(id); loadData(); } catch { /* ignore */ }
-  };
-
-  const inputClass = `w-full px-3 py-2 ${tc.input} rounded-lg text-sm`;
+  const { isDark } = useTheme();
+  const cv = (d: string, l: string) => isDark ? d : l;
+  const [activeTab, setActiveTab] = useState('Invoices');
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>Settlement & Disputes</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-lg text-sm hover:bg-slate-700 transition-colors">
-            <FiFileText className="w-4 h-4" /> Generate Invoice
-          </button>
-          <button onClick={() => setShowDisputeModal(true)} className="flex items-center gap-2 px-4 py-2 bg-red-600/20 text-red-400 rounded-lg text-sm hover:bg-red-600/30 transition-colors">
-            <FiAlertTriangle className="w-4 h-4" /> File Dispute
-          </button>
+    <div className="space-y-6">
+      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+        <div>
+          <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Settlement</h1>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Invoices, escrows & dispute resolution</p>
         </div>
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
+          <FiPlus className="w-4 h-4" /> {activeTab === 'Invoices' ? 'Generate Invoice' : activeTab === 'Escrows' ? 'Create Escrow' : 'File Dispute'}
+        </button>
       </div>
 
-      <div className="flex gap-2">
-        {(['invoices', 'escrows', 'disputes'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'}`}>
-            {t}
+      <div className={`flex items-center rounded-full p-1 w-fit ${cv('bg-white/[0.04]', 'bg-slate-100')}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        {tabs.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all flex items-center gap-1.5 ${activeTab === tab ? cv('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : cv('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>
+            {tab === 'Invoices' && <FiFileText className="w-3.5 h-3.5" />}
+            {tab === 'Escrows' && <FiShield className="w-3.5 h-3.5" />}
+            {tab === 'Disputes' && <FiAlertTriangle className="w-3.5 h-3.5" />}
+            {tab}
           </button>
         ))}
       </div>
 
-      {tab === 'invoices' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Invoices</h3>
-          {invoices.length === 0 ? <p className="text-sm text-slate-400">No invoices</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-slate-500 dark:text-slate-400 text-xs">
-                  <th className="text-left py-2">Invoice #</th>
-                  <th className="text-right py-2">Subtotal</th>
-                  <th className="text-right py-2">VAT</th>
-                  <th className="text-right py-2">Total</th>
-                  <th className="text-left py-2">Due Date</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-right py-2">Action</th>
-                </tr></thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv.id as string} className="border-t border-slate-200 dark:border-white/[0.06]">
-                      <td className="py-2 font-medium">{inv.invoice_number as string}</td>
-                      <td className="text-right">R{((inv.subtotal_cents as number) / 100).toFixed(2)}</td>
-                      <td className="text-right">R{((inv.vat_cents as number) / 100).toFixed(2)}</td>
-                      <td className="text-right font-medium">R{((inv.total_cents as number) / 100).toFixed(2)}</td>
-                      <td>{(inv.due_date as string || '').split('T')[0]}</td>
-                      <td><StatusBadge status={inv.status as string} /></td>
-                      <td className="text-right">
-                        {(inv.status === 'outstanding' || inv.status === 'overdue') && (
-                          <button onClick={() => payInvoice(inv.id as string)} className="text-xs text-emerald-400 hover:text-emerald-300">Mark Paid</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      <div className={`cp-card !p-0 overflow-hidden ${cv('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+        <div className="overflow-x-auto">
+          {activeTab === 'Invoices' && (
+            <table className="w-full text-sm">
+              <thead><tr className={`text-xs border-b ${cv('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Invoice</th>
+                <th className="text-left py-3.5 px-4 font-medium">Counterparty</th>
+                <th className="text-left py-3.5 px-4 font-medium">Type</th>
+                <th className="text-right py-3.5 px-4 font-medium">Amount</th>
+                <th className="text-left py-3.5 px-4 font-medium">Status</th>
+                <th className="text-right py-3.5 px-5 font-medium">Due Date</th>
+              </tr></thead>
+              <tbody>{invoices.map(inv => (
+                <tr key={inv.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{inv.id}</td>
+                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{inv.counterparty}</td>
+                  <td className="py-3.5 px-4 text-slate-500">{inv.type}</td>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{inv.amount}</td>
+                  <td className="py-3.5 px-4"><Badge status={inv.status} /></td>
+                  <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{inv.due}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+          {activeTab === 'Escrows' && (
+            <table className="w-full text-sm">
+              <thead><tr className={`text-xs border-b ${cv('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Escrow</th>
+                <th className="text-left py-3.5 px-4 font-medium">Parties</th>
+                <th className="text-right py-3.5 px-4 font-medium">Amount</th>
+                <th className="text-left py-3.5 px-4 font-medium">Status</th>
+                <th className="text-left py-3.5 px-4 font-medium">Conditions</th>
+                <th className="text-right py-3.5 px-5 font-medium">Created</th>
+              </tr></thead>
+              <tbody>{escrows.map(e => (
+                <tr key={e.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{e.id}</td>
+                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{e.parties}</td>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{e.amount}</td>
+                  <td className="py-3.5 px-4"><Badge status={e.status} /></td>
+                  <td className="py-3.5 px-4 text-slate-500">{e.conditions}</td>
+                  <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{e.created}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+          {activeTab === 'Disputes' && (
+            <table className="w-full text-sm">
+              <thead><tr className={`text-xs border-b ${cv('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Dispute</th>
+                <th className="text-left py-3.5 px-4 font-medium">Parties</th>
+                <th className="text-left py-3.5 px-4 font-medium">Type</th>
+                <th className="text-right py-3.5 px-4 font-medium">Amount</th>
+                <th className="text-left py-3.5 px-4 font-medium">Status</th>
+                <th className="text-right py-3.5 px-5 font-medium">Filed</th>
+              </tr></thead>
+              <tbody>{disputes.map(d => (
+                <tr key={d.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</td>
+                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{d.parties}</td>
+                  <td className="py-3.5 px-4 text-slate-500">{d.type}</td>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{d.amount}</td>
+                  <td className="py-3.5 px-4"><Badge status={d.status} /></td>
+                  <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{d.filed}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           )}
         </div>
-      )}
-
-      {tab === 'escrows' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Escrows</h3>
-          {escrows.length === 0 ? <p className="text-sm text-slate-400">No escrows</p> : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-slate-500 dark:text-slate-400 text-xs">
-                  <th className="text-left py-2">ID</th>
-                  <th className="text-right py-2">Amount</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Expires</th>
-                </tr></thead>
-                <tbody>
-                  {escrows.map((e) => (
-                    <tr key={e.id as string} className="border-t border-slate-200 dark:border-white/[0.06]">
-                      <td className="py-2 font-mono text-xs">{(e.id as string).slice(0, 8)}...</td>
-                      <td className="text-right">R{((e.amount_cents as number) / 100).toFixed(2)}</td>
-                      <td><StatusBadge status={e.status as string} /></td>
-                      <td className="text-xs text-slate-500 dark:text-slate-400">{e.expires_at as string || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {tab === 'disputes' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Disputes</h3>
-          {disputes.length === 0 ? <p className="text-sm text-slate-400">No disputes</p> : (
-            <div className="space-y-3">
-              {disputes.map((d) => (
-                <div key={d.id as string} className={`p-4 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium capitalize">{d.category as string}</span>
-                    <StatusBadge status={d.status as string} />
-                  </div>
-                  <p className="text-sm text-slate-400 mb-2">{d.description as string}</p>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>Value: R{((d.value_cents as number) / 100).toFixed(2)}</span>
-                    <span>{d.created_at as string}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* File Dispute Modal */}
-      <Modal isOpen={showDisputeModal} onClose={() => setShowDisputeModal(false)} title="File Dispute">
-        <form onSubmit={fileDispute} className="space-y-4">
-          <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Respondent ID *</label>
-            <input className={inputClass} value={disputeForm.respondent_id} onChange={(e) => setDisputeForm({ ...disputeForm, respondent_id: e.target.value })} required />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Category *</label>
-            <select className={inputClass} value={disputeForm.category} onChange={(e) => setDisputeForm({ ...disputeForm, category: e.target.value })}>
-              <option value="billing">Billing</option>
-              <option value="delivery">Delivery</option>
-              <option value="quality">Quality</option>
-              <option value="metering">Metering</option>
-              <option value="contract_breach">Contract Breach</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Description *</label>
-            <textarea className={inputClass} rows={3} value={disputeForm.description} onChange={(e) => setDisputeForm({ ...disputeForm, description: e.target.value })} required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Value (cents) *</label>
-              <input className={inputClass} type="number" value={disputeForm.value_cents} onChange={(e) => setDisputeForm({ ...disputeForm, value_cents: e.target.value })} required />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Trade ID</label>
-              <input className={inputClass} value={disputeForm.trade_id} onChange={(e) => setDisputeForm({ ...disputeForm, trade_id: e.target.value })} />
-            </div>
-          </div>
-          <button type="submit" disabled={loading} className="w-full py-2.5 bg-red-600 text-white rounded-lg font-medium hover:bg-red-500 transition-colors disabled:opacity-50">
-            {loading ? 'Filing...' : 'File Dispute'}
-          </button>
-        </form>
-      </Modal>
-
-      {/* Generate Invoice Modal */}
-      <Modal isOpen={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} title="Generate Invoice">
-        <form onSubmit={generateInvoice} className="space-y-4">
-          <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Trade ID *</label>
-            <input className={inputClass} value={invoiceForm.trade_id} onChange={(e) => setInvoiceForm({ ...invoiceForm, trade_id: e.target.value })} required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Metered Volume</label>
-              <input className={inputClass} type="number" step="0.01" value={invoiceForm.metered_volume} onChange={(e) => setInvoiceForm({ ...invoiceForm, metered_volume: e.target.value })} />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Unit Rate (cents)</label>
-              <input className={inputClass} type="number" value={invoiceForm.unit_rate_cents} onChange={(e) => setInvoiceForm({ ...invoiceForm, unit_rate_cents: e.target.value })} />
-            </div>
-          </div>
-          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 rounded-lg font-medium hover:from-cyan-500 hover:to-blue-500 transition-all disabled:opacity-50">
-            {loading ? 'Generating...' : 'Generate Invoice'}
-          </button>
-        </form>
-      </Modal>
-    </motion.div>
+      </div>
+    </div>
   );
 }
