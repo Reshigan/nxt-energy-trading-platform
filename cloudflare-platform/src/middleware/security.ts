@@ -40,6 +40,10 @@ export function errorResponse(code: string, message: string, status: number, det
 }
 
 // Rate limit check (uses KV)
+// NOTE: KV does not support atomic increments, so this is a best-effort rate limiter.
+// Under concurrent load, the read-then-write pattern allows slight over-counting.
+// For security-sensitive limits (login, registration), consider migrating to a
+// Durable Object for single-threaded execution guarantees.
 export async function checkRateLimit(
   kv: KVNamespace,
   key: string,
