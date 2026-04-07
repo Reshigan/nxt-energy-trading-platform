@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
+import { FiMail, FiLock, FiEye, FiEyeOff, FiZap } from 'react-icons/fi';
 import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { FiZap, FiMail, FiLock } from 'react-icons/fi';
-import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
-import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function Login() {
-  const tc = useThemeClasses();
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
-  const [form, setForm] = useState({ email: '', password: '' });
+  const { login } = useAuthStore();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,82 +17,93 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await authAPI.login(form);
-      login(res.data.data.token, res.data.data.participant);
-      navigate('/');
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      setError(axiosErr.response?.data?.error || 'Login failed');
+      const base = import.meta.env.VITE_API_URL || '/api/v1';
+      const res = await fetch(`${base}/register/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invalid credentials');
+      login(data.token, data.participant || { email, role: 'trader' });
+      navigate('/dashboard');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md glass p-8"
-      >
-        <div className="flex items-center justify-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-r           from-[#d4e157] to-[#b8c43a] flex items-center justify-center mr-3">
-                      <FiZap className="text-slate-900 w-6 h-6" />
+    <div className="min-h-screen flex items-center justify-center bg-[#EEF1F6] dark:bg-[#0B1221] px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <FiZap className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">NXT Energy</span>
           </div>
-          <h1 className={`text-3xl font-bold ${tc.textPrimary}`}>NXT Energy</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
+          <p className="text-sm text-slate-500 mt-1">Sign in to your trading account</p>
         </div>
 
-        <h2 className="text-xl font-semibold text-center mb-6">Sign In</h2>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-500/20 text-red-400 text-sm">{error}</div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">Email</label>
-            <div className="relative">
-              <FiMail className="absolute left-3 top-3 text-slate-400" />
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className={`w-full pl-10 pr-4 py-2.5 ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} border border-slate-300 dark:border-white/[0.08] rounded-lg focus:outline-none                 focus:border-blue-500 transition-colors`}
-                                placeholder="you@company.co.za"
-                required
-              />
+        <form onSubmit={handleSubmit}
+          className="bg-white dark:bg-[#151F32] rounded-3xl p-8 shadow-xl shadow-black/[0.03] dark:shadow-black/[0.2] border border-black/[0.04] dark:border-white/[0.06]"
+          style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-sm text-red-600 dark:text-red-400">
+              {error}
             </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+              <div className="relative">
+                <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  placeholder="admin@et.vantax.co.za"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Password</label>
+              <div className="relative">
+                <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
+                  placeholder="Enter your password"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                  {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <label className="flex items-center gap-2 text-slate-500 dark:text-slate-400 cursor-pointer">
+                <input type="checkbox" className="rounded border-slate-300 dark:border-slate-600 text-blue-500 focus:ring-blue-500" />
+                Remember me
+              </label>
+              <a href="#" className="text-blue-500 hover:text-blue-600 font-semibold">Forgot password?</a>
+            </div>
+
+            <button type="submit" disabled={loading}
+              className="w-full py-3 rounded-2xl text-sm font-bold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/25">
+              {loading ? 'Signing in...' : 'Sign In'}
+            </button>
           </div>
 
-          <div>
-            <label className="block text-sm text-slate-400 mb-1">Password</label>
-            <div className="relative">
-              <FiLock className="absolute left-3 top-3 text-slate-400" />
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                className={`w-full pl-10 pr-4 py-2.5 ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} border border-slate-300 dark:border-white/[0.08] rounded-lg focus:outline-none                 focus:border-blue-500 transition-colors`}
-                                placeholder="Enter password"
-                required
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 font-medium rounded-lg hover:from-[#e4f157] hover:to-[#c8d43a] transition-all disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
+          <p className="text-center text-xs text-slate-400 mt-5">
+            Don&apos;t have an account? <Link to="/register" className="text-blue-500 hover:text-blue-600 font-semibold">Sign up</Link>
+          </p>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-400">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-blue-400 hover:text-[#e4f157]">Register</Link>
+        <p className="text-center text-[11px] text-slate-400 mt-6">
+          NXT Open Market Energy Trading Platform &middot; GONXT Technology (Pty) Ltd
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }
