@@ -4,7 +4,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { AppBindings, HonoEnv } from './utils/types';
 import { rateLimiter, requestIdMiddleware, authMiddleware } from './auth/middleware';
 import { securityHeadersMiddleware } from './middleware/security';
-import { blacklistToken, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
+import { blacklistToken, isTokenBlacklisted, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
 import { log } from './utils/logger';
 
 // Route imports
@@ -24,6 +24,7 @@ import developer from './routes/developer';
 import metering from './routes/metering';
 import p2p from './routes/p2p';
 import healthRoute from './routes/health';
+import popia from './routes/popia';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -114,8 +115,17 @@ api.post('/auth/refresh', async (c) => {
   }
 
   const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+
+  // Check if refresh token has been blacklisted (rotated)
+  try {
+    const blacklisted = await isTokenBlacklisted(c.env.KV, body.refreshToken);
+    if (blacklisted) {
+      return c.json({ success: false, error: 'Refresh token has been revoked' }, 401);
+    }
+  } catch { /* If KV fails, allow through */ }
+
   const decoded = await verifyJwt(body.refreshToken, secret);
-  if (!decoded) {
+  if (!decoded || (decoded as unknown as Record<string, unknown>).type !== 'refresh') {
     return c.json({ success: false, error: 'Invalid refresh token' }, 401);
   }
 
@@ -159,6 +169,7 @@ api.route('/tenants', tenantsRoute);
 api.route('/developer', developer);
 api.route('/metering', metering);
 api.route('/p2p', p2p);
+api.route('/popia', popia);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {

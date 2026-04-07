@@ -60,14 +60,15 @@ register.post('/', async (c) => {
   await runAutoValidations(id, data, c.env.DB);
 
   // Generate JWT
+  const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
   const token = await signJwt({
     sub: id,
     email: data.email,
     role: data.role as any,
     company_name: data.company_name,
     kyc_status: 'pending',
-  });
-  const refreshToken = await signRefreshToken(id);
+  }, jwtSecret);
+  const refreshToken = await signRefreshToken(id, jwtSecret);
 
   // Audit log
   await c.env.DB.prepare(`
@@ -285,14 +286,15 @@ register.post('/auth/login', async (c) => {
     return c.json({ success: false, error: 'Account suspended' }, 403);
   }
 
+  const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
   const token = await signJwt({
     sub: participant.id,
     email: participant.email,
     role: participant.role as any,
     company_name: participant.company_name,
     kyc_status: participant.kyc_status as any,
-  });
-  const refreshToken = await signRefreshToken(participant.id);
+  }, jwtSecret);
+  const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
   // Audit
   await c.env.DB.prepare(`
