@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiKey, FiGlobe, FiCode, FiPlus, FiTrash2, FiCopy, FiEye, FiEyeOff } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { developerAPI } from '../lib/api';
 
 const tabs = ['API Keys', 'Webhooks', 'Documentation', 'Usage'];
 
@@ -45,6 +46,21 @@ export default function DeveloperPortal() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('API Keys');
+  const [keyData, setKeyData] = useState(apiKeys);
+  const [webhookData, setWebhookData] = useState(webhooks);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [keysRes, whRes] = await Promise.all([
+          developerAPI.getKeys(),
+          developerAPI.getWebhooks(),
+        ]);
+        if (keysRes.data?.data?.length) setKeyData(keysRes.data.data);
+        if (whRes.data?.data?.length) setWebhookData(whRes.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -72,7 +88,7 @@ export default function DeveloperPortal() {
 
       {activeTab === 'API Keys' && (
         <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
-          {apiKeys.map((key, i) => (
+          {keyData.map((key, i) => (
             <div key={key.id} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 80}ms both` }}>
               <div className="flex items-start justify-between">
                 <div>
@@ -96,7 +112,7 @@ export default function DeveloperPortal() {
 
       {activeTab === 'Webhooks' && (
         <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
-          {webhooks.map((wh, i) => (
+          {webhookData.map((wh, i) => (
             <div key={wh.id} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 80}ms both` }}>
               <div className="flex items-start justify-between">
                 <div>

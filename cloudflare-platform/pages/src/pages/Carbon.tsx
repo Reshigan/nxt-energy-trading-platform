@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus } from 'react-icons/fi';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, AreaChart, Area } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { carbonAPI } from '../lib/api';
 
 const tabs = ['Overview', 'Credits', 'Options', 'Tokens', 'RECs', 'Retirement'];
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -27,6 +28,24 @@ const kpis = [
 export default function Carbon() {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState('Overview');
+  const [credits, setCredits] = useState(creditsByType);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await carbonAPI.getCredits();
+        if (res.data?.data?.length) {
+          const grouped: Record<string, number> = {};
+          for (const c of res.data.data) {
+            const std = (c.standard as string) || 'Other';
+            grouped[std] = (grouped[std] || 0) + (c.quantity as number || 0);
+          }
+          const mapped = Object.entries(grouped).map(([name, value]) => ({ name, value }));
+          if (mapped.length) setCredits(mapped);
+        }
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -91,17 +110,17 @@ export default function Carbon() {
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Credits by Standard</h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={creditsByType} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" paddingAngle={3} strokeWidth={0}>
-                {creditsByType.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              <Pie data={credits} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value" paddingAngle={3} strokeWidth={0}>
+                {credits.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
               </Pie>
               <Tooltip contentStyle={{ background: isDark ? '#151F32' : '#fff', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex flex-wrap justify-center gap-3 mt-2">
-            {creditsByType.map((c, i) => (
-              <div key={c.name} className="flex items-center gap-1.5 text-xs">
+            {credits.map((cr, i) => (
+              <div key={cr.name} className="flex items-center gap-1.5 text-xs">
                 <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                <span className="text-slate-500 dark:text-slate-400">{c.name}</span>
+                <span className="text-slate-500 dark:text-slate-400">{cr.name}</span>
               </div>
             ))}
           </div>

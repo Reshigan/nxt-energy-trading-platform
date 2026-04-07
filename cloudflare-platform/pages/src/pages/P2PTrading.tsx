@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiZap, FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { p2pAPI } from '../lib/api';
 
 const zones = ['All', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo'];
 
@@ -26,7 +27,18 @@ export default function P2PTrading() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeZone, setActiveZone] = useState('All');
-  const filtered = activeZone === 'All' ? offers : offers.filter(o => o.zone === activeZone);
+  const [offerData, setOfferData] = useState(offers);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await p2pAPI.getOffers();
+        if (res.data?.data?.length) setOfferData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
+
+  const filtered = activeZone === 'All' ? offerData : offerData.filter(o => o.zone === activeZone);
 
   return (
     <div className="space-y-6">

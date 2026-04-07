@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiSun, FiWind, FiMapPin, FiCheckCircle, FiPlus, FiDollarSign } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { projectsAPI } from '../lib/api';
 
 const projects = [
   { id: 'NXT-SOL-001', name: 'Limpopo Solar Farm', tech: 'Solar PV', capacity: '100 MW', phase: 'Construction', location: 'Limpopo', progress: 72, disbursed: 'R120M', total: 'R180M', milestones: 8, completed: 6, cps: { total: 14, met: 11 } },
@@ -32,7 +33,18 @@ export default function IPP() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activePhase, setActivePhase] = useState('All');
-  const filtered = activePhase === 'All' ? projects : projects.filter(p => p.phase === activePhase);
+  const [projectData, setProjectData] = useState(projects);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await projectsAPI.list();
+        if (res.data?.data?.length) setProjectData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
+
+  const filtered = activePhase === 'All' ? projectData : projectData.filter(p => p.phase === activePhase);
 
   return (
     <div className="space-y-6">
