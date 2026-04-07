@@ -1,177 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FiShoppingBag, FiPlus, FiFilter } from 'react-icons/fi';
-import { marketplaceAPI } from '../lib/api';
-import Modal from '../components/Modal';
-import StatusBadge from '../components/StatusBadge';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import React, { useState } from 'react';
+import { FiSearch, FiFilter, FiPlus, FiStar } from 'react-icons/fi';
+import { useTheme } from '../contexts/ThemeContext';
+
+const listings = [
+  { id: 'MKT-001', title: 'Solar PPA 50MW Limpopo', type: 'PPA', technology: 'Solar PV', price: 'R580/MWh', volume: '50 MW', seller: 'TerraVolt Energy', listed: '2024-04-01', bids: 3, featured: true },
+  { id: 'MKT-002', title: 'VCS Carbon Credits 10,000t', type: 'Carbon Credit', technology: 'Forestry', price: 'R180/t', volume: '10,000 t', seller: 'GreenFund SA', listed: '2024-03-28', bids: 7, featured: true },
+  { id: 'MKT-003', title: 'Wind Forward H2 2025', type: 'Forward', technology: 'Onshore Wind', price: 'R620/MWh', volume: '30 MW', seller: 'Eastern Cape Wind', listed: '2024-04-03', bids: 1, featured: false },
+  { id: 'MKT-004', title: 'Gold Standard CERs 5,000t', type: 'Carbon Credit', technology: 'Cookstoves', price: 'R210/t', volume: '5,000 t', seller: 'Carbon Bridge', listed: '2024-03-25', bids: 4, featured: false },
+  { id: 'MKT-005', title: 'Biomass Baseload 25MW', type: 'PPA', technology: 'Biomass', price: 'R540/MWh', volume: '25 MW', seller: 'KZN Biogas', listed: '2024-04-02', bids: 2, featured: false },
+  { id: 'MKT-006', title: 'REC Certificates Q2 2024', type: 'REC', technology: 'Solar PV', price: 'R65/MWh', volume: '28,600', seller: 'Solar One Cape', listed: '2024-04-05', bids: 0, featured: false },
+  { id: 'MKT-007', title: 'CSP Option Dec 2024', type: 'Option', technology: 'CSP', price: 'R12K premium', volume: '20 MW', seller: 'Northern Cape CSP', listed: '2024-04-04', bids: 1, featured: false },
+  { id: 'MKT-008', title: 'Hydro PPA 30MW Free State', type: 'PPA', technology: 'Small Hydro', price: 'R490/MWh', volume: '30 MW', seller: 'Drakensberg Hydro', listed: '2024-04-06', bids: 5, featured: true },
+];
+
+const types = ['All', 'PPA', 'Carbon Credit', 'Forward', 'Option', 'REC'];
 
 export default function Marketplace() {
-  const tc = useThemeClasses();
-  const [listings, setListings] = useState<Array<Record<string, unknown>>>([]);
-  const [filter, setFilter] = useState({ type: '', status: 'active' });
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showBidModal, setShowBidModal] = useState(false);
-  const [selectedListing, setSelectedListing] = useState<Record<string, unknown> | null>(null);
-  const [createForm, setCreateForm] = useState({ type: 'energy', technology: 'solar', volume: '', price_cents: '', description: '', min_volume: '' });
-  const [bidAmount, setBidAmount] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => { loadData(); }, [filter]);
-
-  const loadData = async () => {
-    try {
-      const params: Record<string, string> = {};
-      if (filter.type) params.type = filter.type;
-      if (filter.status) params.status = filter.status;
-      const res = await marketplaceAPI.list(params);
-      setListings(res.data.data);
-    } catch { /* ignore */ }
-  };
-
-  const createListing = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await marketplaceAPI.create({
-        type: createForm.type,
-        technology: createForm.technology,
-        volume: parseFloat(createForm.volume),
-        price_cents: parseInt(createForm.price_cents, 10),
-        description: createForm.description,
-        min_volume: createForm.min_volume ? parseFloat(createForm.min_volume) : undefined,
-      });
-      setShowCreateModal(false);
-      loadData();
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const placeBid = async () => {
-    if (!selectedListing || !bidAmount) return;
-    setLoading(true);
-    try {
-      await marketplaceAPI.bid(selectedListing.id as string, { price_cents: parseInt(bidAmount, 10) });
-      setShowBidModal(false);
-      loadData();
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const inputClass = `w-full px-3 py-2 ${tc.input} rounded-lg text-sm`;
+  const { isDark } = useTheme();
+  const c = (d: string, l: string) => isDark ? d : l;
+  const [activeType, setActiveType] = useState('All');
+  const [search, setSearch] = useState('');
+  const filtered = listings.filter(l =>
+    (activeType === 'All' || l.type === activeType) &&
+    (search === '' || l.title.toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>Marketplace</h1>
-        <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg text-sm font-medium hover:from-cyan-500 hover:to-blue-500 transition-all">
+    <div className="space-y-6">
+      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+        <div>
+          <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Marketplace</h1>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Browse & list energy assets, PPAs, carbon credits</p>
+        </div>
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
           <FiPlus className="w-4 h-4" /> Create Listing
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        {['', 'energy', 'carbon', 'ppa', 'certificate'].map((t) => (
-          <button key={t} onClick={() => setFilter({ ...filter, type: t })}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${filter.type === t ? 'bg-blue-500/15 text-blue-400' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'}`}>
-            {t || 'All'}
-          </button>
-        ))}
-      </div>
-
-      {/* Listings Grid */}
-      {listings.length === 0 ? (
-        <div className={`${tc.cardBg} p-12 text-center`}>
-          <FiShoppingBag className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <p className="text-slate-400">No listings found</p>
+      <div className="flex items-center gap-3 flex-wrap" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${c('bg-white/[0.04] border-white/[0.06]', 'bg-white border-black/[0.06]')}`}>
+          <FiSearch className="w-4 h-4 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search listings..."
+            className={`bg-transparent text-sm outline-none ${c('text-white placeholder-slate-500', 'text-slate-800 placeholder-slate-400')}`} />
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {listings.map((listing) => (
-            <div key={listing.id as string} className={`${tc.cardBg} p-5 hover:border-blue-500/30 transition-colors`}>
-              <div className="flex items-center justify-between mb-3">
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/15 text-blue-400 capitalize">{listing.type as string}</span>
-                <StatusBadge status={listing.status as string} />
-              </div>
-              <h3 className="font-medium mb-1 capitalize">{listing.technology as string || listing.type as string}</h3>
-              <p className="text-sm text-slate-400 mb-3 line-clamp-2">{listing.description as string || 'No description'}</p>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">Volume</div>
-                  <div className="font-semibold">{listing.volume as number} MWh</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-500 dark:text-slate-400">Price</div>
-                  <div className="font-semibold text-blue-400">R{((listing.price_cents as number) / 100).toFixed(2)}</div>
-                </div>
-              </div>
-              {listing.status === 'active' && (
-                <button onClick={() => { setSelectedListing(listing); setShowBidModal(true); }}
-                  className="w-full py-2 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-lg text-sm font-medium hover:from-cyan-500 hover:to-blue-500 transition-all">
-                  Place Bid
-                </button>
-              )}
-            </div>
+        <div className={`flex items-center rounded-full p-1 ${c('bg-white/[0.04]', 'bg-slate-100')}`}>
+          {types.map(t => (
+            <button key={t} onClick={() => setActiveType(t)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${activeType === t ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400', 'text-slate-500')}`}>{t}</button>
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Create Listing Modal */}
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create Listing">
-        <form onSubmit={createListing} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Type</label>
-              <select className={inputClass} value={createForm.type} onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}>
-                <option value="energy">Energy</option>
-                <option value="carbon">Carbon</option>
-                <option value="ppa">PPA</option>
-                <option value="certificate">Certificate</option>
-              </select>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+        {filtered.map((l, i) => (
+          <div key={l.id} className={`cp-card !p-5 relative ${c('!bg-[#151F32] !border-white/[0.06]', '')} ${l.featured ? 'ring-1 ring-amber-500/30' : ''}`}
+            style={{ animation: `cardFadeUp 400ms ease ${200 + i * 50}ms both` }}>
+            {l.featured && <FiStar className="absolute top-3 right-3 w-4 h-4 text-amber-400 fill-amber-400" />}
+            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold mb-3 ${
+              l.type === 'PPA' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
+              l.type === 'Carbon Credit' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
+              l.type === 'Forward' ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' :
+              l.type === 'Option' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+              'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+            }`}>{l.type}</span>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">{l.title}</h3>
+            <p className="text-xs text-slate-400 mb-3">{l.seller} &middot; {l.technology}</p>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mono">{l.price}</span>
+              <span className="text-xs text-slate-400">{l.volume}</span>
             </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Technology</label>
-              <select className={inputClass} value={createForm.technology} onChange={(e) => setCreateForm({ ...createForm, technology: e.target.value })}>
-                {['solar', 'wind', 'hydro', 'gas', 'battery', 'biomass'].map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Volume (MWh) *</label>
-              <input className={inputClass} type="number" step="0.01" value={createForm.volume} onChange={(e) => setCreateForm({ ...createForm, volume: e.target.value })} required />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Price (cents) *</label>
-              <input className={inputClass} type="number" value={createForm.price_cents} onChange={(e) => setCreateForm({ ...createForm, price_cents: e.target.value })} required />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">{l.bids} bid{l.bids !== 1 ? 's' : ''}</span>
+              <button className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors">Place Bid</button>
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Description</label>
-            <textarea className={inputClass} rows={2} value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} />
-          </div>
-          <button type="submit" disabled={loading} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 rounded-lg font-medium disabled:opacity-50">
-            {loading ? 'Creating...' : 'Create Listing'}
-          </button>
-        </form>
-      </Modal>
-
-      {/* Bid Modal */}
-      <Modal isOpen={showBidModal} onClose={() => setShowBidModal(false)} title="Place Bid">
-        {selectedListing && (
-          <div className="space-y-4">
-            <div className={`p-3 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"}`}>
-              <div className="text-sm"><strong>Listing:</strong> {selectedListing.description as string}</div>
-              <div className="text-sm"><strong>Ask Price:</strong> R{((selectedListing.price_cents as number) / 100).toFixed(2)}</div>
-            </div>
-            <div>
-              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Your Bid (cents)</label>
-              <input className={inputClass} type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)} />
-            </div>
-            <button onClick={placeBid} disabled={loading} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 rounded-lg font-medium disabled:opacity-50">
-              {loading ? 'Bidding...' : 'Submit Bid'}
-            </button>
-          </div>
-        )}
-      </Modal>
-    </motion.div>
+        ))}
+      </div>
+    </div>
   );
 }
