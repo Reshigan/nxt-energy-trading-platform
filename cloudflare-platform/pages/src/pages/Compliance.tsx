@@ -1,225 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { FiShield, FiCheck, FiX, FiUpload, FiFileText } from 'react-icons/fi';
-import { complianceAPI } from '../lib/api';
-import Modal from '../components/Modal';
-import StatusBadge from '../components/StatusBadge';
-import { useThemeClasses } from '../hooks/useThemeClasses';
+import React, { useState } from 'react';
+import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText } from 'react-icons/fi';
+import { useTheme } from '../contexts/ThemeContext';
+
+const tabs = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'];
+
+const kycDocs = [
+  { name: 'CIPC Registration', status: 'Verified', date: '2024-01-15', score: 100 },
+  { name: 'SARS Tax Clearance', status: 'Verified', date: '2024-02-10', score: 100 },
+  { name: 'VAT Registration', status: 'Verified', date: '2024-01-20', score: 100 },
+  { name: 'FICA Compliance', status: 'Pending', date: '2024-03-25', score: 60 },
+  { name: 'BBBEE Certificate', status: 'Expired', date: '2023-06-30', score: 0 },
+  { name: 'Directors ID Documents', status: 'Verified', date: '2024-01-15', score: 100 },
+  { name: 'Proof of Address', status: 'Verified', date: '2024-01-18', score: 100 },
+  { name: 'Bank Confirmation', status: 'Pending', date: '2024-03-28', score: 50 },
+  { name: 'Sanctions Screening', status: 'Verified', date: '2024-03-01', score: 100 },
+  { name: 'POPIA Consent', status: 'Verified', date: '2024-01-15', score: 100 },
+];
+
+const licences = [
+  { name: 'NERSA Generation Licence', number: 'NER-GEN-2024-001', status: 'Active', expiry: '2029-01-15', issuer: 'NERSA' },
+  { name: 'FSCA Financial Services', number: 'FSP-48291', status: 'Active', expiry: '2025-12-31', issuer: 'FSCA' },
+  { name: 'FAIS Compliance', number: 'FAIS-2024-882', status: 'Active', expiry: '2025-06-30', issuer: 'FSCA' },
+  { name: 'CIDB Registration', number: 'CIDB-9-CE', status: 'Pending Renewal', expiry: '2024-06-30', issuer: 'CIDB' },
+];
+
+const statutoryChecks = [
+  { rule: 'CIPC Annual Return Filed', status: 'Pass', lastCheck: '2024-04-01', regulator: 'CIPC' },
+  { rule: 'SARS Tax Compliance', status: 'Pass', lastCheck: '2024-03-28', regulator: 'SARS' },
+  { rule: 'VAT Returns Up to Date', status: 'Pass', lastCheck: '2024-03-31', regulator: 'SARS' },
+  { rule: 'FICA CDD Complete', status: 'Warning', lastCheck: '2024-03-25', regulator: 'FIC' },
+  { rule: 'Sanctions List Clear', status: 'Pass', lastCheck: '2024-04-01', regulator: 'FIC' },
+  { rule: 'BBBEE Level Valid', status: 'Fail', lastCheck: '2024-04-01', regulator: 'DTI' },
+  { rule: 'NERSA Licence Active', status: 'Pass', lastCheck: '2024-04-01', regulator: 'NERSA' },
+  { rule: 'FSCA Returns Filed', status: 'Pass', lastCheck: '2024-03-15', regulator: 'FSCA' },
+  { rule: 'FAIS Fit & Proper', status: 'Pass', lastCheck: '2024-02-28', regulator: 'FSCA' },
+  { rule: 'CIDB Grading Current', status: 'Warning', lastCheck: '2024-03-20', regulator: 'CIDB' },
+  { rule: 'POPIA Consent Valid', status: 'Pass', lastCheck: '2024-04-01', regulator: 'Info Regulator' },
+  { rule: 'ERA Compliance', status: 'Pass', lastCheck: '2024-03-28', regulator: 'NERSA' },
+  { rule: 'Environmental Authorisation', status: 'Pass', lastCheck: '2024-02-15', regulator: 'DFFE' },
+  { rule: 'Water Use Licence', status: 'N/A', lastCheck: '-', regulator: 'DWS' },
+];
+
+const statusBadge: Record<string, string> = {
+  Verified: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  Active: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  Pass: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  Pending: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  'Pending Renewal': 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  Warning: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  Expired: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400',
+  Fail: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400',
+  'N/A': 'bg-slate-100 dark:bg-slate-500/10 text-slate-500 dark:text-slate-400',
+};
 
 export default function Compliance() {
-  const tc = useThemeClasses();
-  const [tab, setTab] = useState<'statutory' | 'kyc' | 'licences' | 'audit'>('statutory');
-  const [statutory, setStatutory] = useState<Array<Record<string, unknown>>>([]);
-  const [kyc, setKyc] = useState<Array<Record<string, unknown>>>([]);
-  const [licences, setLicences] = useState<Array<Record<string, unknown>>>([]);
-  const [audit, setAudit] = useState<Array<Record<string, unknown>>>([]);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [selectedCheck, setSelectedCheck] = useState<Record<string, unknown> | null>(null);
-  const [reviewForm, setReviewForm] = useState({ decision: 'pass' as 'pass' | 'fail', notes: '' });
-
-  useEffect(() => { loadData(); }, [tab]);
-
-  const loadData = async () => {
-    try {
-      if (tab === 'statutory') {
-        const res = await complianceAPI.getStatutory();
-        setStatutory(res.data.data);
-      } else if (tab === 'kyc') {
-        const res = await complianceAPI.getKYC();
-        setKyc(res.data.data);
-      } else if (tab === 'licences') {
-        const res = await complianceAPI.getLicences();
-        setLicences(res.data.data);
-      } else {
-        const res = await complianceAPI.getAudit();
-        setAudit(res.data.data);
-      }
-    } catch { /* ignore */ }
-  };
-
-  const handleReview = async () => {
-    if (!selectedCheck) return;
-    try {
-      await complianceAPI.reviewStatutory(selectedCheck.id as string, reviewForm);
-      setShowReviewModal(false);
-      loadData();
-    } catch { /* ignore */ }
-  };
-
-  const tabs = [
-    { id: 'statutory' as const, label: 'Statutory Checks', icon: FiShield },
-    { id: 'kyc' as const, label: 'KYC Documents', icon: FiFileText },
-    { id: 'licences' as const, label: 'Licences', icon: FiCheck },
-    { id: 'audit' as const, label: 'Audit Log', icon: FiFileText },
-  ];
+  const { isDark } = useTheme();
+  const c = (d: string, l: string) => isDark ? d : l;
+  const [activeTab, setActiveTab] = useState('Overview');
+  const verifiedCount = kycDocs.filter(d => d.status === 'Verified').length;
+  const overallScore = Math.round(kycDocs.reduce((s, d) => s + d.score, 0) / kycDocs.length);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <h1 className={`text-2xl font-bold ${tc.textPrimary}`}>Compliance & Regulatory</h1>
+    <div className="space-y-6">
+      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+        <div>
+          <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Compliance</h1>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">KYC verification, licences & statutory compliance</p>
+        </div>
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
+          <FiUpload className="w-4 h-4" /> Upload Document
+        </button>
+      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${tab === t.id ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'}`}>
-            <t.icon className="w-4 h-4" /> {t.label}
-          </button>
+      <div className={`flex items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        {tabs.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === tab ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>{tab}</button>
         ))}
       </div>
 
-      {/* Statutory Checks */}
-      {tab === 'statutory' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Statutory Checks</h3>
-          {statutory.length === 0 ? (
-            <p className="text-sm text-slate-400">No statutory checks found</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-slate-500 dark:text-slate-400 text-xs">
-                  <th className="text-left py-2">Regulation</th>
-                  <th className="text-left py-2">Entity</th>
-                  <th className="text-left py-2">Method</th>
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Source</th>
-                  <th className="text-right py-2">Actions</th>
-                </tr></thead>
-                <tbody>
-                  {statutory.map((ch) => (
-                    <tr key={ch.id as string} className="border-t border-slate-200 dark:border-white/[0.06]">
-                      <td className="py-2 font-medium">{ch.regulation as string}</td>
-                      <td className="text-slate-400">{ch.entity_type as string}</td>
-                      <td>{ch.method as string}</td>
-                      <td><StatusBadge status={ch.status as string} /></td>
-                      <td className="text-xs text-slate-500 dark:text-slate-400 max-w-[200px] truncate">{ch.source as string || '-'}</td>
-                      <td className="text-right">
-                        {(ch.status === 'pending' || ch.status === 'running') && ch.method === 'manual' && (
-                          <button onClick={() => { setSelectedCheck(ch); setShowReviewModal(true); }}
-                            className="text-xs text-blue-400 hover:text-blue-300">Review</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* KYC Documents */}
-      {tab === 'kyc' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">KYC Documents</h3>
-          {kyc.length === 0 ? (
-            <p className="text-sm text-slate-400">No KYC documents uploaded</p>
-          ) : (
-            <div className="space-y-3">
-              {kyc.map((doc) => (
-                <div key={doc.id as string} className={`flex items-center justify-between p-3 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"}`}>
-                  <div className="flex items-center gap-3">
-                    <FiFileText className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <div className="font-medium text-sm">{doc.document_type as string}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">{doc.file_name as string}</div>
-                    </div>
+      {activeTab === 'Overview' && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 150ms both' }}>
+            {[
+              { label: 'KYC Score', value: `${overallScore}%`, icon: FiShield, color: overallScore >= 80 ? 'text-emerald-500' : 'text-amber-500' },
+              { label: 'Docs Verified', value: `${verifiedCount}/${kycDocs.length}`, icon: FiCheck, color: 'text-emerald-500' },
+              { label: 'Active Licences', value: `${licences.filter(l => l.status === 'Active').length}/${licences.length}`, icon: FiFileText, color: 'text-blue-500' },
+              { label: 'Statutory Checks', value: `${statutoryChecks.filter(s => s.status === 'Pass').length}/${statutoryChecks.length}`, icon: FiShield, color: 'text-blue-500' },
+            ].map((kpi, i) => (
+              <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${150 + i * 60}ms both` }}>
+                <kpi.icon className={`w-4 h-4 ${kpi.color} mb-2`} />
+                <p className="text-2xl font-bold text-slate-900 dark:text-white mono">{kpi.value}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{kpi.label}</p>
+              </div>
+            ))}
+          </div>
+          <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">10-Point Verification Progress</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {kycDocs.map((doc, i) => (
+                <div key={doc.name} className={`p-3 rounded-xl border ${doc.status === 'Verified' ? c('border-emerald-500/20 bg-emerald-500/5', 'border-emerald-200 bg-emerald-50') : doc.status === 'Pending' ? c('border-amber-500/20 bg-amber-500/5', 'border-amber-200 bg-amber-50') : c('border-red-500/20 bg-red-500/5', 'border-red-200 bg-red-50')}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    {doc.status === 'Verified' ? <FiCheck className="w-3 h-3 text-emerald-500" /> : doc.status === 'Pending' ? <FiClock className="w-3 h-3 text-amber-500" /> : <FiAlertCircle className="w-3 h-3 text-red-500" />}
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">{doc.name}</span>
                   </div>
-                  <StatusBadge status={doc.verified ? 'verified' : 'pending'} />
+                  <span className={`text-[10px] font-semibold ${statusBadge[doc.status]?.split(' ').filter(c => c.startsWith('text-')).join(' ') || 'text-slate-400'}`}>{doc.status}</span>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'KYC Documents' && (
+        <div className={`cp-card !p-0 overflow-hidden ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className={`text-xs border-b ${c('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Document</th>
+                <th className="text-left py-3.5 px-4 font-medium">Status</th>
+                <th className="text-right py-3.5 px-4 font-medium">Score</th>
+                <th className="text-right py-3.5 px-5 font-medium">Date</th>
+              </tr></thead>
+              <tbody>{kycDocs.map(doc => (
+                <tr key={doc.name} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                  <td className="py-3.5 px-5 font-medium text-slate-800 dark:text-slate-200">{doc.name}</td>
+                  <td className="py-3.5 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge[doc.status] || ''}`}>{doc.status}</span></td>
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{doc.score}%</td>
+                  <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{doc.date}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Licences */}
-      {tab === 'licences' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Licences</h3>
-          {licences.length === 0 ? (
-            <p className="text-sm text-slate-400">No licences on record</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-slate-500 dark:text-slate-400 text-xs">
-                  <th className="text-left py-2">Type</th>
-                  <th className="text-left py-2">Number</th>
-                  <th className="text-left py-2">Issuer</th>
-                  <th className="text-left py-2">Expiry</th>
-                  <th className="text-left py-2">Status</th>
-                </tr></thead>
-                <tbody>
-                  {licences.map((l) => (
-                    <tr key={l.id as string} className="border-t border-slate-200 dark:border-white/[0.06]">
-                      <td className="py-2">{l.type as string}</td>
-                      <td>{l.licence_number as string}</td>
-                      <td>{l.issuer as string}</td>
-                      <td>{l.expiry_date as string}</td>
-                      <td><StatusBadge status={l.status as string} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Audit Log */}
-      {tab === 'audit' && (
-        <div className={`${tc.cardBg} p-6`}>
-          <h3 className="font-semibold mb-4">Audit Log</h3>
-          {audit.length === 0 ? (
-            <p className="text-sm text-slate-400">No audit entries</p>
-          ) : (
-            <div className="space-y-2">
-              {audit.map((entry) => (
-                <div key={entry.id as string} className={`flex items-center justify-between p-3 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} text-sm`}>
-                  <div>
-                    <span className="font-medium">{entry.action as string}</span>
-                    <span className="text-slate-400 ml-2">on {entry.entity_type as string}</span>
-                  </div>
-                  <span className="text-xs text-slate-500">{entry.created_at as string}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Review Modal */}
-      <Modal isOpen={showReviewModal} onClose={() => setShowReviewModal(false)} title="Review Statutory Check">
-        {selectedCheck && (
-          <div className="space-y-4">
-            <div className={`p-3 rounded-lg ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"}`}>
-              <div className="text-sm"><strong>Regulation:</strong> {selectedCheck.regulation as string}</div>
-              <div className="text-sm"><strong>Entity:</strong> {selectedCheck.entity_type as string} / {selectedCheck.entity_id as string}</div>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">Decision</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setReviewForm({ ...reviewForm, decision: 'pass' })}
-                  className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${reviewForm.decision === 'pass' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  <FiCheck /> Approve
-                </button>
-                <button type="button" onClick={() => setReviewForm({ ...reviewForm, decision: 'fail' })}
-                  className={`py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1 ${reviewForm.decision === 'fail' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                  <FiX /> Reject
-                </button>
+      {activeTab === 'Licences' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          {licences.map((lic, i) => (
+            <div key={lic.number} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 80}ms both` }}>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{lic.name}</h3>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge[lic.status] || ''}`}>{lic.status}</span>
+              </div>
+              <div className="space-y-1 text-xs text-slate-400">
+                <p>Number: <span className="text-slate-600 dark:text-slate-300 mono">{lic.number}</span></p>
+                <p>Issuer: <span className="text-slate-600 dark:text-slate-300">{lic.issuer}</span></p>
+                <p>Expiry: <span className="text-slate-600 dark:text-slate-300">{lic.expiry}</span></p>
               </div>
             </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">Notes</label>
-              <textarea className={`w-full px-3 py-2 ${tc.isDark ? "bg-white/[0.04]" : "bg-slate-50"} border border-slate-300 dark:border-white/[0.08] rounded-lg text-sm focus:outline-none focus:border-blue-500`}
-                rows={3} value={reviewForm.notes} onChange={(e) => setReviewForm({ ...reviewForm, notes: e.target.value })} />
-            </div>
-            <button onClick={handleReview}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25 rounded-lg font-medium hover:from-cyan-500 hover:to-blue-500 transition-all">
-              Submit Review
-            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'Statutory Checks' && (
+        <div className={`cp-card !p-0 overflow-hidden ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className={`text-xs border-b ${c('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                <th className="text-left py-3.5 px-5 font-medium">Rule</th>
+                <th className="text-left py-3.5 px-4 font-medium">Regulator</th>
+                <th className="text-left py-3.5 px-4 font-medium">Status</th>
+                <th className="text-right py-3.5 px-5 font-medium">Last Check</th>
+              </tr></thead>
+              <tbody>{statutoryChecks.map(s => (
+                <tr key={s.rule} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                  <td className="py-3 px-5 font-medium text-slate-800 dark:text-slate-200">{s.rule}</td>
+                  <td className="py-3 px-4 text-slate-500">{s.regulator}</td>
+                  <td className="py-3 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge[s.status] || ''}`}>{s.status}</span></td>
+                  <td className="py-3 px-5 text-right text-slate-400 text-xs">{s.lastCheck}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
-        )}
-      </Modal>
-    </motion.div>
+        </div>
+      )}
+    </div>
   );
 }
