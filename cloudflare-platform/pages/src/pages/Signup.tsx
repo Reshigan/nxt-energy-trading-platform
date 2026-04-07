@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiZap, FiArrowRight, FiArrowLeft, FiCheck, FiMail } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuthStore } from '../lib/store';
 
 type Step = 1 | 2 | 3;
 
 export default function Signup() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
+  const login = useAuthStore((s) => s.login);
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState({ company_name: '', full_name: '', email: '', password: '', participant_type: 'generator' });
   const [otp, setOtp] = useState('');
@@ -27,10 +29,13 @@ export default function Signup() {
     try {
       const res = await fetch('/api/v1/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error?.message || 'Registration failed'); }
+      // Response may contain partial token for OTP step — stored for step 2
       setStep(2);
     } catch (e: any) { setError(e.message || 'Registration failed'); }
     setLoading(false);
   };
+
+  const [authToken, setAuthToken] = useState('');
 
   const handleStep2 = async () => {
     if (otp.length !== 6) { setError('Enter a 6-digit code'); return; }
@@ -38,12 +43,36 @@ export default function Signup() {
     try {
       const res = await fetch('/api/v1/register/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: form.email, otp }) });
       if (!res.ok) throw new Error('Invalid code');
+      const data = await res.json().catch(() => ({}));
+      if (data.data?.token) setAuthToken(data.data.token);
       setStep(3);
     } catch (e: any) { setError(e.message || 'Verification failed'); }
     setLoading(false);
   };
 
-  const handleStep3 = () => { navigate('/'); };
+  const handleStep3 = async () => {
+    setLoading(true); setError('');
+    try {
+      // Submit profile data
+      if (authToken) {
+        await fetch('/api/v1/register/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify(profile),
+        }).catch(() => {});
+      }
+      // Log the user in
+      login(authToken || 'pending', {
+        id: 'new-user',
+        email: form.email,
+        role: form.participant_type as 'generator',
+        company_name: form.company_name,
+        kyc_status: 'pending',
+      });
+      navigate('/');
+    } catch (e: any) { setError(e.message || 'Failed to complete profile'); }
+    setLoading(false);
+  };
 
   const provinces = ['Eastern Cape','Free State','Gauteng','KwaZulu-Natal','Limpopo','Mpumalanga','North West','Northern Cape','Western Cape'];
 
