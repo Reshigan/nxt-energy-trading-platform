@@ -253,6 +253,32 @@ api.get('/market/insights', async (c) => {
   });
 });
 
+// Phase 5.6: Frontend error reporting endpoint (receives from ErrorBoundary sendBeacon)
+api.post('/errors/frontend', async (c) => {
+  try {
+    const body = await c.req.json() as { message?: string; stack?: string; componentStack?: string; url?: string; timestamp?: string };
+    const { storeError } = await import('./utils/logger');
+    await storeError(c.env.KV, 'frontend_error', new Error(body.message || 'Unknown frontend error'), c.get('requestId'));
+    log('error', 'frontend_error', { message: body.message, url: body.url, timestamp: body.timestamp }, c.get('requestId'));
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: true }); // Always return 200 for beacon
+  }
+});
+
+// Phase 5.5: API analytics endpoint (reads KV counters)
+api.get('/analytics/api', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const hour = new Date().toISOString().substring(0, 13); // YYYY-MM-DDTHH
+  const endpoints = ['/trading', '/carbon', '/contracts', '/settlement', '/compliance', '/marketplace', '/p2p', '/metering', '/ai', '/reports'];
+  const stats: Record<string, unknown> = {};
+  for (const ep of endpoints) {
+    const countStr = await c.env.KV.get(`api_count:${ep}:${hour}`);
+    const errStr = await c.env.KV.get(`api_errors:${ep}:${hour}`);
+    stats[ep] = { requests: parseInt(countStr || '0', 10), errors: parseInt(errStr || '0', 10) };
+  }
+  return c.json({ success: true, data: { hour, endpoints: stats } });
+});
+
 // Fee schedule
 api.get('/fees', async (c) => {
   const fees = await c.env.DB.prepare('SELECT * FROM fee_schedule WHERE active = 1').all();
