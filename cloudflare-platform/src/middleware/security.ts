@@ -1,63 +1,56 @@
-// Security headers middleware — Spec 8 Section 8.1
-export function securityHeaders(response: Response, origin?: string): Response {
-  const headers = new Headers(response.headers);
+import { Context, Next } from 'hono';
+import { HonoEnv } from '../utils/types';
 
-  // CORS — strict origin
-  const allowedOrigins = ['https://et.vantax.co.za', 'https://demo.et.vantax.co.za'];
-  if (origin && allowedOrigins.includes(origin)) {
-    headers.set('Access-Control-Allow-Origin', origin);
-  }
-  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
-  headers.set('Access-Control-Max-Age', '86400');
-
-  // CSP
-  headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.stripe.com; font-src 'self'; frame-ancestors 'none'");
-
-  // Security headers
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('X-XSS-Protection', '1; mode=block');
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
+/** Security headers middleware */
+export function securityHeadersMiddleware() {
+  return async (c: Context<HonoEnv>, next: Next) => {
+    await next();
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('X-XSS-Protection', '1; mode=block');
+    c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+    c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    c.header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://*.vantax.co.za wss://*.vantax.co.za; font-src 'self'; frame-ancestors 'none'");
+  };
 }
 
-// Error response format — Spec 8 Section 7.1
-export function errorResponse(code: string, message: string, status: number, details?: any): Response {
-  return new Response(JSON.stringify({
-    error: { code, message, ...(details ? { details } : {}) }
-  }), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
+/** Standardised error response helper */
+export function errorJson(code: string, message: string, details?: unknown, requestId?: string) {
+  return {
+    success: false,
+    error: message,
+    code,
+    ...(details ? { details } : {}),
+    ...(requestId ? { requestId } : {}),
+  };
 }
 
-// Rate limit check (uses KV)
-// NOTE: KV does not support atomic increments, so this is a best-effort rate limiter.
-// Under concurrent load, the read-then-write pattern allows slight over-counting.
-// For security-sensitive limits (login, registration), consider migrating to a
-// Durable Object for single-threaded execution guarantees.
+/** Rate limit check (uses KV) */
 export async function checkRateLimit(
-  kv: KVNamespace,
-  key: string,
-  limit: number,
-  windowSeconds: number
+  kv: KVNamespace, key: string, limit: number, windowSeconds: number
 ): Promise<{ allowed: boolean; remaining: number; retryAfter?: number }> {
   const now = Math.floor(Date.now() / 1000);
   const windowKey = `ratelimit:${key}:${Math.floor(now / windowSeconds)}`;
   const current = parseInt(await kv.get(windowKey) || '0');
-
   if (current >= limit) {
     return { allowed: false, remaining: 0, retryAfter: windowSeconds - (now % windowSeconds) };
   }
-
   await kv.put(windowKey, String(current + 1), { expirationTtl: windowSeconds * 2 });
   return { allowed: true, remaining: limit - current - 1 };
+}
+
+/** Input sanitisation — trim strings and enforce max length */
+export function sanitiseInput(obj: Record<string, unknown>, maxLength = 1000): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      result[key] = value.trim().substring(0, maxLength);
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      result[key] = sanitiseInput(value as Record<string, unknown>, maxLength);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }

@@ -38,7 +38,20 @@ export const authAPI = {
   register: (data: Record<string, unknown>) => api.post('/register', data),
   login: (data: { email: string; password: string }) => api.post('/register/auth/login', data),
   me: () => api.get('/register/me'),
-  refresh: (refreshToken: string) => api.post('/register/refresh', { refreshToken }),
+  refresh: (refreshToken: string) => api.post('/auth/refresh', { refreshToken }),
+  logout: () => api.post('/auth/logout'),
+};
+
+// Dashboard
+export const dashboardAPI = {
+  summary: () => api.get('/dashboard/summary'),
+};
+
+// Notifications
+export const notificationsAPI = {
+  list: (params?: Record<string, string>) => api.get('/notifications', { params }),
+  markRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllRead: () => api.patch('/notifications/read-all'),
 };
 
 // Trading
@@ -128,8 +141,6 @@ export const marketplaceAPI = {
 export const participantsAPI = {
   list: (params?: Record<string, string>) => api.get('/participants', { params }),
   get: (id: string) => api.get(`/participants/${id}`),
-  getNotifications: (params?: Record<string, string>) => api.get('/marketplace/notifications', { params }),
-  markNotificationRead: (id: string) => api.post(`/marketplace/notifications/${id}/read`),
 };
 
 // AI Portfolio Optimisation

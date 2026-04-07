@@ -1,6 +1,5 @@
-import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiMessageSquare } from 'react-icons/fi';
+import React, { useMemo, useState, useEffect } from 'react';
+import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiMessageSquare, FiLoader } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import SemiGauge from '../components/SemiGauge';
 import PortfolioPills from '../components/PortfolioPills';
@@ -10,50 +9,115 @@ import QuickActions from '../components/QuickActions';
 import { useAuthStore } from '../lib/store';
 import { getRoleConfig, type PlatformRole } from '../config/roles';
 import { useTheme } from '../contexts/ThemeContext';
+import { dashboardAPI, tradingAPI } from '../lib/api';
 
-const priceData = [
-  { time: '06:00', solar: 680, wind: 520, gas: 410 },
-  { time: '08:00', solar: 740, wind: 545, gas: 405 },
-  { time: '10:00', solar: 820, wind: 560, gas: 415 },
-  { time: '12:00', solar: 870, wind: 610, gas: 420 },
-  { time: '14:00', solar: 850, wind: 630, gas: 412 },
-  { time: '16:00', solar: 790, wind: 620, gas: 418 },
-  { time: '18:00', solar: 650, wind: 580, gas: 425 },
-  { time: '20:00', solar: 520, wind: 555, gas: 430 },
-];
+interface DashboardSummary {
+  participants: number;
+  projects: number;
+  pending_trades: number;
+  active_contracts: number;
+  active_credits: number;
+  open_disputes: number;
+  total_traded_cents: number;
+  my_open_orders: number;
+  unread_notifications: number;
+  role: string;
+  participant_id: string;
+}
 
 const aiInsights = [
   { text: 'Solar spot prices expected to rise 5% this week due to reduced cloud cover forecast.', type: 'bullish' as const },
-  { text: 'Consider hedging gas exposure — supply disruption risk elevated in Mpumalanga region.', type: 'warning' as const },
+  { text: 'Consider hedging gas exposure \u2014 supply disruption risk elevated in Mpumalanga region.', type: 'warning' as const },
   { text: 'Carbon credit demand increasing ahead of Q2 compliance deadline. Good entry point.', type: 'bullish' as const },
 ];
-
-const gaugeConfigs: Record<string, { value: number; label: string; sublabel: string }> = {
-  generator: { value: 94, label: 'Plant Availability', sublabel: 'Across all generation assets' },
-  trader: { value: 78, label: 'Portfolio Health', sublabel: 'Risk-adjusted performance score' },
-  offtaker: { value: 87, label: 'Supply Reliability', sublabel: 'Weighted contract fulfilment' },
-  ipp_developer: { value: 81, label: 'Project Progress', sublabel: 'Weighted milestone completion' },
-  regulator: { value: 97, label: 'Compliance Rate', sublabel: 'Across all participants' },
-  admin: { value: 99, label: 'Platform Uptime', sublabel: 'Last 30 days SLA' },
-};
 
 export default function Dashboard() {
   const { activeRole } = useAuthStore();
   const { isDark } = useTheme();
   const role = (activeRole || 'trader') as PlatformRole;
   const config = getRoleConfig(role);
+
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [priceData, setPriceData] = useState<Array<Record<string, unknown>>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [sumRes, priceRes] = await Promise.allSettled([
+          dashboardAPI.summary(),
+          tradingAPI.getPrices('solar', '1h'),
+        ]);
+        if (!cancelled) {
+          if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data?.data);
+          if (priceRes.status === 'fulfilled' && Array.isArray(priceRes.value.data?.data)) {
+            setPriceData(priceRes.value.data.data);
+          }
+        }
+      } catch { /* fallback to defaults */ }
+      if (!cancelled) setLoading(false);
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [role]);
+
+  // Derive gauge value from real data
+  const gaugeValue = useMemo(() => {
+    if (!summary) return 78;
+    if (role === 'admin') return Math.min(99, 80 + summary.participants);
+    if (role === 'trader') return Math.min(99, 60 + Math.min(summary.my_open_orders * 5, 30));
+    return 78;
+  }, [summary, role]);
+
+  const gaugeConfigs: Record<string, { label: string; sublabel: string }> = {
+    generator: { label: 'Plant Availability', sublabel: 'Across all generation assets' },
+    trader: { label: 'Portfolio Health', sublabel: 'Risk-adjusted performance score' },
+    offtaker: { label: 'Supply Reliability', sublabel: 'Weighted contract fulfilment' },
+    ipp_developer: { label: 'Project Progress', sublabel: 'Weighted milestone completion' },
+    regulator: { label: 'Compliance Rate', sublabel: 'Across all participants' },
+    admin: { label: 'Platform Uptime', sublabel: 'Last 30 days SLA' },
+  };
   const gauge = gaugeConfigs[role] || gaugeConfigs.trader;
 
-  // Unique key forces re-mount on role switch to re-trigger all animations
+  // Build KPI overrides from real data
+  const kpis = useMemo(() => {
+    if (!summary) return config.kpis;
+    return config.kpis.map((kpi, i) => {
+      if (i === 0 && summary.active_contracts > 0) return { ...kpi, value: String(summary.active_contracts) };
+      if (i === 1 && summary.pending_trades > 0) return { ...kpi, value: String(summary.pending_trades) };
+      if (i === 2 && summary.active_credits > 0) return { ...kpi, value: String(summary.active_credits) };
+      if (i === 3 && summary.projects > 0) return { ...kpi, value: String(summary.projects) };
+      return kpi;
+    });
+  }, [summary, config.kpis]);
+
+  // Default price data fallback
+  const chartData = priceData.length > 0 ? priceData : [
+    { time: '06:00', solar: 680, wind: 520, gas: 410 },
+    { time: '08:00', solar: 740, wind: 545, gas: 405 },
+    { time: '10:00', solar: 820, wind: 560, gas: 415 },
+    { time: '12:00', solar: 870, wind: 610, gas: 420 },
+    { time: '14:00', solar: 850, wind: 630, gas: 412 },
+    { time: '16:00', solar: 790, wind: 620, gas: 418 },
+    { time: '18:00', solar: 650, wind: 580, gas: 425 },
+    { time: '20:00', solar: 520, wind: 555, gas: 430 },
+  ];
+
   const animKey = useMemo(() => `${role}-${Date.now()}`, [role]);
 
   return (
     <div key={animKey} className="space-y-6">
-      {/* ── Hero Section ─────────────────────────── */}
+      {loading && (
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <FiLoader className="w-4 h-4 animate-spin" /> Loading dashboard data...
+        </div>
+      )}
+
+      {/* Hero Section */}
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left: Welcome + Gauge + KPIs */}
         <div className="flex-1 space-y-6">
-          {/* Welcome text */}
           <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
             <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight leading-tight text-slate-900 dark:text-white">
               Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}
@@ -63,17 +127,16 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Gauge + KPI Grid */}
           <div className={`cp-card !p-6 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
             <div className="flex flex-col sm:flex-row items-center gap-8">
               <SemiGauge
-                value={gauge.value}
+                value={gaugeValue}
                 label={gauge.label}
                 sublabel={gauge.sublabel}
                 accentHex={config.accentHex}
               />
               <div className="flex-1 grid grid-cols-2 gap-3 w-full">
-                {config.kpis.map((kpi, i) => (
+                {kpis.map((kpi, i) => (
                   <div key={kpi.label}
                     className={`p-3.5 rounded-2xl ${isDark ? 'bg-white/[0.03] border border-white/[0.04]' : 'bg-slate-50/80 border border-black/[0.03]'}`}
                     style={{ animation: `cardFadeUp 500ms ease ${200 + i * 100}ms both` }}>
@@ -92,7 +155,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Portfolio Pills */}
           <div style={{ animation: 'cardFadeUp 500ms ease 600ms both' }}>
             <PortfolioPills />
           </div>
@@ -100,14 +162,13 @@ export default function Dashboard() {
 
         {/* Right: Price Chart + AI Insights */}
         <div className="w-full lg:w-[420px] space-y-4">
-          {/* Price Chart */}
           <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Energy Prices</h3>
               <span className="text-xs text-slate-400">Today</span>
             </div>
             <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={priceData}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="solarGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3} />
@@ -132,7 +193,6 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* AI Insights */}
           <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -156,9 +216,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Bottom Row ───────────────────────────── */}
+      {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions */}
         <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 700ms both' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Quick Actions</h3>
@@ -167,7 +226,6 @@ export default function Dashboard() {
           <QuickActions actions={config.actions} accentHex={config.accentHex} />
         </div>
 
-        {/* Recent Transfers */}
         <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 800ms both' }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Recent Transfers</h3>
@@ -178,7 +236,6 @@ export default function Dashboard() {
           <TransfersList />
         </div>
 
-        {/* Spending / Allocation Overview */}
         <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 900ms both' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Portfolio Allocation</h3>

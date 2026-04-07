@@ -40,7 +40,11 @@ export const useAuthStore = create<AuthState>((set) => {
       set({ user, token, isAuthenticated: true, activeRole: user.role });
     },
 
-    logout: () => {
+    logout: async () => {
+      try {
+        const { authAPI } = await import('./api');
+        await authAPI.logout();
+      } catch { /* best-effort */ }
       localStorage.removeItem('nxt_token');
       localStorage.removeItem('nxt_user');
       set({ user: null, token: null, isAuthenticated: false, activeRole: null });

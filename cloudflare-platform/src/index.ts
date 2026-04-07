@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
-import { logger } from 'hono/logger';
 import { AppBindings, HonoEnv } from './utils/types';
-import { rateLimiter } from './auth/middleware';
+import { rateLimiter, requestIdMiddleware, authMiddleware } from './auth/middleware';
+import { securityHeadersMiddleware } from './middleware/security';
+import { blacklistToken, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
+import { log } from './utils/logger';
 
 // Route imports
 import register from './routes/register';
@@ -21,6 +23,7 @@ import tenantsRoute from './routes/tenants';
 import developer from './routes/developer';
 import metering from './routes/metering';
 import p2p from './routes/p2p';
+import healthRoute from './routes/health';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -31,22 +34,40 @@ export { RiskEngineDO } from './durable-objects/RiskEngineDO';
 
 const app = new Hono<HonoEnv>();
 
+// Phase 1.7: Request ID on every request
+app.use('*', requestIdMiddleware());
+
+// Phase 1.4: Security headers on every response
+app.use('*', securityHeadersMiddleware());
+
+// Structured request logging (Phase 5)
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  log('info', 'request', {
+    method: c.req.method,
+    path: c.req.path,
+    status: c.res.status,
+    duration_ms: duration,
+  }, c.get('requestId'));
+});
+
 // Global middleware
-app.use(logger());
 app.use(prettyJSON());
 app.use('*', cors({
   origin: ['https://et.vantax.co.za', 'http://localhost:5173', 'http://localhost:8788'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
   exposeHeaders: ['X-Request-Id'],
   maxAge: 86400,
 }));
 
-// Rate limiting: 300 req/min for trading, 100 req/min general
+// Phase 1.2: Rate limiting
 app.use('/api/v1/trading/*', rateLimiter({ maxRequests: 300, windowSeconds: 60 }));
 app.use('/api/v1/*', rateLimiter({ maxRequests: 100, windowSeconds: 60 }));
 
-// Welcome endpoint
+// Welcome
 app.get('/', (c) => {
   return c.json({
     message: 'NXT Energy Trading Platform API',
@@ -57,14 +78,8 @@ app.get('/', (c) => {
   });
 });
 
-// Health check
-app.get('/health', (c) => {
-  return c.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    platform: 'Cloudflare Workers Edge Network',
-  });
-});
+// Phase 5.3: Enhanced health check
+app.route('/health', healthRoute);
 
 // API v1 routes
 const api = new Hono<HonoEnv>();
@@ -80,50 +95,74 @@ api.post('/auth/login', async (c) => {
   return registerApp.fetch(newReq, c.env);
 });
 
-// Participants
+// Phase 1.8 + 3.9: Logout with token blacklist
+api.post('/auth/logout', authMiddleware(), async (c) => {
+  const token = c.req.header('Authorization')?.substring(7);
+  if (token) {
+    try {
+      await blacklistToken(c.env.KV, token, 86400);
+    } catch { /* best-effort */ }
+  }
+  return c.json({ success: true, message: 'Logged out' });
+});
+
+// Phase 1.8: Token refresh with rotation
+api.post('/auth/refresh', async (c) => {
+  const body = await c.req.json() as { refreshToken?: string };
+  if (!body.refreshToken) {
+    return c.json({ success: false, error: 'Refresh token required' }, 400);
+  }
+
+  const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+  const decoded = await verifyJwt(body.refreshToken, secret);
+  if (!decoded) {
+    return c.json({ success: false, error: 'Invalid refresh token' }, 401);
+  }
+
+  const participant = await c.env.DB.prepare(
+    'SELECT id, email, role, company_name, kyc_status FROM participants WHERE id = ?'
+  ).bind(decoded.sub).first<{
+    id: string; email: string; role: string; company_name: string; kyc_status: string;
+  }>();
+
+  if (!participant) {
+    return c.json({ success: false, error: 'Participant not found' }, 404);
+  }
+
+  // Blacklist old refresh token (rotation)
+  try { await blacklistToken(c.env.KV, body.refreshToken, 86400 * 30); } catch { /* */ }
+
+  const newToken = await signJwt({
+    sub: participant.id,
+    email: participant.email,
+    role: participant.role as any,
+    company_name: participant.company_name,
+    kyc_status: participant.kyc_status as any,
+  }, secret);
+  const newRefresh = await signRefreshToken(participant.id, secret);
+
+  return c.json({ success: true, data: { token: newToken, refreshToken: newRefresh } });
+});
+
+// Core routes
 api.route('/participants', participants);
-
-// Contracts
 api.route('/contracts', contracts);
-
-// Trading & Orders
 api.route('/trading', trading);
-
-// Carbon Credits & Options
 api.route('/carbon', carbon);
-
-// IPP Projects
 api.route('/projects', projectsRoute);
-
-// Settlement, Escrows, Invoices, Disputes
 api.route('/settlement', settlement);
-
-// Compliance, KYC, Audit
 api.route('/compliance', compliance);
-
-// Marketplace, Notifications
 api.route('/marketplace', marketplace);
-
-// Spec 7: AI Portfolio Optimisation & Weather
 api.route('/ai', aiRoutes);
-
-// Spec 7: Custom Report Builder
 api.route('/reports', reports);
-
-// Spec 7: Multi-Tenant White-Label
 api.route('/tenants', tenantsRoute);
-
-// Spec 7: Developer Portal & API Marketplace
 api.route('/developer', developer);
-
-// Spec 7: IoT Metering Ingestion
 api.route('/metering', metering);
-
-// Spec 7: P2P Energy Trading
 api.route('/p2p', p2p);
 
-// Dashboard summary
-api.get('/dashboard/summary', async (c) => {
+// Dashboard summary (role-adaptive)
+api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
+  const user = c.get('user');
   const counts = await Promise.all([
     c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
     c.env.DB.prepare('SELECT COUNT(*) as count FROM projects').first<{ count: number }>(),
@@ -132,6 +171,8 @@ api.get('/dashboard/summary', async (c) => {
     c.env.DB.prepare("SELECT COUNT(*) as count FROM carbon_credits WHERE status = 'active'").first<{ count: number }>(),
     c.env.DB.prepare("SELECT COUNT(*) as count FROM disputes WHERE status NOT IN ('resolved', 'escalated')").first<{ count: number }>(),
     c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM orders WHERE participant_id = ? AND status IN ('open', 'partial')").bind(user.sub).first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM notifications WHERE participant_id = ? AND read = 0').bind(user.sub).first<{ count: number }>(),
   ]);
 
   return c.json({
@@ -144,22 +185,50 @@ api.get('/dashboard/summary', async (c) => {
       active_credits: counts[4]?.count || 0,
       open_disputes: counts[5]?.count || 0,
       total_traded_cents: counts[6]?.total || 0,
+      my_open_orders: counts[7]?.count || 0,
+      unread_notifications: counts[8]?.count || 0,
+      role: user.role,
+      participant_id: user.sub,
     },
   });
 });
 
-// Legacy market insights (backward compatibility)
+// Notifications
+api.get('/notifications', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20', 10)));
+  const offset = (page - 1) * limit;
+  const results = await c.env.DB.prepare(
+    'SELECT * FROM notifications WHERE participant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+  ).bind(user.sub, limit, offset).all();
+  const total = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM notifications WHERE participant_id = ?'
+  ).bind(user.sub).first<{ count: number }>();
+  return c.json({ success: true, data: results.results, meta: { page, limit, total: total?.count || 0 } });
+});
+
+api.patch('/notifications/:id/read', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  const user = c.get('user');
+  await c.env.DB.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND participant_id = ?').bind(id, user.sub).run();
+  return c.json({ success: true });
+});
+
+api.patch('/notifications/read-all', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  await c.env.DB.prepare('UPDATE notifications SET read = 1 WHERE participant_id = ? AND read = 0').bind(user.sub).run();
+  return c.json({ success: true });
+});
+
+// Legacy market insights
 api.get('/market/insights', async (c) => {
   const markets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery'];
   const indices: Record<string, unknown> = {};
-
   for (const market of markets) {
     const indexStr = await c.env.KV.get(`index:${market}`);
-    indices[market] = indexStr ? JSON.parse(indexStr) : {
-      price: 0, change_24h: 0, volume_24h: 0, last_trade: null,
-    };
+    indices[market] = indexStr ? JSON.parse(indexStr) : { price: 0, change_24h: 0, volume_24h: 0, last_trade: null };
   }
-
   return c.json({
     timestamp: new Date().toISOString(),
     marketCondition: 'Bullish',
@@ -182,41 +251,33 @@ api.get('/fees', async (c) => {
 // Mount API
 app.route('/api/v1', api);
 
-// Cron trigger handler (daily re-verification at 06:00 UTC)
+// Cron trigger handler
 const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env) => {
   const { generateId } = await import('./utils/id');
-
-  // Re-verify expiring licences
-  const expiringLicences = await env.DB.prepare(`
-    SELECT l.id, l.participant_id, l.type, l.expiry_date
-    FROM licences l
-    WHERE l.status = 'active'
-    AND l.expiry_date <= date('now', '+90 days')
-    AND l.expiry_date > date('now')
-  `).all();
-
-  for (const licence of expiringLicences.results) {
-    await env.DB.prepare(`
-      INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
-      VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)
-    `).bind(
-      generateId(), licence.participant_id,
-      `Your ${licence.type} licence expires on ${licence.expiry_date}. Please renew.`,
-      licence.id
-    ).run();
+  try {
+    const expiringLicences = await env.DB.prepare(`
+      SELECT l.id, l.participant_id, l.type, l.expiry_date FROM licences l
+      WHERE l.status = 'active' AND l.expiry_date <= date('now', '+90 days') AND l.expiry_date > date('now')
+    `).all();
+    for (const licence of expiringLicences.results) {
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)
+      `).bind(
+        generateId(), licence.participant_id,
+        'Your ' + licence.type + ' licence expires on ' + licence.expiry_date + '. Please renew.',
+        licence.id
+      ).run();
+    }
+    await env.DB.prepare(`UPDATE invoices SET status = 'overdue' WHERE status = 'outstanding' AND due_date < date('now')`).run();
+    await env.DB.prepare(`UPDATE marketplace_listings SET status = 'expired' WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+    await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'day' AND date(created_at) < date('now')`).run();
+    await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'gtd' AND gtd_expiry IS NOT NULL AND gtd_expiry < datetime('now')`).run();
+    await env.DB.prepare(`UPDATE p2p_trades SET status = 'expired' WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+    log('info', 'cron_completed', { licences: expiringLicences.results.length });
+  } catch (err) {
+    log('error', 'cron_failed', { error: err instanceof Error ? err.message : String(err) });
   }
-
-  // Check overdue invoices
-  await env.DB.prepare(`
-    UPDATE invoices SET status = 'overdue'
-    WHERE status = 'outstanding' AND due_date < date('now')
-  `).run();
-
-  // Check expired marketplace listings
-  await env.DB.prepare(`
-    UPDATE marketplace_listings SET status = 'expired'
-    WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now')
-  `).run();
 };
 
 export default {
