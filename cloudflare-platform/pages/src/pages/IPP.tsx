@@ -67,10 +67,10 @@ export default function IPP() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 150ms both' }}>
         {[
-          { label: 'Active Projects', value: String(projects.length), icon: FiCheckCircle },
+          { label: 'Active Projects', value: String(projectData.length), icon: FiCheckCircle },
           { label: 'Total Capacity', value: '400 MW', icon: FiSun },
           { label: 'Total Disbursed', value: 'R252M', icon: FiDollarSign },
-          { label: 'CPs Completed', value: `${projects.reduce((s, p) => s + p.cps.met, 0)}/${projects.reduce((s, p) => s + p.cps.total, 0)}`, icon: FiCheckCircle },
+          { label: 'CPs Completed', value: `${projectData.reduce((s, p) => s + (p.cps?.met || 0), 0)}/${projectData.reduce((s, p) => s + (p.cps?.total || 0), 0)}`, icon: FiCheckCircle },
         ].map((kpi, i) => (
           <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${150 + i * 60}ms both` }}>
             <kpi.icon className="w-4 h-4 text-amber-500 mb-2" />
