@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { participantsAPI, complianceAPI } from '../lib/api';
 
 const tabs = ['Participants', 'System Stats', 'Audit Log'];
 
@@ -40,7 +41,23 @@ export default function Admin() {
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('Participants');
   const [search, setSearch] = useState('');
-  const filteredParticipants = participants.filter(p =>
+  const [participantData, setParticipantData] = useState(participants);
+  const [auditData, setAuditData] = useState(auditLog);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [pRes, aRes] = await Promise.all([
+          participantsAPI.list(),
+          complianceAPI.getAudit(),
+        ]);
+        if (pRes.data?.data?.length) setParticipantData(pRes.data.data);
+        if (aRes.data?.data?.length) setAuditData(aRes.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
+
+  const filteredParticipants = participantData.filter(p =>
     search === '' || p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -142,7 +159,7 @@ export default function Admin() {
                 <th className="text-left py-3 px-4 font-medium">Target</th>
                 <th className="text-right py-3 px-5 font-medium">IP</th>
               </tr></thead>
-              <tbody>{auditLog.map((log, i) => (
+              <tbody>{auditData.map((log, i) => (
                 <tr key={i} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3 px-5 font-mono text-xs text-slate-400">{log.time}</td>
                   <td className="py-3 px-4 text-blue-600 dark:text-blue-400 text-xs">{log.user}</td>

@@ -41,13 +41,14 @@ export const useAuthStore = create<AuthState>((set) => {
     },
 
     logout: async () => {
+      // Clear local state first so UI updates immediately, then best-effort API call
+      localStorage.removeItem('nxt_token');
+      localStorage.removeItem('nxt_user');
+      set({ user: null, token: null, isAuthenticated: false, activeRole: null });
       try {
         const { authAPI } = await import('./api');
         await authAPI.logout();
       } catch { /* best-effort */ }
-      localStorage.removeItem('nxt_token');
-      localStorage.removeItem('nxt_user');
-      set({ user: null, token: null, isAuthenticated: false, activeRole: null });
     },
 
     switchRole: (role) => {
@@ -74,6 +75,7 @@ interface NotificationState {
   unreadCount: number;
   setNotifications: (n: NotificationState['notifications']) => void;
   markRead: (id: string) => void;
+  markAllRead: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
@@ -83,11 +85,23 @@ export const useNotificationStore = create<NotificationState>((set) => ({
     notifications,
     unreadCount: notifications.filter((n) => !n.read).length,
   }),
-  markRead: (id) => set((state) => {
-    const wasUnread = state.notifications.some((n) => n.id === id && !n.read);
-    return {
-      notifications: state.notifications.map((n) => n.id === id ? { ...n, read: true } : n),
-      unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
-    };
-  }),
+  markRead: (id) => {
+    set((state) => {
+      const wasUnread = state.notifications.some((n) => n.id === id && !n.read);
+      return {
+        notifications: state.notifications.map((n) => n.id === id ? { ...n, read: true } : n),
+        unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
+      };
+    });
+    // Sync with backend
+    import('./api').then(({ notificationsAPI }) => notificationsAPI.markRead(id)).catch(() => {});
+  },
+  markAllRead: () => {
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      unreadCount: 0,
+    }));
+    // Sync with backend
+    import('./api').then(({ notificationsAPI }) => notificationsAPI.markAllRead()).catch(() => {});
+  },
 }));

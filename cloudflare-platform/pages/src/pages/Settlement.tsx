@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiFileText, FiShield, FiAlertTriangle, FiPlus } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
+import { settlementAPI } from '../lib/api';
 
 const tabs = ['Invoices', 'Escrows', 'Disputes'];
 
@@ -47,6 +48,24 @@ export default function Settlement() {
   const { isDark } = useTheme();
   const cv = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('Invoices');
+  const [invoiceData, setInvoiceData] = useState(invoices);
+  const [escrowData, setEscrowData] = useState(escrows);
+  const [disputeData, setDisputeData] = useState(disputes);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [invRes, escRes, dspRes] = await Promise.all([
+          settlementAPI.getInvoices(),
+          settlementAPI.getEscrows(),
+          settlementAPI.getDisputes(),
+        ]);
+        if (invRes.data?.data?.length) setInvoiceData(invRes.data.data);
+        if (escRes.data?.data?.length) setEscrowData(escRes.data.data);
+        if (dspRes.data?.data?.length) setDisputeData(dspRes.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -84,7 +103,7 @@ export default function Settlement() {
                 <th className="text-left py-3.5 px-4 font-medium">Status</th>
                 <th className="text-right py-3.5 px-5 font-medium">Due Date</th>
               </tr></thead>
-              <tbody>{invoices.map(inv => (
+              <tbody>{invoiceData.map(inv => (
                 <tr key={inv.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{inv.id}</td>
                   <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{inv.counterparty}</td>
@@ -106,7 +125,7 @@ export default function Settlement() {
                 <th className="text-left py-3.5 px-4 font-medium">Conditions</th>
                 <th className="text-right py-3.5 px-5 font-medium">Created</th>
               </tr></thead>
-              <tbody>{escrows.map(e => (
+              <tbody>{escrowData.map(e => (
                 <tr key={e.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{e.id}</td>
                   <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{e.parties}</td>
@@ -128,7 +147,7 @@ export default function Settlement() {
                 <th className="text-left py-3.5 px-4 font-medium">Status</th>
                 <th className="text-right py-3.5 px-5 font-medium">Filed</th>
               </tr></thead>
-              <tbody>{disputes.map(d => (
+              <tbody>{disputeData.map(d => (
                 <tr key={d.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</td>
                   <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{d.parties}</td>

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiTrendingUp, FiTrendingDown, FiPlus, FiRefreshCw } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { tradingAPI } from '../lib/api';
 
 const candleData = Array.from({ length: 24 }, (_, i) => ({
   time: `${String(i).padStart(2, '0')}:00`,
@@ -37,6 +38,21 @@ export default function Trading() {
   const { isDark } = useTheme();
   const [orderType, setOrderType] = useState<'limit' | 'market'>('limit');
   const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
+  const [positionsData, setPositionsData] = useState(positions);
+  const [obData, setObData] = useState(orderBook);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [posRes, obRes] = await Promise.all([
+          tradingAPI.getPositions(),
+          tradingAPI.getOrderbook('solar_ppa'),
+        ]);
+        if (posRes.data?.data?.length) setPositionsData(posRes.data.data);
+        if (obRes.data?.data) setObData(obRes.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -94,7 +110,7 @@ export default function Trading() {
               <div className="flex justify-between text-slate-400 dark:text-slate-500 mb-1 px-1">
                 <span>Price (R)</span><span>Size (MWh)</span><span>Total</span>
               </div>
-              {orderBook.asks.slice().reverse().map((a, i) => (
+              {obData.asks.slice().reverse().map((a, i) => (
                 <div key={i} className="flex justify-between px-1 py-0.5 rounded relative overflow-hidden">
                   <div className="absolute inset-y-0 right-0 bg-red-500/5" style={{ width: `${(a.total / 50000) * 100}%` }} />
                   <span className="text-red-500 mono relative z-10">{a.price.toFixed(2)}</span>
@@ -103,7 +119,7 @@ export default function Trading() {
                 </div>
               ))}
               <div className={`text-center py-1.5 text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'} mono`}>R847.35</div>
-              {orderBook.bids.map((b, i) => (
+              {obData.bids.map((b, i) => (
                 <div key={i} className="flex justify-between px-1 py-0.5 rounded relative overflow-hidden">
                   <div className="absolute inset-y-0 right-0 bg-emerald-500/5" style={{ width: `${(b.total / 55000) * 100}%` }} />
                   <span className="text-emerald-500 mono relative z-10">{b.price.toFixed(2)}</span>
@@ -164,7 +180,7 @@ export default function Trading() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((p, i) => (
+              {positionsData.map((p, i) => (
                 <tr key={i} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3 font-medium text-slate-800 dark:text-slate-200">{p.asset}</td>
                   <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${p.side === 'Long' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{p.side}</span></td>

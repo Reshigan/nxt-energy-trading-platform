@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiCpu, FiTrendingUp, FiShield, FiZap, FiSend } from 'react-icons/fi';
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { aiAPI } from '../lib/api';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 const radarData = [
@@ -32,6 +33,16 @@ export default function Portfolio() {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([
     { role: 'assistant', text: 'Hello! I can help optimise your energy portfolio. Ask about rebalancing strategies or carbon reduction scenarios.' },
   ]);
+  const [scenarioData, setScenarioData] = useState(scenarios);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await aiAPI.history();
+        if (res.data?.data?.scenarios?.length) setScenarioData(res.data.data.scenarios);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   const send = () => {
     if (!chatInput.trim()) return;
@@ -103,7 +114,7 @@ export default function Portfolio() {
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ animation: 'cardFadeUp 500ms ease 500ms both' }}>
-            {scenarios.map((s, i) => (
+            {scenarioData.map((s, i) => (
               <div key={s.name} className={`cp-card !p-4 relative ${c('!bg-[#151F32] !border-white/[0.06]', '')} ${s.best ? 'ring-2 ring-emerald-500/30' : ''}`}
                 style={{ animation: `cardFadeUp 400ms ease ${500 + i * 60}ms both` }}>
                 {s.best && <span className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">BEST</span>}

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter } from 'react-icons/fi';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { tradingAPI } from '../lib/api';
 
 const sparkline = (seed: number, trend: boolean) =>
   Array.from({ length: 12 }, (_, i) => ({ v: (seed + (trend ? i * 3 : -i * 2) + Math.random() * 15) }));
@@ -20,7 +21,18 @@ const markets = [
 export default function Markets() {
   const { isDark } = useTheme();
   const [search, setSearch] = useState('');
-  const filtered = markets.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+  const [marketData, setMarketData] = useState(markets);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await tradingAPI.getIndices();
+        if (res.data?.data?.length) setMarketData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
+
+  const filtered = marketData.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-6">

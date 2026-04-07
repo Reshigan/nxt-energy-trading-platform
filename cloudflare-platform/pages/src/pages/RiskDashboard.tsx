@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiShield, FiAlertTriangle, FiTrendingDown } from 'react-icons/fi';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { aiAPI } from '../lib/api';
+import { useAuthStore } from '../lib/store';
 
 const exposureData = [
   { name: 'Eskom', exposure: 4200, limit: 5000 },
@@ -41,6 +43,18 @@ const severityColors: Record<string, string> = {
 export default function RiskDashboard() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
+  const { user } = useAuthStore();
+  const [riskMetrics, setRiskMetrics] = useState(greeks);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const pid = user?.id || 'default';
+        const res = await aiAPI.risk(pid);
+        if (res.data?.data?.greeks?.length) setRiskMetrics(res.data.data.greeks);
+      } catch { /* use demo data */ }
+    })();
+  }, [user]);
 
   return (
     <div className="space-y-6">

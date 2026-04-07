@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiActivity, FiUpload, FiCheck, FiClock, FiZap } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { meteringAPI } from '../lib/api';
 
 const readingsData = Array.from({ length: 24 }, (_, i) => ({
   time: `${String(i).padStart(2, '0')}:00`,
@@ -31,6 +32,16 @@ export default function Metering() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [showUpload, setShowUpload] = useState(false);
+  const [meterData, setMeterData] = useState(meters);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await meteringAPI.getMeters('default');
+        if (res.data?.data?.length) setMeterData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -108,7 +119,7 @@ export default function Metering() {
               <th className="text-right py-3 px-4 font-medium">Quality</th>
               <th className="text-right py-3 px-5 font-medium">Last</th>
             </tr></thead>
-            <tbody>{meters.map(m => (
+            <tbody>{meterData.map(m => (
               <tr key={m.id} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                 <td className="py-3 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{m.id}</td>
                 <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{m.project}</td>
