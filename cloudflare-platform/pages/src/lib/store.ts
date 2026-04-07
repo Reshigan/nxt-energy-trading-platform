@@ -41,14 +41,15 @@ export const useAuthStore = create<AuthState>((set) => {
     },
 
     logout: async () => {
-      // Clear local state first so UI updates immediately, then best-effort API call
-      localStorage.removeItem('nxt_token');
-      localStorage.removeItem('nxt_user');
-      set({ user: null, token: null, isAuthenticated: false, activeRole: null });
+      // Best-effort API call to blacklist token BEFORE clearing it
       try {
         const { authAPI } = await import('./api');
         await authAPI.logout();
       } catch { /* best-effort */ }
+      // Clear local state after API call so the token is still available for the request
+      localStorage.removeItem('nxt_token');
+      localStorage.removeItem('nxt_user');
+      set({ user: null, token: null, isAuthenticated: false, activeRole: null });
     },
 
     switchRole: (role) => {
