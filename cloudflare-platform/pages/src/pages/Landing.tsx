@@ -205,7 +205,7 @@ export default function Landing() {
               <ul className={`space-y-2 text-sm ${textSec}`}>
                 <li><Link to="/terms" className="hover:underline">Terms & Conditions</Link></li>
                 <li><Link to="/privacy" className="hover:underline">Privacy Policy</Link></li>
-                <li><Link to="/risk" className="hover:underline">Risk Disclosure</Link></li>
+                <li><Link to="/risk-disclosure" className="hover:underline">Risk Disclosure</Link></li>
               </ul>
             </div>
             <div>
