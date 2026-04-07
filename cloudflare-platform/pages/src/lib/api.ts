@@ -78,6 +78,21 @@ export const contractsAPI = {
   getVersions: (id: string) => api.get(`/contracts/documents/${id}/versions`),
   getPdf: (id: string) => api.get(`/contracts/documents/${id}/pdf`),
   getAuditTrail: (id: string) => api.get(`/contracts/documents/${id}/audit-trail`),
+  verify: (id: string) => api.get(`/contracts/documents/${id}/verify`),
+  getCertificate: (docId: string, participantId: string) => api.get(`/contracts/documents/${docId}/certificate/${participantId}`),
+  getTemplates: () => api.get('/contracts/templates'),
+  getTemplate: (type: string) => api.get(`/contracts/templates/${type}`),
+  coolingOff: (id: string) => api.post(`/contracts/documents/${id}/cooling-off`),
+  request2FA: (id: string) => api.post(`/contracts/documents/${id}/request-2fa`),
+  verify2FA: (id: string, otp: string) => api.post(`/contracts/documents/${id}/verify-2fa`, { otp }),
+};
+
+// POPIA Compliance
+export const popiaAPI = {
+  getConsent: () => api.get('/popia/consent'),
+  giveConsent: (consent: boolean, version?: string) => api.post('/popia/consent', { consent, version }),
+  exportData: () => api.get('/popia/export'),
+  requestErasure: (confirm: boolean, reason?: string) => api.delete('/popia/erasure', { data: { confirm, reason } }),
 };
 
 // Carbon
