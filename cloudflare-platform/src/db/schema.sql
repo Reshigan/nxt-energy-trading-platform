@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS participants (
   fsca_licence TEXT,
   kyc_status TEXT NOT NULL DEFAULT 'pending' CHECK (kyc_status IN ('pending','in_review','verified','rejected','suspended')),
   trading_enabled INTEGER NOT NULL DEFAULT 0,
+  consent_given INTEGER DEFAULT 0,
+  consent_given_at TEXT,
+  consent_version TEXT DEFAULT '1.0',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -65,6 +68,10 @@ CREATE TABLE IF NOT EXISTS contract_documents (
   previous_version_id TEXT REFERENCES contract_documents(id),
   sha256_hash TEXT,
   page_count INTEGER,
+  governing_law TEXT DEFAULT 'South Africa',
+  jurisdiction TEXT DEFAULT 'Gauteng Division, High Court of South Africa',
+  dispute_resolution TEXT DEFAULT 'AFSA Arbitration',
+  integrity_seal TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -81,6 +88,9 @@ CREATE TABLE IF NOT EXISTS document_signatories (
   signature_r2_key TEXT,
   ip_address TEXT,
   document_hash_at_signing TEXT,
+  certificate_serial TEXT,
+  certificate_r2_key TEXT,
+  chain_hash TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
