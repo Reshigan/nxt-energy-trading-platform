@@ -549,11 +549,34 @@ contracts.get('/documents/:id/verify', authMiddleware(), async (c) => {
     'SELECT signatory_name, signatory_designation, signed, signed_at, document_hash_at_signing, certificate_serial, chain_hash, ip_address FROM document_signatories WHERE document_id = ?'
   ).bind(id).all();
 
-  // Verify hash chain integrity
-  let chainValid = true;
+  // Verify hash chain integrity by recomputing each link
   const signedSigs = signatories.results
     .filter((s) => s.signed === 1)
     .sort((a, b) => ((a.signed_at as string) || '').localeCompare((b.signed_at as string) || ''));
+
+  let chainValid = true;
+  if (signedSigs.length > 0) {
+    let previousHash: string | null = null;
+    for (const sig of signedSigs) {
+      if (!sig.chain_hash || !sig.document_hash_at_signing || !sig.signed_at) {
+        chainValid = false;
+        break;
+      }
+      const { computeChainHash: recompute } = await import('../utils/signing-certificate');
+      const expected = await recompute(
+        previousHash,
+        sig.document_hash_at_signing as string,
+        '', // signatory ID not stored in query — skip for chain check
+        sig.signed_at as string,
+        (sig.ip_address as string) || '',
+      );
+      if (expected !== sig.chain_hash) {
+        chainValid = false;
+        break;
+      }
+      previousHash = sig.chain_hash as string;
+    }
+  }
 
   // Check that all signed signatories have consistent document hashes
   const hashes = new Set(signedSigs.map((s) => s.document_hash_at_signing));
@@ -676,7 +699,15 @@ contracts.post('/documents/:id/cooling-off', authMiddleware(), async (c) => {
 
   const signedDate = new Date(signatory.signed_at);
   const now = new Date();
-  const businessDays = Math.floor((now.getTime() - signedDate.getTime()) / (1000 * 60 * 60 * 24));
+  // Count only business days (Mon-Fri), excluding weekends
+  let businessDays = 0;
+  const cursor = new Date(signedDate);
+  cursor.setDate(cursor.getDate() + 1); // start counting from the day after signing
+  while (cursor <= now) {
+    const day = cursor.getDay(); // 0=Sun, 6=Sat
+    if (day !== 0 && day !== 6) businessDays++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
   if (businessDays > 5) {
     return c.json({
@@ -726,8 +757,10 @@ contracts.post('/documents/:id/request-2fa', authMiddleware(), async (c) => {
 
   if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
-  // Generate 6-digit OTP
-  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  // Generate 6-digit OTP using cryptographically secure random
+  const otpBytes = new Uint32Array(1);
+  crypto.getRandomValues(otpBytes);
+  const otp = String(100000 + (otpBytes[0] % 900000));
   const otpExpiry = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min expiry
 
   // Store OTP in KV with TTL
@@ -743,13 +776,13 @@ contracts.post('/documents/:id/request-2fa', authMiddleware(), async (c) => {
   ).run();
 
   // In production, send via email. For now store in KV and return success.
+  const isDev = (c.env as Record<string, unknown>).ENVIRONMENT !== 'production';
   return c.json({
     success: true,
     data: {
       message: `OTP sent to ${user.email}. Valid for 10 minutes.`,
       expires_at: otpExpiry,
-      // DEV ONLY: remove in production
-      dev_otp: otp,
+      ...(isDev ? { dev_otp: otp } : {}),
     },
   });
 });

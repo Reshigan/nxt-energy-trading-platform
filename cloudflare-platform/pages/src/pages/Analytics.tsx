@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { dashboardAPI } from '../lib/api';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -46,6 +47,16 @@ export default function Analytics() {
   const { isDark } = useTheme();
   const [period, setPeriod] = useState('6M');
   const c = (d: string, l: string) => isDark ? d : l;
+  const [kpiData, setKpiData] = useState(kpis);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await dashboardAPI.summary();
+        if (res.data?.data?.kpis?.length) setKpiData(res.data.data.kpis);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -63,7 +74,7 @@ export default function Analytics() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {kpis.map((kpi, i) => {
+        {kpiData.map((kpi, i) => {
           const Icon = iconMap[kpi.icon] || FiTrendingUp;
           return (
             <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 500ms ease ${100 + i * 60}ms both` }}>

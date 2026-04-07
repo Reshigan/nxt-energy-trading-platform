@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiPlus, FiStar } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
+import { marketplaceAPI } from '../lib/api';
 
 const listings = [
   { id: 'MKT-001', title: 'Solar PPA 50MW Limpopo', type: 'PPA', technology: 'Solar PV', price: 'R580/MWh', volume: '50 MW', seller: 'TerraVolt Energy', listed: '2024-04-01', bids: 3, featured: true },
@@ -20,7 +21,18 @@ export default function Marketplace() {
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeType, setActiveType] = useState('All');
   const [search, setSearch] = useState('');
-  const filtered = listings.filter(l =>
+  const [listingData, setListingData] = useState(listings);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await marketplaceAPI.list();
+        if (res.data?.data?.length) setListingData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
+
+  const filtered = listingData.filter(l =>
     (activeType === 'All' || l.type === activeType) &&
     (search === '' || l.title.toLowerCase().includes(search.toLowerCase()))
   );

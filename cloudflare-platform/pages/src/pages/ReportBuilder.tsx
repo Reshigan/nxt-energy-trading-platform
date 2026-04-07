@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiFileText, FiDownload, FiCalendar, FiFilter } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
+import { reportsAPI } from '../lib/api';
 
 const reportTypes = [
   { id: 'trading', name: 'Trading Summary', description: 'Order history, fills, P&L by period', icon: '📊', format: ['PDF', 'XLSX', 'CSV'] },
@@ -30,6 +31,16 @@ export default function ReportBuilder() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const [reportData, setReportData] = useState(recentReports);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await reportsAPI.list();
+        if (res.data?.data?.length) setReportData(res.data.data);
+      } catch { /* use demo data */ }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -87,7 +98,7 @@ export default function ReportBuilder() {
                 <th className="text-right py-3 px-4 font-medium">Date</th>
                 <th className="text-center py-3 px-5 font-medium">Action</th>
               </tr></thead>
-              <tbody>{recentReports.map(r => (
+              <tbody>{reportData.map(r => (
                 <tr key={r.name} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3 px-5 font-medium text-slate-800 dark:text-slate-200">{r.name}</td>
                   <td className="py-3 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${c('bg-blue-500/10 text-blue-400', 'bg-blue-50 text-blue-600')}`}>{r.type}</span></td>
