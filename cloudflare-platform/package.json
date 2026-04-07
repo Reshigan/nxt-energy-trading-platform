@@ -7,7 +7,9 @@
     "dev": "wrangler dev src/index.ts",
     "deploy": "wrangler deploy",
     "preview": "wrangler dev --env preview --test-scheduled",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "cloudflare",
@@ -19,13 +21,16 @@
   "author": "NXT Energy Solutions",
   "license": "MIT",
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.14.2",
     "@cloudflare/workers-types": "^4.20231025.0",
+    "miniflare": "^4.20260405.0",
     "typescript": "^5.2.2",
+    "vitest": "^4.1.3",
     "wrangler": "^3.13.2"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.1.11",
     "hono": "^3.7.6",
-    "zod": "^3.22.4",
-    "@hono/zod-validator": "^0.1.11"
+    "zod": "^3.22.4"
   }
 }
