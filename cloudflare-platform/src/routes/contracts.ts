@@ -4,7 +4,7 @@ import { generateId, nowISO } from '../utils/id';
 import { authMiddleware } from '../auth/middleware';
 import { CreateDocumentSchema, PhaseTransitionSchema, SignSchema } from '../utils/validation';
 import { sha256 } from '../utils/hash';
-import { generateSigningCertificate, computeIntegritySeal } from '../utils/signing-certificate';
+import { generateSigningCertificate, computeIntegritySeal, computeChainHash } from '../utils/signing-certificate';
 import { getTemplate, MANDATORY_CLAUSES } from '../templates/contract-templates';
 
 const contracts = new Hono<HonoEnv>();
@@ -546,7 +546,7 @@ contracts.get('/documents/:id/verify', authMiddleware(), async (c) => {
   if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
   const signatories = await c.env.DB.prepare(
-    'SELECT signatory_name, signatory_designation, signed, signed_at, document_hash_at_signing, certificate_serial, chain_hash, ip_address FROM document_signatories WHERE document_id = ?'
+    'SELECT participant_id, signatory_name, signatory_designation, signed, signed_at, document_hash_at_signing, certificate_serial, chain_hash, ip_address FROM document_signatories WHERE document_id = ?'
   ).bind(id).all();
 
   // Verify hash chain integrity by recomputing each link
@@ -562,11 +562,10 @@ contracts.get('/documents/:id/verify', authMiddleware(), async (c) => {
         chainValid = false;
         break;
       }
-      const { computeChainHash: recompute } = await import('../utils/signing-certificate');
-      const expected = await recompute(
+      const expected = await computeChainHash(
         previousHash,
         sig.document_hash_at_signing as string,
-        '', // signatory ID not stored in query — skip for chain check
+        sig.participant_id as string,
         sig.signed_at as string,
         (sig.ip_address as string) || '',
       );

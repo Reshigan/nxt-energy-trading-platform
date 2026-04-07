@@ -83,7 +83,7 @@ export default function RiskDashboard() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
-        {greeks.map((g, i) => (
+        {riskMetrics.map((g, i) => (
           <div key={g.name} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 60}ms both` }}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{g.name}</span>
