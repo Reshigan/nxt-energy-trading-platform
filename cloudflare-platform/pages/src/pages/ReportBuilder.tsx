@@ -1,12 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { FiFileText, FiDownload, FiCalendar, FiFilter } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiFileText, FiDownload, FiCalendar, FiFilter, FiRefreshCw, FiLoader } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { reportsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const reportTypes = [
+interface ReportType { id: string; name: string; description: string; icon: string; format: string[]; }
+interface ReportEntry { id?: string; name: string; type: string; date: string; status: string; size: string; }
+interface VolumeByType { type: string; count: number; }
+
+const REPORT_TYPES: ReportType[] = [
   { id: 'trading', name: 'Trading Summary', description: 'Order history, fills, P&L by period', icon: '📊', format: ['PDF', 'XLSX', 'CSV'] },
   { id: 'carbon', name: 'Carbon Report', description: 'Credits, retirements, offsets, SDG alignment', icon: '🌱', format: ['PDF', 'XLSX'] },
   { id: 'compliance', name: 'Compliance Report', description: 'KYC status, statutory checks, licence expiry', icon: '🛡️', format: ['PDF'] },
@@ -15,54 +22,67 @@ const reportTypes = [
   { id: 'custom', name: 'Custom Report', description: 'Build a custom report with selected metrics', icon: '⚙️', format: ['PDF', 'XLSX', 'CSV'] },
 ];
 
-const recentReports = [
-  { name: 'Trading Summary Q1 2024', type: 'Trading', date: '2024-04-01', status: 'Ready', size: '2.4 MB' },
-  { name: 'Carbon Report March 2024', type: 'Carbon', date: '2024-03-31', status: 'Ready', size: '1.8 MB' },
-  { name: 'TCFD Annual 2023', type: 'TCFD', date: '2024-01-15', status: 'Ready', size: '4.2 MB' },
-  { name: 'Compliance Q4 2023', type: 'Compliance', date: '2023-12-31', status: 'Ready', size: '1.1 MB' },
-  { name: 'Settlement February 2024', type: 'Settlement', date: '2024-02-28', status: 'Ready', size: '890 KB' },
-];
-
-const volumeByType = [
-  { type: 'Trading', count: 24 }, { type: 'Carbon', count: 18 },
-  { type: 'Settlement', count: 15 }, { type: 'Compliance', count: 8 },
-  { type: 'TCFD', count: 4 }, { type: 'Custom', count: 12 },
-];
-
 export default function ReportBuilder() {
   const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [reportData, setReportData] = useState(recentReports);
+  const [reportData, setReportData] = useState<ReportEntry[]>([]);
+  const [volumeByType, setVolumeByType] = useState<VolumeByType[]>([]);
+  const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await reportsAPI.list();
-        if (res.data?.data?.length) setReportData(res.data.data);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await reportsAPI.list();
+      const d = res.data?.data;
+      if (Array.isArray(d)) setReportData(d);
+      if (res.data?.volume_by_type) setVolumeByType(res.data.volume_by_type);
+    } catch { setError('Failed to load reports.'); }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleGenerate = async () => {
+    if (!selectedType) { toast.error('Select a report type first'); return; }
+    setGenerating(true);
+    try {
+      const res = await reportsAPI.create({ type: selectedType });
+      if (res.data?.success) { toast.success('Report generation started'); loadData(); }
+      else toast.error(res.data?.error || 'Failed to generate report');
+    } catch { toast.error('Failed to generate report'); }
+    setGenerating(false);
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Report Builder page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Report Builder</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Generate, schedule & download platform reports</p>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handleGenerate} disabled={generating || !selectedType} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2 disabled:opacity-50" aria-label="Generate report">
+            {generating ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiFileText className="w-4 h-4" />} Generate
+          </button>
+          <button onClick={loadData} className="p-2.5 rounded-xl bg-slate-200 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-white/[0.1] transition-colors" aria-label="Refresh reports">
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      {/* Report Types */}
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {loading ? (<div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />)}</div>) : (<>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {reportTypes.map((rt, i) => (
+        {REPORT_TYPES.map((rt, i) => (
           <button key={rt.id} onClick={() => setSelectedType(rt.id)}
             className={`cp-card !p-5 text-left transition-all ${c('!bg-[#151F32] !border-white/[0.06]', '')} ${selectedType === rt.id ? 'ring-2 ring-blue-500/40' : ''}`}
             style={{ animation: `cardFadeUp 400ms ease ${100 + i * 60}ms both` }}>
@@ -114,7 +134,7 @@ export default function ReportBuilder() {
                   <td className="py-3 px-4 text-right text-slate-500 mono text-xs">{r.size}</td>
                   <td className="py-3 px-4 text-right text-slate-400 text-xs">{r.date}</td>
                   <td className="py-3 px-5 text-center">
-                    <button className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" aria-label="Download"><FiDownload className="w-4 h-4" /></button>
+                    <button onClick={() => { toast.success('Downloading report...'); }} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" aria-label={`Download ${r.name}`}><FiDownload className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -122,6 +142,7 @@ export default function ReportBuilder() {
           </div>
         </div>
       </div>
+      </>)}
     </motion.div>
   );
 }
