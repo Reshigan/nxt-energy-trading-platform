@@ -61,8 +61,33 @@ export default function Markets() {
     setLoading(true); setError(null);
     try {
       const res = await tradingAPI.getIndices();
-      if (res.data?.data?.length) setMarketData(res.data.data);
-      else setMarketData(fallbackMarkets);
+      const raw = res.data?.data;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        // Backend returns { solar_ppa: { price, change_24h, volume_24h }, ... }
+        const names: Record<string, string> = { solar_ppa: 'Solar PPA Spot', wind_ppa: 'Wind Forward H2', gas_spot: 'Gas Spot', carbon: 'Carbon Credit', battery: 'Battery Storage', hydro: 'Hydro Peak' };
+        const rows: MarketRow[] = Object.entries(raw).map(([key, val]: [string, unknown]) => {
+          const v = val as { price?: number; change_24h?: number; volume_24h?: number };
+          const priceCents = v?.price || 0;
+          const change = v?.change_24h || 0;
+          const vol = v?.volume_24h || 0;
+          const fb = fallbackMarkets.find(f => f.name === (names[key] || key));
+          return {
+            name: names[key] || key.replace(/_/g, ' '),
+            price_cents: priceCents || fb?.price_cents || 0,
+            price: priceCents ? formatZAR(priceCents) : fb?.price || 'R0.00',
+            change: change !== 0 ? `${change > 0 ? '+' : ''}${change.toFixed(1)}%` : fb?.change || '0.0%',
+            positive: change !== 0 ? change > 0 : fb?.positive || false,
+            volume: vol > 0 ? `${(vol / 1000).toFixed(1)}K MWh` : fb?.volume || '0 MWh',
+            cap: fb?.cap || 'R0',
+            spark: fb?.spark || sparkline(priceCents / 100, change > 0),
+          };
+        });
+        setMarketData(rows.length > 0 ? rows : fallbackMarkets);
+      } else if (Array.isArray(raw) && raw.length > 0) {
+        setMarketData(raw);
+      } else {
+        setMarketData(fallbackMarkets);
+      }
     } catch {
       setError('Failed to load market data');
       toast.error('Failed to load market data');

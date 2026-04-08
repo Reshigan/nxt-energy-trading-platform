@@ -137,4 +137,56 @@ pricing.get('/market-rates', async (c) => {
   }
 });
 
+// GET /offtaker/:id — Get offtaker-specific cost breakdown
+pricing.get('/offtaker/:id', async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    // Look up participant for cost data
+    const participant = await c.env.DB.prepare(
+      'SELECT id, company_name, bee_level FROM participants WHERE id = ?'
+    ).bind(id === 'me' ? user.sub : id).first<{ id: string; company_name: string; bee_level: number }>();
+
+    // Get trades for this participant to calculate actual costs
+    const trades = await c.env.DB.prepare(
+      "SELECT SUM(total_cents) as total_cost_cents, SUM(volume) as total_volume, COUNT(*) as trade_count FROM trades WHERE buyer_id = ? AND status IN ('pending', 'settled')"
+    ).bind(id === 'me' ? user.sub : id).first<{ total_cost_cents: number; total_volume: number; trade_count: number }>();
+
+    // Get active contracts
+    const contracts = await c.env.DB.prepare(
+      "SELECT COUNT(*) as active_contracts FROM contracts WHERE participant_id = ? AND status = 'active'"
+    ).bind(id === 'me' ? user.sub : id).first<{ active_contracts: number }>();
+
+    const totalCostCents = trades?.total_cost_cents || 0;
+    const totalVolume = trades?.total_volume || 0;
+    const avgRateCents = totalVolume > 0 ? Math.round(totalCostCents / totalVolume) : 115;
+
+    return c.json({
+      success: true,
+      data: {
+        participant_id: id === 'me' ? user.sub : id,
+        company_name: participant?.company_name || 'Unknown',
+        bee_level: participant?.bee_level || 0,
+        total_cost_cents: totalCostCents,
+        total_volume_mwh: totalVolume,
+        avg_rate_cents_kwh: avgRateCents,
+        trade_count: trades?.trade_count || 0,
+        active_contracts: contracts?.active_contracts || 0,
+        cost_breakdown: {
+          energy_cents: Math.round(totalCostCents * 0.65),
+          wheeling_cents: Math.round(totalCostCents * 0.15),
+          losses_cents: Math.round(totalCostCents * 0.05),
+          fees_cents: Math.round(totalCostCents * 0.08),
+          taxes_cents: Math.round(totalCostCents * 0.07),
+        },
+        updated_at: nowISO(),
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default pricing;
