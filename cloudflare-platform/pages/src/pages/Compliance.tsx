@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { complianceAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const tabs = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'];
 
@@ -55,6 +57,7 @@ const statusBadge: Record<string, string> = {
 };
 
 export default function Compliance() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('Overview');
@@ -73,7 +76,9 @@ export default function Compliance() {
         if (kycRes.data?.data?.length) setKycData(kycRes.data.data);
         if (licRes.data?.data?.length) setLicenceData(licRes.data.data);
         if (statRes.data?.data?.length) setStatutoryData(statRes.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
@@ -81,13 +86,17 @@ export default function Compliance() {
   const overallScore = Math.round(kycData.reduce((s, d) => s + d.score, 0) / kycData.length);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Compliance</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">KYC verification, licences & statutory compliance</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Upload">
           <FiUpload className="w-4 h-4" /> Upload Document
         </button>
       </div>
@@ -195,6 +204,6 @@ export default function Compliance() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -3,6 +3,8 @@ import { FiKey, FiGlobe, FiCode, FiPlus, FiTrash2, FiCopy, FiEye, FiEyeOff } fro
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { developerAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const tabs = ['API Keys', 'Webhooks', 'Documentation', 'Usage'];
 
@@ -43,6 +45,7 @@ const methodColors: Record<string, string> = {
 };
 
 export default function DeveloperPortal() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('API Keys');
@@ -58,18 +61,24 @@ export default function DeveloperPortal() {
         ]);
         if (keysRes.data?.data?.length) setKeyData(keysRes.data.data);
         if (whRes.data?.data?.length) setWebhookData(whRes.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Developer Portal</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">API keys, webhooks, documentation & usage analytics</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Plus">
           <FiPlus className="w-4 h-4" /> {activeTab === 'API Keys' ? 'Create Key' : 'Add Webhook'}
         </button>
       </div>
@@ -96,8 +105,8 @@ export default function DeveloperPortal() {
                   <p className="text-xs text-slate-400 mt-0.5 mono">{key.id}••••••</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"><FiCopy className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"><FiTrash2 className="w-4 h-4" /></button>
+                  <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors" aria-label="Copy"><FiCopy className="w-4 h-4" /></button>
+                  <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" aria-label="Trash2"><FiTrash2 className="w-4 h-4" /></button>
                 </div>
               </div>
               <div className="flex items-center gap-6 mt-3 text-xs text-slate-400">
@@ -174,6 +183,6 @@ export default function DeveloperPortal() {
           </ResponsiveContainer>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

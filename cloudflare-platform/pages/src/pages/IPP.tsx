@@ -3,6 +3,8 @@ import { FiSun, FiWind, FiMapPin, FiCheckCircle, FiPlus, FiDollarSign } from 're
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { projectsAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const projects = [
   { id: 'NXT-SOL-001', name: 'Limpopo Solar Farm', tech: 'Solar PV', capacity: '100 MW', phase: 'Construction', location: 'Limpopo', progress: 72, disbursed: 'R120M', total: 'R180M', milestones: 8, completed: 6, cps: { total: 14, met: 11 } },
@@ -30,6 +32,7 @@ const phaseColors: Record<string, string> = {
 };
 
 export default function IPP() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activePhase, setActivePhase] = useState('All');
@@ -40,20 +43,26 @@ export default function IPP() {
       try {
         const res = await projectsAPI.list();
         if (res.data?.data?.length) setProjectData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   const filtered = activePhase === 'All' ? projectData : projectData.filter(p => p.phase === activePhase);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">IPP Projects</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Independent Power Producer project tracking</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 transition-all flex items-center gap-2" aria-label="Plus">
           <FiPlus className="w-4 h-4" /> New Project
         </button>
       </div>
@@ -127,6 +136,6 @@ export default function IPP() {
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </motion.div>
   );
 }

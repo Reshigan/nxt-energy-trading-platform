@@ -4,6 +4,8 @@ import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Responsive
 import { useTheme } from '../contexts/ThemeContext';
 import { aiAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const exposureData = [
   { name: 'Eskom', exposure: 4200, limit: 5000 },
@@ -41,6 +43,7 @@ const severityColors: Record<string, string> = {
 };
 
 export default function RiskDashboard() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const { user } = useAuthStore();
@@ -52,18 +55,24 @@ export default function RiskDashboard() {
         const pid = user?.id || 'default';
         const res = await aiAPI.risk(pid);
         if (res.data?.data?.greeks?.length) setRiskMetrics(res.data.data.greeks);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, [user]);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Risk Dashboard</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">VaR, Greeks, stress tests & exposure monitoring</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 transition-all flex items-center gap-2" aria-label="Alert Triangle">
           <FiAlertTriangle className="w-4 h-4" /> Run Stress Test
         </button>
       </div>
@@ -145,6 +154,6 @@ export default function RiskDashboard() {
           </table>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

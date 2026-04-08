@@ -3,6 +3,8 @@ import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter } from 'react-icons/fi
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const sparkline = (seed: number, trend: boolean) =>
   Array.from({ length: 12 }, (_, i) => ({ v: (seed + (trend ? i * 3 : -i * 2) + Math.random() * 15) }));
@@ -19,6 +21,7 @@ const markets = [
 ];
 
 export default function Markets() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const [search, setSearch] = useState('');
   const [marketData, setMarketData] = useState(markets);
@@ -28,14 +31,20 @@ export default function Markets() {
       try {
         const res = await tradingAPI.getIndices();
         if (res.data?.data?.length) setMarketData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   const filtered = marketData.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Markets</h1>
         <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Live energy & carbon market overview</p>
@@ -47,7 +56,7 @@ export default function Markets() {
           <FiSearch className="w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search markets..." className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400" />
         </div>
-        <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`}>
+        <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Filter">
           <FiFilter className="w-4 h-4" /> Filter
         </button>
       </div>
@@ -103,6 +112,6 @@ export default function Markets() {
           </table>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

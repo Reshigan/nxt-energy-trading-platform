@@ -3,6 +3,8 @@ import { FiCpu, FiTrendingUp, FiShield, FiZap, FiSend } from 'react-icons/fi';
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { aiAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 const radarData = [
@@ -27,6 +29,7 @@ const allocationData = [
 ];
 
 export default function Portfolio() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [chatInput, setChatInput] = useState('');
@@ -40,7 +43,9 @@ export default function Portfolio() {
       try {
         const res = await aiAPI.history();
         if (res.data?.data?.scenarios?.length) setScenarioData(res.data.data.scenarios);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
@@ -52,13 +57,17 @@ export default function Portfolio() {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">AI Portfolio</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">AI-powered portfolio optimisation & analysis</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-600 transition-all flex items-center gap-2" aria-label="Cpu">
           <FiCpu className="w-4 h-4" /> Run AI Optimisation
         </button>
       </div>
@@ -168,11 +177,11 @@ export default function Portfolio() {
               <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()}
                 placeholder="Ask about your portfolio..."
                 className={`flex-1 px-3.5 py-2 rounded-xl text-sm outline-none ${c('bg-white/[0.04] text-white placeholder-slate-500 border border-white/[0.06]', 'bg-slate-50 text-slate-800 placeholder-slate-400 border border-black/[0.06]')}`} />
-              <button onClick={send} className="p-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-colors"><FiSend className="w-4 h-4" /></button>
+              <button onClick={send} className="p-2.5 rounded-xl bg-indigo-500 text-white hover:bg-indigo-600 transition-colors" aria-label="Send"><FiSend className="w-4 h-4" /></button>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

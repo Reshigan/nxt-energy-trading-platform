@@ -3,6 +3,8 @@ import { FiBell, FiCheck, FiCheckCircle, FiLoader, FiAlertCircle } from 'react-i
 import { useTheme } from '../contexts/ThemeContext';
 import { notificationsAPI } from '../lib/api';
 import { useNotificationStore } from '../lib/store';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 interface Notification {
   id: string;
@@ -16,6 +18,7 @@ interface Notification {
 }
 
 export default function Notifications() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const { setNotifications } = useNotificationStore();
   const [items, setItems] = useState<Notification[]>([]);
@@ -43,14 +46,18 @@ export default function Notifications() {
     try {
       await notificationsAPI.markRead(id);
       setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to load data');
+    }
   }
 
   async function handleMarkAllRead() {
     try {
       await notificationsAPI.markAllRead();
       setItems(prev => prev.map(n => ({ ...n, read: true })));
-    } catch { /* ignore */ }
+    } catch {
+      toast.error('Failed to load data');
+    }
   }
 
   const typeColors: Record<string, string> = {
@@ -63,7 +70,11 @@ export default function Notifications() {
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</h1>
@@ -74,7 +85,7 @@ export default function Notifications() {
         <button
           onClick={handleMarkAllRead}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-        >
+         aria-label="Check Circle">
           <FiCheckCircle className="w-4 h-4" /> Mark all read
         </button>
       </div>
@@ -127,6 +138,6 @@ export default function Notifications() {
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

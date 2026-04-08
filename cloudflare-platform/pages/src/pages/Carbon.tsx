@@ -3,6 +3,8 @@ import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus } from 'react-icons
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, AreaChart, Area } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { carbonAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const tabs = ['Overview', 'Credits', 'Options', 'Tokens', 'RECs', 'Retirement'];
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -26,6 +28,7 @@ const kpis = [
 ];
 
 export default function Carbon() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState('Overview');
   const [credits, setCredits] = useState(creditsByType);
@@ -43,18 +46,24 @@ export default function Carbon() {
           const mapped = Object.entries(grouped).map(([name, value]) => ({ name, value }));
           if (mapped.length) setCredits(mapped);
         }
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Carbon</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Credits, offsets, and carbon trading</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Plus">
           <FiPlus className="w-4 h-4" /> New Transaction
         </button>
       </div>
@@ -141,6 +150,6 @@ export default function Carbon() {
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </motion.div>
   );
 }

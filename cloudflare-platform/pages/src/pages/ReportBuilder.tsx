@@ -3,6 +3,8 @@ import { FiFileText, FiDownload, FiCalendar, FiFilter } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { reportsAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const reportTypes = [
   { id: 'trading', name: 'Trading Summary', description: 'Order history, fills, P&L by period', icon: '📊', format: ['PDF', 'XLSX', 'CSV'] },
@@ -28,6 +30,7 @@ const volumeByType = [
 ];
 
 export default function ReportBuilder() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -38,12 +41,18 @@ export default function ReportBuilder() {
       try {
         const res = await reportsAPI.list();
         if (res.data?.data?.length) setReportData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Report Builder</h1>
@@ -105,7 +114,7 @@ export default function ReportBuilder() {
                   <td className="py-3 px-4 text-right text-slate-500 mono text-xs">{r.size}</td>
                   <td className="py-3 px-4 text-right text-slate-400 text-xs">{r.date}</td>
                   <td className="py-3 px-5 text-center">
-                    <button className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"><FiDownload className="w-4 h-4" /></button>
+                    <button className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors" aria-label="Download"><FiDownload className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -113,6 +122,6 @@ export default function ReportBuilder() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

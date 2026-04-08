@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FiZap, FiGlobe, FiFileText, FiTrendingUp, FiShield, FiCpu, FiChevronDown, FiChevronUp, FiArrowRight, FiCheck, FiSun, FiMoon } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
+import { motion } from 'framer-motion';
 
 const faqs = [
   { q: 'What is NXT Energy Trading Platform?', a: 'NXT is South Africa\'s first open-market energy trading platform, enabling generators, traders, offtakers, and IPP developers to trade energy, manage carbon credits, and close IPP deals digitally.' },
@@ -43,7 +44,11 @@ export default function Landing() {
   const cardBg = isDark ? 'bg-[#0f1d32] border-white/[0.06]' : 'bg-slate-50 border-slate-200';
 
   return (
-    <div className={`min-h-screen ${bg} ${text}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`min-h-screen ${bg} ${text}`}>
       {/* Nav */}
       <nav className={`sticky top-0 z-50 backdrop-blur-xl ${isDark ? 'bg-[#0a1628]/90 border-b border-white/[0.06]' : 'bg-white/90 border-b border-slate-200'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
@@ -222,6 +227,6 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-    </div>
+    </motion.div>
   );
 }

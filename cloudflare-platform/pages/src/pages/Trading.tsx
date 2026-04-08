@@ -3,6 +3,8 @@ import { FiTrendingUp, FiTrendingDown, FiPlus, FiRefreshCw } from 'react-icons/f
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const candleData = Array.from({ length: 24 }, (_, i) => ({
   time: `${String(i).padStart(2, '0')}:00`,
@@ -35,6 +37,7 @@ const positions = [
 ];
 
 export default function Trading() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const [orderType, setOrderType] = useState<'limit' | 'market'>('limit');
   const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
@@ -50,12 +53,18 @@ export default function Trading() {
         ]);
         if (posRes.data?.data?.length) setPositionsData(posRes.data.data);
         if (obRes.data?.data) setObData(obRes.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Trading</h1>
         <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Real-time energy trading with live orderbook</p>
@@ -165,7 +174,7 @@ export default function Trading() {
       <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Open Positions</h3>
-          <button className="text-xs font-medium text-blue-500 hover:text-blue-600 flex items-center gap-1"><FiRefreshCw className="w-3 h-3" /> Refresh</button>
+          <button className="text-xs font-medium text-blue-500 hover:text-blue-600 flex items-center gap-1" aria-label="Refresh Cw"><FiRefreshCw className="w-3 h-3" /> Refresh</button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -197,6 +206,6 @@ export default function Trading() {
           </table>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

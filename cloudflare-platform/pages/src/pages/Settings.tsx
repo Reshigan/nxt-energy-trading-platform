@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2 } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { popiaAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const sections = ['Profile', 'Notifications', 'Appearance', 'API Keys', 'Security', 'Privacy (POPIA)', 'Language'];
 
 export default function Settings() {
+  const toast = useToast();
   const { isDark, toggleTheme } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeSection, setActiveSection] = useState('Profile');
@@ -14,7 +17,11 @@ export default function Settings() {
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Settings</h1>
         <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Manage your account preferences</p>
@@ -133,11 +140,15 @@ export default function Settings() {
                     By using this platform, you consent to the processing of your personal information in accordance with POPIA. You may withdraw consent at any time.
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); save(); } catch { /* ignore */ } }}
+                    <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); save(); } catch {
+      toast.error('Failed to load data');
+    } }}
                       className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all">
                       Give Consent
                     </button>
-                    <button onClick={async () => { try { await popiaAPI.giveConsent(false); save(); } catch { /* ignore */ } }}
+                    <button onClick={async () => { try { await popiaAPI.giveConsent(false); save(); } catch {
+      toast.error('Failed to load data');
+    } }}
                       className={`px-4 py-2 rounded-xl text-xs font-medium ${c('bg-white/[0.06] text-slate-300', 'bg-slate-100 text-slate-600')}`}>
                       Withdraw Consent
                     </button>
@@ -162,7 +173,9 @@ export default function Settings() {
                       a.download = 'popia-data-export.json';
                       a.click();
                       URL.revokeObjectURL(url);
-                    } catch { /* ignore */ }
+                    } catch {
+      toast.error('Failed to load data');
+    }
                   }}
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all flex items-center gap-1">
                     <FiDownload className="w-3 h-3" /> Export All Data
@@ -179,7 +192,9 @@ export default function Settings() {
                   </p>
                   <button onClick={async () => {
                     if (confirm('Are you sure you want to request data erasure? This action cannot be undone.')) {
-                      try { await popiaAPI.requestErasure(true, 'User requested via settings'); } catch { /* ignore */ }
+                      try { await popiaAPI.requestErasure(true, 'User requested via settings'); } catch {
+      toast.error('Failed to load data');
+    }
                     }
                   }}
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-all flex items-center gap-1">
@@ -200,6 +215,6 @@ export default function Settings() {
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
