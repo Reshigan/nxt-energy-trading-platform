@@ -43,7 +43,11 @@ export default function Trading() {
       ]);
       if (posRes.status === 'fulfilled' && posRes.value.data?.data) setPositions(Array.isArray(posRes.value.data.data) ? posRes.value.data.data : []);
       if (obRes.status === 'fulfilled' && obRes.value.data?.data) setObData(obRes.value.data.data);
-      if (priceRes.status === 'fulfilled' && Array.isArray(priceRes.value.data?.data)) setPriceData(priceRes.value.data.data);
+      if (priceRes.status === 'fulfilled') {
+        const pd = priceRes.value.data?.data;
+        if (Array.isArray(pd)) setPriceData(pd);
+        else if (pd?.candles && Array.isArray(pd.candles)) setPriceData(pd.candles.map((c: Record<string, unknown>) => ({ time: c.time as string, price: c.close as number, volume: c.volume as number })));
+      }
       if (posRes.status === 'rejected' && obRes.status === 'rejected' && priceRes.status === 'rejected') setError('Failed to load trading data. Please try again.');
     } catch { setError('Failed to load trading data. Please try again.'); }
     setLoading(false);

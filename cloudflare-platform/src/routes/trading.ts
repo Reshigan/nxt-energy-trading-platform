@@ -323,7 +323,7 @@ trading.get('/positions', authMiddleware(), async (c) => {
 trading.get('/orderbook/:market', optionalAuth(), async (c) => {
   try {
     const { market } = c.req.param();
-    const validMarkets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery'];
+    const validMarkets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery', 'solar_ppa', 'wind_ppa', 'gas_spot'];
     if (!validMarkets.includes(market)) {
       return c.json({ success: false, error: 'Invalid market' }, 400);
     }
@@ -343,7 +343,7 @@ trading.get('/orderbook/:market', optionalAuth(), async (c) => {
 // GET /markets/indices — All market indices
 trading.get('/markets/indices', optionalAuth(), async (c) => {
   try {
-    const markets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery'];
+    const markets = ['solar_ppa', 'wind_ppa', 'gas_spot', 'carbon', 'battery', 'hydro'];
     const indices: Record<string, unknown> = {};
 
     for (const market of markets) {
