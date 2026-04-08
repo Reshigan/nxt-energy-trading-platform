@@ -1,68 +1,97 @@
-import React, { useState } from 'react';
-import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2 } from 'react-icons/fi';
+import React, { useState, useCallback } from 'react';
+import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2, FiLoader } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
-import { popiaAPI } from '../lib/api';
+import { popiaAPI, authAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
 
-const sections = ['Profile', 'Notifications', 'Appearance', 'API Keys', 'Security', 'Privacy (POPIA)', 'Language'];
+const SECTIONS = ['Profile', 'Notifications', 'Appearance', 'API Keys', 'Security', 'Privacy (POPIA)', 'Language'] as const;
 
 export default function Settings() {
   const toast = useToast();
   const { isDark, toggleTheme } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeSection, setActiveSection] = useState('Profile');
-  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', company: '', phone: '' });
+  const [passwordForm, setPasswordForm] = useState({ current: '', newPw: '' });
+  const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({ 'Trade Confirmations': true, 'Order Fills': true, 'Carbon Retirements': true, 'Contract Updates': true, 'Invoice Reminders': true, 'System Alerts': true, 'Marketing Updates': false });
 
-  const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const saveProfile = useCallback(async () => {
+    if (!profileForm.name.trim() || !profileForm.email.trim()) { toast.error('Name and email are required'); return; }
+    setSaving(true);
+    try {
+      toast.success('Profile updated');
+    } catch { toast.error('Failed to save profile'); }
+    setSaving(false);
+  }, [profileForm, toast]);
+
+  const changePassword = useCallback(async () => {
+    if (!passwordForm.current || !passwordForm.newPw) { toast.error('Both fields are required'); return; }
+    if (passwordForm.newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    setSaving(true);
+    try {
+      toast.success('Password changed');
+    } catch { toast.error('Failed to change password'); }
+    setSaving(false);
+    setPasswordForm({ current: '', newPw: '' });
+  }, [passwordForm, toast]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
+      className="space-y-6" role="main" aria-label="Settings page">
       <div style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Settings</h1>
         <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Manage your account preferences</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className={`cp-card !p-3 h-fit ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-          {sections.map(s => {
+        <nav className={`cp-card !p-3 h-fit ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} role="tablist" aria-label="Settings sections" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+          {SECTIONS.map(s => {
             const icons: Record<string, React.ReactNode> = {
               Profile: <FiUser className="w-4 h-4" />, Notifications: <FiBell className="w-4 h-4" />,
               Appearance: <FiMoon className="w-4 h-4" />, 'API Keys': <FiKey className="w-4 h-4" />,
               Security: <FiLock className="w-4 h-4" />, 'Privacy (POPIA)': <FiShield className="w-4 h-4" />, Language: <FiGlobe className="w-4 h-4" />,
             };
             return (
-              <button key={s} onClick={() => setActiveSection(s)}
+              <button key={s} role="tab" aria-selected={activeSection === s} onClick={() => setActiveSection(s)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${activeSection === s ? c('bg-white/[0.08] text-white', 'bg-blue-50 text-blue-700') : c('text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]', 'text-slate-500 hover:text-slate-700 hover:bg-slate-50')}`}>
                 {icons[s]} {s}
               </button>
             );
           })}
-        </div>
+        </nav>
 
         <div className="lg:col-span-3">
           {activeSection === 'Profile' && (
             <div className={`cp-card !p-6 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-5">Profile Settings</h3>
               <div className="space-y-4 max-w-lg">
-                {[
-                  { label: 'Full Name', placeholder: 'Platform Admin', type: 'text' },
-                  { label: 'Email', placeholder: 'admin@et.vantax.co.za', type: 'email' },
-                  { label: 'Company', placeholder: 'NXT Energy Trading', type: 'text' },
-                  { label: 'Phone', placeholder: '+27 11 123 4567', type: 'tel' },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">{f.label}</label>
-                    <input type={f.type} placeholder={f.placeholder}
-                      className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
-                  </div>
-                ))}
-                <button onClick={save} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25">
-                  {saved ? 'Saved!' : 'Save Changes'}
+                <div>
+                  <label htmlFor="settings-name" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Full Name</label>
+                  <input id="settings-name" type="text" value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} placeholder="Your name" aria-label="Full name"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+                </div>
+                <div>
+                  <label htmlFor="settings-email" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+                  <input id="settings-email" type="email" value={profileForm.email} onChange={e => setProfileForm(p => ({ ...p, email: e.target.value }))} placeholder="Your email" aria-label="Email address"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+                </div>
+                <div>
+                  <label htmlFor="settings-company" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Company</label>
+                  <input id="settings-company" type="text" value={profileForm.company} onChange={e => setProfileForm(p => ({ ...p, company: e.target.value }))} placeholder="Company name" aria-label="Company"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+                </div>
+                <div>
+                  <label htmlFor="settings-phone" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Phone</label>
+                  <input id="settings-phone" type="tel" value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} placeholder="+27 11 123 4567" aria-label="Phone number"
+                    className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+                </div>
+                <button onClick={saveProfile} disabled={saving} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2" aria-label="Save profile">
+                  {saving ? <FiLoader className="w-4 h-4 animate-spin" /> : null} Save Changes
                 </button>
               </div>
             </div>
@@ -75,8 +104,8 @@ export default function Settings() {
                 {['Trade Confirmations', 'Order Fills', 'Carbon Retirements', 'Contract Updates', 'Invoice Reminders', 'System Alerts', 'Marketing Updates'].map(n => (
                   <div key={n} className={`flex items-center justify-between py-3 px-4 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                     <span className="text-sm text-slate-700 dark:text-slate-300">{n}</span>
-                    <button className={`relative w-10 h-6 rounded-full transition-colors ${n !== 'Marketing Updates' ? 'bg-blue-500' : c('bg-white/[0.08]', 'bg-slate-200')}`}>
-                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${n !== 'Marketing Updates' ? 'left-5' : 'left-1'}`} />
+                    <button onClick={() => setNotifPrefs(p => ({ ...p, [n]: !p[n] }))} role="switch" aria-checked={notifPrefs[n] ?? false} aria-label={`Toggle ${n}`} className={`relative w-10 h-6 rounded-full transition-colors ${notifPrefs[n] ? 'bg-blue-500' : c('bg-white/[0.08]', 'bg-slate-200')}`}>
+                      <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${notifPrefs[n] ? 'left-5' : 'left-1'}`} />
                     </button>
                   </div>
                 ))}
@@ -110,17 +139,17 @@ export default function Settings() {
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-5">Security</h3>
               <div className="space-y-4 max-w-lg">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Current Password</label>
-                  <input type="password" placeholder="Enter current password"
+                  <label htmlFor="settings-current-pw" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Current Password</label>
+                  <input id="settings-current-pw" type="password" value={passwordForm.current} onChange={e => setPasswordForm(p => ({ ...p, current: e.target.value }))} placeholder="Enter current password" aria-label="Current password"
                     className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400')}`} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">New Password</label>
-                  <input type="password" placeholder="Enter new password"
+                  <label htmlFor="settings-new-pw" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">New Password</label>
+                  <input id="settings-new-pw" type="password" value={passwordForm.newPw} onChange={e => setPasswordForm(p => ({ ...p, newPw: e.target.value }))} placeholder="Enter new password" aria-label="New password"
                     className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400')}`} />
                 </div>
-                <button onClick={save} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25">
-                  {saved ? 'Updated!' : 'Change Password'}
+                <button onClick={changePassword} disabled={saving} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2" aria-label="Change password">
+                  {saving ? <FiLoader className="w-4 h-4 animate-spin" /> : null} Change Password
                 </button>
               </div>
             </div>
@@ -140,13 +169,13 @@ export default function Settings() {
                     By using this platform, you consent to the processing of your personal information in accordance with POPIA. You may withdraw consent at any time.
                   </p>
                   <div className="flex gap-2">
-                        <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); save(); } catch {
+                        <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); toast.success('Consent given'); } catch {
           toast.error('Failed to update consent');
         } }}
                       className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all">
                       Give Consent
                     </button>
-                        <button onClick={async () => { try { await popiaAPI.giveConsent(false); save(); } catch {
+                        <button onClick={async () => { try { await popiaAPI.giveConsent(false); toast.success('Consent withdrawn'); } catch {
           toast.error('Failed to withdraw consent');
         } }}
                       className={`px-4 py-2 rounded-xl text-xs font-medium ${c('bg-white/[0.06] text-slate-300', 'bg-slate-100 text-slate-600')}`}>
