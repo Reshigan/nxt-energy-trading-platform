@@ -8,6 +8,9 @@ import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Button } from '../components/ui/Button';
 
 const TABS = ['Invoices', 'Escrows', 'Disputes'] as const;
 
@@ -44,6 +47,11 @@ export default function Settlement() {
   const [escrowData, setEscrowData] = useState<Escrow[]>([]);
   const [disputeData, setDisputeData] = useState<Dispute[]>([]);
   const [paying, setPaying] = useState<string | null>(null);
+  const [showGenInvoice, setShowGenInvoice] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({ counterparty: '', amount: '', type: 'Energy Trade', due_date: '' });
+  const [generating, setGenerating] = useState(false);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -60,6 +68,28 @@ export default function Settlement() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleGenerateInvoice = async () => {
+    if (!invoiceForm.counterparty.trim() || !invoiceForm.amount) { toast.error('Counterparty and amount required'); return; }
+    setGenerating(true);
+    try {
+      const res = await settlementAPI.generateInvoice({ counterparty: invoiceForm.counterparty, amount: Math.round(Number(invoiceForm.amount) * 100), type: invoiceForm.type, due_date: invoiceForm.due_date || undefined });
+      if (res.data?.success) { toast.success('Invoice generated'); setShowGenInvoice(false); setInvoiceForm({ counterparty: '', amount: '', type: 'Energy Trade', due_date: '' }); loadData(); }
+      else toast.error(res.data?.error || 'Failed to generate invoice');
+    } catch { toast.error('Failed to generate invoice'); }
+    setGenerating(false);
+  };
+
+  const handleConfirmSettlement = async () => {
+    if (!confirmTarget) return;
+    setConfirming(true);
+    try {
+      const res = await settlementAPI.confirmSettlement(confirmTarget);
+      if (res.data?.success) { toast.success('Settlement confirmed'); setConfirmTarget(null); loadData(); }
+      else toast.error(res.data?.error || 'Confirmation failed');
+    } catch { toast.error('Settlement confirmation failed'); }
+    setConfirming(false);
+  };
 
   const handlePayInvoice = async (id: string) => {
     setPaying(id);
@@ -82,6 +112,7 @@ export default function Settlement() {
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Settlement</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Invoices, escrows & dispute resolution</p>
         </div>
+        <button onClick={() => setShowGenInvoice(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Generate invoice"><FiFileText className="w-4 h-4" /> Generate Invoice</button>
         <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Refresh settlement data">
           <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
@@ -178,6 +209,28 @@ export default function Settlement() {
         </div>
       </div>
       )}
+
+      <Modal isOpen={showGenInvoice} onClose={() => setShowGenInvoice(false)} title="Generate Invoice">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Counterparty</label>
+            <input value={invoiceForm.counterparty} onChange={e => setInvoiceForm(p => ({ ...p, counterparty: e.target.value }))} placeholder="Participant name or ID" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Amount (R)</label>
+              <input type="number" value={invoiceForm.amount} onChange={e => setInvoiceForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Type</label>
+              <select value={invoiceForm.type} onChange={e => setInvoiceForm(p => ({ ...p, type: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+                <option>Energy Trade</option><option>Carbon Credit</option><option>PPA Settlement</option><option>Platform Fee</option>
+              </select></div>
+          </div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Due Date</label>
+            <input type="date" value={invoiceForm.due_date} onChange={e => setInvoiceForm(p => ({ ...p, due_date: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white" /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowGenInvoice(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleGenerateInvoice} loading={generating}>Generate</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog isOpen={!!confirmTarget} onClose={() => setConfirmTarget(null)} onConfirm={handleConfirmSettlement} title="Confirm Settlement" description="Are you sure you want to confirm this settlement? Funds will be released from escrow." confirmLabel="Confirm Settlement" variant="info" loading={confirming} />
     </motion.div>
   );
 }

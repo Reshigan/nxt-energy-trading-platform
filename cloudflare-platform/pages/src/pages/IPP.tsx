@@ -9,6 +9,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { formatZAR } from '../lib/format';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 interface Project { id: string; name: string; tech: string; capacity: string; phase: string; location: string; progress: number; disbursed: string; total: string; milestones: number; completed: number; cps: { total: number; met: number }; }
 interface DisbursementPoint { name: string; disbursed: number; remaining: number; }
@@ -31,6 +33,13 @@ export default function IPP() {
   const [error, setError] = useState<string | null>(null);
   const [activePhase, setActivePhase] = useState('All');
   const [projectData, setProjectData] = useState<Project[]>([]);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: '', tech: 'Solar PV', capacity: '', location: '' });
+  const [creating, setCreating] = useState(false);
+  const [disbursementProject, setDisbursementProject] = useState<string | null>(null);
+  const [disbursementAmount, setDisbursementAmount] = useState('');
+  const [disbursementReason, setDisbursementReason] = useState('');
+  const [requesting, setRequesting] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -43,6 +52,28 @@ export default function IPP() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleCreateProject = async () => {
+    if (!createForm.name.trim() || !createForm.capacity) { toast.error('Name and capacity are required'); return; }
+    setCreating(true);
+    try {
+      const res = await projectsAPI.create({ name: createForm.name, technology: createForm.tech, capacity_mw: Number(createForm.capacity), location: createForm.location });
+      if (res.data?.success || res.data?.data) { toast.success('Project created'); setShowCreate(false); setCreateForm({ name: '', tech: 'Solar PV', capacity: '', location: '' }); loadData(); }
+      else toast.error(res.data?.error || 'Failed to create project');
+    } catch { toast.error('Failed to create project'); }
+    setCreating(false);
+  };
+
+  const handleRequestDisbursement = async () => {
+    if (!disbursementProject || !disbursementAmount) { toast.error('Amount is required'); return; }
+    setRequesting(true);
+    try {
+      const res = await projectsAPI.requestDisbursement(disbursementProject, { amount_cents: Math.round(Number(disbursementAmount) * 100), reason: disbursementReason });
+      if (res.data?.success) { toast.success('Disbursement requested'); setDisbursementProject(null); setDisbursementAmount(''); setDisbursementReason(''); loadData(); }
+      else toast.error(res.data?.error || 'Request failed');
+    } catch { toast.error('Disbursement request failed'); }
+    setRequesting(false);
+  };
 
   const filtered = activePhase === 'All' ? projectData : projectData.filter(p => p.phase === activePhase);
   const disbursementData: DisbursementPoint[] = projectData.map(p => ({
@@ -62,6 +93,7 @@ export default function IPP() {
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">IPP Projects</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Independent Power Producer project tracking</p>
         </div>
+        <button onClick={() => setShowCreate(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Create new project"><FiPlus className="w-4 h-4" /> New Project</button>
         <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 transition-all flex items-center gap-2" aria-label="Refresh projects">
           <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
@@ -140,6 +172,39 @@ export default function IPP() {
         </ResponsiveContainer>
       </div>
       </>)}
+
+      <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Create New IPP Project">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Project Name</label>
+            <input value={createForm.name} onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Karoo Solar Farm" className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400')}`} /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Technology</label>
+              <select value={createForm.tech} onChange={e => setCreateForm(p => ({ ...p, tech: e.target.value }))} className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white', 'bg-slate-50 border-black/[0.06] text-slate-900')}`}>
+                <option>Solar PV</option><option>Wind</option><option>Hybrid</option><option>Battery Storage</option><option>Gas</option>
+              </select></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Capacity (MW)</label>
+              <input type="number" value={createForm.capacity} onChange={e => setCreateForm(p => ({ ...p, capacity: e.target.value }))} placeholder="100" className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400')}`} /></div>
+          </div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Location</label>
+            <input value={createForm.location} onChange={e => setCreateForm(p => ({ ...p, location: e.target.value }))} placeholder="Northern Cape, SA" className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400')}`} /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateProject} loading={creating}>Create Project</Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal isOpen={!!disbursementProject} onClose={() => setDisbursementProject(null)} title="Request Disbursement">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Amount (R)</label>
+            <input type="number" value={disbursementAmount} onChange={e => setDisbursementAmount(e.target.value)} placeholder="0.00" className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400')}`} /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Reason</label>
+            <textarea value={disbursementReason} onChange={e => setDisbursementReason(e.target.value)} placeholder="Reason for disbursement request..." rows={3} className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400')}`} /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setDisbursementProject(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleRequestDisbursement} loading={requesting} disabled={!disbursementAmount}>Submit Request</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

@@ -7,6 +7,9 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Button } from '../components/ui/Button';
 
 const TABS = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'] as const;
 
@@ -31,6 +34,11 @@ export default function Compliance() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [loading, setLoading] = useState(true);
+  const [showUploadKYC, setShowUploadKYC] = useState(false);
+  const [kycFile, setKycFile] = useState('');
+  const [uploadingKYC, setUploadingKYC] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<string | null>(null);
+  const [overriding, setOverriding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
   const [kycData, setKycData] = useState<KYCDoc[]>([]);
@@ -52,6 +60,28 @@ export default function Compliance() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleUploadKYC = async () => {
+    if (!kycFile.trim()) { toast.error('Please enter document name'); return; }
+    setUploadingKYC(true);
+    try {
+      const res = await complianceAPI.verifyKYC(kycFile);
+      if (res.data?.success) { toast.success('KYC document uploaded'); setShowUploadKYC(false); setKycFile(''); loadData(); }
+      else toast.error(res.data?.error || 'Upload failed');
+    } catch { toast.error('Upload failed'); }
+    setUploadingKYC(false);
+  };
+
+  const handleOverride = async () => {
+    if (!overrideTarget) return;
+    setOverriding(true);
+    try {
+      const res = await complianceAPI.overrideStatutory(overrideTarget, { reason: 'Administrative override' });
+      if (res.data?.success) { toast.success('Statutory override applied'); setOverrideTarget(null); loadData(); }
+      else toast.error(res.data?.error || 'Override failed');
+    } catch { toast.error('Override failed'); }
+    setOverriding(false);
+  };
 
   const verifiedCount = kycData.filter(d => d.status === 'Verified').length;
   const overallScore = kycData.length > 0 ? Math.round(kycData.reduce((s, d) => s + (d.score || 0), 0) / kycData.length) : 0;
@@ -177,6 +207,19 @@ export default function Compliance() {
           </div>
         </div>
       )}
+
+      <Modal isOpen={showUploadKYC} onClose={() => setShowUploadKYC(false)} title="Upload KYC Document">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Document Name</label>
+            <input value={kycFile} onChange={e => setKycFile(e.target.value)} placeholder="e.g. ID-verification-2024.pdf" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <p className="text-xs text-slate-400">Supported formats: PDF, JPG, PNG. Max 10MB.</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowUploadKYC(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleUploadKYC} loading={uploadingKYC}>Upload</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog isOpen={!!overrideTarget} onClose={() => setOverrideTarget(null)} onConfirm={handleOverride} title="Override Statutory Requirement" description="This will mark this statutory requirement as overridden. Only do this with proper authorization." confirmLabel="Override" variant="warning" loading={overriding} />
     </motion.div>
   );
 }
