@@ -45,6 +45,16 @@ const P2PTrading = lazy(() => import('./pages/P2PTrading'));
 const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
 const DeveloperPortal = lazy(() => import('./pages/DeveloperPortal'));
 const DemandProfile = lazy(() => import('./pages/DemandProfile'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const OfftakerCost = lazy(() => import('./pages/OfftakerCost'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const Disputes = lazy(() => import('./pages/Disputes'));
+const TenantAdmin = lazy(() => import('./pages/TenantAdmin'));
+const AuditTrail = lazy(() => import('./pages/AuditTrail'));
+const SystemHealth = lazy(() => import('./pages/SystemHealth'));
+const Invoices = lazy(() => import('./pages/Invoices'));
+const SmartRules = lazy(() => import('./pages/SmartRules'));
 const Landing = lazy(() => import('./pages/Landing'));
 const TermsPage = lazy(() => import('./pages/Terms'));
 const PrivacyPage = lazy(() => import('./pages/Privacy'));
@@ -63,6 +73,9 @@ function App() {
       <Route path="/signup" element={<Register />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/onboarding" element={<Onboarding />} />
       {/* Legal pages (public) */}
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
@@ -94,6 +107,13 @@ function App() {
         <Route path="/developer" element={<DeveloperPortal />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/demand" element={<DemandProfile />} />
+        <Route path="/offtaker-cost" element={<OfftakerCost />} />
+        <Route path="/disputes" element={<Disputes />} />
+        <Route path="/tenant-admin" element={<TenantAdmin />} />
+        <Route path="/audit-trail" element={<AuditTrail />} />
+        <Route path="/system-health" element={<SystemHealth />} />
+        <Route path="/invoices" element={<Invoices />} />
+        <Route path="/smart-rules" element={<SmartRules />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
