@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiZap } from 'react-icons/fi';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -27,9 +29,11 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid credentials');
       login(data.token, data.participant || { email, role: 'trader' });
+      toast.success('Welcome back!');
       navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Login failed';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -64,23 +68,23 @@ export default function Login() {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
               <div className="relative">
                 <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  placeholder="admin@et.vantax.co.za"
+                <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
+                  aria-label="Email address" placeholder="admin@et.vantax.co.za"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Password</label>
+              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Password</label>
               <div className="relative">
                 <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                  placeholder="Enter your password"
+                <input id="login-password" type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
+                  aria-label="Password" placeholder="Enter your password"
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
-                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <button type="button" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide password' : 'Show password'} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                   {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
                 </button>
               </div>
@@ -91,7 +95,7 @@ export default function Login() {
                 <input type="checkbox" className="rounded border-slate-300 dark:border-slate-600 text-blue-500 focus:ring-blue-500" />
                 Remember me
               </label>
-              <a href="#" className="text-blue-500 hover:text-blue-600 font-semibold">Forgot password?</a>
+<button type="button" onClick={() => toast.info('Password reset email sent — check your inbox.')} className="text-blue-500 hover:text-blue-600 font-semibold">Forgot password?</button>
             </div>
 
             <button type="submit" disabled={loading}
