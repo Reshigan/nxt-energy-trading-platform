@@ -320,6 +320,109 @@ register.post('/:id/reject', authMiddleware({ roles: ['admin'] }), async (c) => 
   }
 });
 
+// GET /me — Get current user profile
+register.get('/me', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    const participant = await c.env.DB.prepare(
+      'SELECT id, email, role, company_name, contact_person, phone, physical_address, kyc_status, trading_enabled, created_at FROM participants WHERE id = ?'
+    ).bind(user.sub).first();
+    if (!participant) {
+      return c.json({ success: false, error: 'Participant not found' }, 404);
+    }
+    return c.json({ success: true, data: participant });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// PATCH /me — Update current user profile
+register.patch('/me', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as Record<string, unknown>;
+
+    const allowedFields = ['company_name', 'contact_person', 'phone', 'physical_address', 'email', 'name'];
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        const dbField = field === 'name' ? 'contact_person' : field;
+        updates.push(`${dbField} = ?`);
+        values.push(body[field]);
+      }
+    }
+
+    if (updates.length === 0) {
+      return c.json({ success: false, error: 'No valid fields to update' }, 400);
+    }
+
+    updates.push('updated_at = ?');
+    values.push(nowISO());
+    values.push(user.sub);
+
+    await c.env.DB.prepare(
+      `UPDATE participants SET ${updates.join(', ')} WHERE id = ?`
+    ).bind(...values).run();
+
+    // Audit log
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'update_profile', 'participant', ?, ?, ?)`
+    ).bind(generateId(), user.sub, user.sub, JSON.stringify(body), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Profile updated' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// POST /me/password — Change current user password
+register.post('/me/password', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as { current_password: string; new_password: string };
+
+    if (!body.current_password || !body.new_password) {
+      return c.json({ success: false, error: 'Current password and new password are required' }, 400);
+    }
+
+    if (body.new_password.length < 8) {
+      return c.json({ success: false, error: 'New password must be at least 8 characters' }, 400);
+    }
+
+    const participant = await c.env.DB.prepare(
+      'SELECT password_hash, password_salt FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{ password_hash: string; password_salt: string }>();
+
+    if (!participant) {
+      return c.json({ success: false, error: 'Participant not found' }, 404);
+    }
+
+    const valid = await verifyPassword(body.current_password, participant.password_hash, participant.password_salt);
+    if (!valid) {
+      return c.json({ success: false, error: 'Current password is incorrect' }, 401);
+    }
+
+    const { hash, salt } = await hashPassword(body.new_password);
+    await c.env.DB.prepare(
+      'UPDATE participants SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?'
+    ).bind(hash, salt, nowISO(), user.sub).run();
+
+    // Audit log
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'change_password', 'participant', ?, '{}', ?)`
+    ).bind(generateId(), user.sub, user.sub, c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
 // ---- Auth endpoints ----
 
 // POST /auth/login
