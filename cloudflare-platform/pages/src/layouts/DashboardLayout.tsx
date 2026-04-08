@@ -11,7 +11,7 @@ import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { getRoleConfig } from '../config/roles';
 
-const mainTabs = [
+const ALL_MAIN_TABS = [
   { name: 'Dashboard', href: '/' },
   { name: 'Trading', href: '/trading' },
   { name: 'Carbon', href: '/carbon' },
@@ -19,7 +19,7 @@ const mainTabs = [
   { name: 'Analytics', href: '/analytics' },
 ];
 
-const moreLinks = [
+const ALL_MORE_LINKS = [
   { name: 'Markets', href: '/markets' },
   { name: 'AI Portfolio', href: '/portfolio' },
   { name: 'Risk Dashboard', href: '/risk' },
@@ -31,6 +31,7 @@ const moreLinks = [
   { name: 'Compliance', href: '/compliance' },
   { name: 'Report Builder', href: '/reports' },
   { name: 'Developer Portal', href: '/developer' },
+  { name: 'Demand Profile', href: '/demand' },
   { name: 'Notifications', href: '/notifications' },
   { name: 'Admin', href: '/admin' },
   { name: 'Settings', href: '/settings' },
@@ -58,6 +59,9 @@ export default function DashboardLayout() {
   const moreBtnRef = useRef<HTMLButtonElement>(null);
 
   const roleConfig = getRoleConfig(activeRole || 'trader');
+  const allowed = new Set(roleConfig.allowedPaths);
+  const mainTabs = ALL_MAIN_TABS.filter(t => allowed.has(t.href));
+  const moreLinks = ALL_MORE_LINKS.filter(l => allowed.has(l.href));
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
