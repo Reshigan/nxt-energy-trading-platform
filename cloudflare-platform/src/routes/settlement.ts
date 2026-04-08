@@ -500,17 +500,16 @@ settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
       return c.json({ success: false, error: 'period_start and period_end are required' }, 400);
     }
 
-    // Get all confirmed trades in the period
+    // Get all settled trades in the period
     const trades = await c.env.DB.prepare(`
-      SELECT t.*, o.participant_id as order_owner
+      SELECT t.*
       FROM trades t
-      JOIN orders o ON t.maker_order_id = o.id OR t.taker_order_id = o.id
-      WHERE t.executed_at >= ? AND t.executed_at <= ? AND t.status = 'confirmed'
+      WHERE t.created_at >= ? AND t.created_at <= ? AND t.status = 'settled'
     `).bind(body.period_start, body.period_end).all();
 
-    // Get all invoices in the period
+    // Get all outstanding/overdue invoices in the period
     const invoices = await c.env.DB.prepare(`
-      SELECT * FROM invoices WHERE period_start >= ? AND period_end <= ? AND status IN ('issued', 'overdue')
+      SELECT * FROM invoices WHERE created_at >= ? AND created_at <= ? AND status IN ('outstanding', 'overdue')
     `).bind(body.period_start, body.period_end).all();
 
     // Calculate net positions per participant
@@ -519,7 +518,7 @@ settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
     for (const trade of trades.results) {
       const buyerId = trade.buyer_id as string;
       const sellerId = trade.seller_id as string;
-      const totalCents = Math.round((trade.volume as number) * (trade.price as number));
+      const totalCents = trade.total_cents as number;
 
       if (!netPositions[buyerId]) netPositions[buyerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
       if (!netPositions[sellerId]) netPositions[sellerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
@@ -532,9 +531,9 @@ settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
 
     // Add invoice amounts
     for (const inv of invoices.results) {
-      const payerId = inv.payer_id as string;
-      const payeeId = inv.payee_id as string;
-      const amount = inv.amount_cents as number;
+      const payerId = inv.to_participant_id as string;
+      const payeeId = inv.from_participant_id as string;
+      const amount = inv.total_cents as number;
 
       if (!netPositions[payerId]) netPositions[payerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
       if (!netPositions[payeeId]) netPositions[payeeId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
@@ -577,18 +576,23 @@ settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
         c.req.header('CF-Connecting-IP') || 'unknown'
       ).run();
 
-      // Update participant balances
+      // Record net position per participant in audit (no balance_cents column exists)
       for (const result of nettingResults) {
         if (result.net_cents !== 0) {
           await c.env.DB.prepare(
-            'UPDATE participants SET balance_cents = COALESCE(balance_cents, 0) + ? WHERE id = ?'
-          ).bind(result.net_cents, result.participant_id).run();
+            `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+             VALUES (?, ?, 'netting_position', 'participant', ?, ?, ?)`
+          ).bind(
+            generateId(), user.sub, result.participant_id,
+            JSON.stringify({ net_cents: result.net_cents, receivable: result.receivable_cents, payable: result.payable_cents }),
+            c.req.header('CF-Connecting-IP') || 'unknown'
+          ).run();
         }
       }
 
-      // Mark invoices as settled
+      // Mark invoices as paid
       await c.env.DB.prepare(
-        "UPDATE invoices SET status = 'settled', paid_at = ? WHERE period_start >= ? AND period_end <= ? AND status IN ('issued', 'overdue')"
+        "UPDATE invoices SET status = 'paid', paid_at = ? WHERE created_at >= ? AND created_at <= ? AND status IN ('outstanding', 'overdue')"
       ).bind(nowISO(), body.period_start, body.period_end).run();
     }
 
