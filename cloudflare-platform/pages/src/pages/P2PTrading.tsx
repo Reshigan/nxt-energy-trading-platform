@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiZap, FiRefreshCw, FiLoader, FiMapPin } from '../lib/fi-icons-shim';
+import { FiZap, FiRefreshCw, FiLoader, FiMapPin, FiPlus } from '../lib/fi-icons-shim';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { p2pAPI } from '../lib/api';
@@ -9,6 +9,8 @@ import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 const ZONES = ['All', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo'] as const;
 
@@ -25,6 +27,9 @@ export default function P2PTrading() {
   const [offerData, setOfferData] = useState<P2POffer[]>([]);
   const [zoneStats, setZoneStats] = useState<ZoneStat[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
+  const [showCreateOffer, setShowCreateOffer] = useState(false);
+  const [offerForm, setOfferForm] = useState({ zone: 'Gauteng', energy: 'Solar', volume: '', price: '' });
+  const [offerCreating, setOfferCreating] = useState(false);
   // F8: Zone map view
   const [showMap, setShowMap] = useState(false);
 
@@ -42,6 +47,17 @@ export default function P2PTrading() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleCreateOffer = async () => {
+    if (!offerForm.volume || !offerForm.price) { toast.error('Volume and price are required'); return; }
+    setOfferCreating(true);
+    try {
+      const res = await p2pAPI.createOffer({ zone: offerForm.zone, energy_type: offerForm.energy, volume_mwh: Number(offerForm.volume), price_cents: Math.round(Number(offerForm.price) * 100) });
+      if (res.data?.success || res.data?.data) { toast.success('P2P offer created'); setShowCreateOffer(false); setOfferForm({ zone: 'Gauteng', energy: 'Solar', volume: '', price: '' }); loadData(); }
+      else toast.error(res.data?.error || 'Failed to create offer');
+    } catch { toast.error('Failed to create offer'); }
+    setOfferCreating(false);
+  };
 
   const handleAccept = async (id: string) => {
     setAccepting(id);
@@ -70,6 +86,7 @@ export default function P2PTrading() {
           <button onClick={() => setShowMap(!showMap)} className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 ${showMap ? 'bg-slate-200 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300' : 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600'}`} aria-label="Toggle zone map">
             <FiMapPin className="w-4 h-4" /> Zone Map
           </button>
+          <button onClick={() => setShowCreateOffer(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600 transition-all flex items-center gap-2" aria-label="Create P2P offer"><FiPlus className="w-4 h-4" /> Create Offer</button>
           <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh P2P trading data">
             <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
           </button>
@@ -173,6 +190,31 @@ export default function P2PTrading() {
       </div>
       </>
       )}
+
+      <Modal isOpen={showCreateOffer} onClose={() => setShowCreateOffer(false)} title="Create P2P Offer">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Zone</label>
+              <select value={offerForm.zone} onChange={e => setOfferForm(p => ({ ...p, zone: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+                <option>Gauteng</option><option>Western Cape</option><option>KwaZulu-Natal</option><option>Eastern Cape</option><option>Limpopo</option>
+              </select></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Energy Type</label>
+              <select value={offerForm.energy} onChange={e => setOfferForm(p => ({ ...p, energy: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+                <option>Solar</option><option>Wind</option><option>Gas</option><option>Hydro</option>
+              </select></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Volume (MWh)</label>
+              <input type="number" value={offerForm.volume} onChange={e => setOfferForm(p => ({ ...p, volume: e.target.value }))} placeholder="100" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Price (R/MWh)</label>
+              <input type="number" value={offerForm.price} onChange={e => setOfferForm(p => ({ ...p, price: e.target.value }))} placeholder="0.00" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateOffer(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateOffer} loading={offerCreating}>Create Offer</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

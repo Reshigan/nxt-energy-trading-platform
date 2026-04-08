@@ -7,6 +7,8 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 import { formatZAR, formatMWh } from '../lib/format';
 
 interface DemandProfile {
@@ -51,6 +53,9 @@ export default function DemandProfile() {
   const [selectedMatch, setSelectedMatch] = useState<string | null>(null);
   const [interestMessage, setInterestMessage] = useState('');
   const [expressedIds, setExpressedIds] = useState<Set<string>>(new Set());
+  const [showCreateProfile, setShowCreateProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', peak_mw: '', baseload_mw: '', region: 'Gauteng' });
+  const [creatingProfile, setCreatingProfile] = useState(false);
 
   // Bill upload fields
   const [billMonth, setBillMonth] = useState('');
@@ -71,6 +76,17 @@ export default function DemandProfile() {
   }, []);
 
   useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  const handleCreateProfile = async () => {
+    if (!profileForm.name.trim() || !profileForm.peak_mw) { toast.error('Name and peak demand required'); return; }
+    setCreatingProfile(true);
+    try {
+      const res = await demandAPI.createProfile({ name: profileForm.name, peak_mw: Number(profileForm.peak_mw), baseload_mw: Number(profileForm.baseload_mw) || 0, region: profileForm.region });
+      if (res.data?.success || res.data?.data) { toast.success('Profile created'); setShowCreateProfile(false); setProfileForm({ name: '', peak_mw: '', baseload_mw: '', region: 'Gauteng' }); loadProfile(); }
+      else toast.error(res.data?.error || 'Failed to create profile');
+    } catch { toast.error('Failed to create profile'); }
+    setCreatingProfile(false);
+  };
 
   const handleUploadBill = async () => {
     if (!billMonth || !billKwh || !billAmountCents) {
@@ -309,6 +325,27 @@ export default function DemandProfile() {
           )}
         </>
       )}
+
+      <Modal isOpen={showCreateProfile} onClose={() => setShowCreateProfile(false)} title="Create Demand Profile">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Profile Name</label>
+            <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Johannesburg Industrial" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Peak Demand (MW)</label>
+              <input type="number" value={profileForm.peak_mw} onChange={e => setProfileForm(p => ({ ...p, peak_mw: e.target.value }))} placeholder="500" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Baseload (MW)</label>
+              <input type="number" value={profileForm.baseload_mw} onChange={e => setProfileForm(p => ({ ...p, baseload_mw: e.target.value }))} placeholder="200" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          </div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Region</label>
+            <select value={profileForm.region} onChange={e => setProfileForm(p => ({ ...p, region: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+              <option>Gauteng</option><option>Western Cape</option><option>KwaZulu-Natal</option><option>Eastern Cape</option><option>Limpopo</option><option>Free State</option><option>North West</option><option>Mpumalanga</option><option>Northern Cape</option>
+            </select></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateProfile(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateProfile} loading={creatingProfile}>Create Profile</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }
