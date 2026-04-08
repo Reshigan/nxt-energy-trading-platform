@@ -41,7 +41,7 @@ app.use('*', requestIdMiddleware());
 // Phase 1.4: Security headers on every response
 app.use('*', securityHeadersMiddleware());
 
-// Structured request logging (Phase 5)
+// Structured request logging + API analytics counters (Phase 5)
 app.use('*', async (c, next) => {
   const start = Date.now();
   await next();
@@ -52,6 +52,33 @@ app.use('*', async (c, next) => {
     status: c.res.status,
     duration_ms: duration,
   }, c.get('requestId'));
+
+  // Phase 5.5: Increment KV-based API analytics counters
+  try {
+    const path = c.req.path;
+    const segments = ['trading', 'carbon', 'contracts', 'settlement', 'compliance', 'marketplace', 'p2p', 'metering', 'ai', 'reports'];
+    const match = segments.find((s) => path.includes(`/${s}`));
+    if (match) {
+      const hour = new Date().toISOString().substring(0, 13);
+      const countKey = `api_count:/${match}:${hour}`;
+      const current = parseInt(await c.env.KV.get(countKey) || '0', 10);
+      await c.env.KV.put(countKey, String(current + 1), { expirationTtl: 86400 });
+      if (c.res.status >= 400) {
+        const errKey = `api_errors:/${match}:${hour}`;
+        const errCount = parseInt(await c.env.KV.get(errKey) || '0', 10);
+        await c.env.KV.put(errKey, String(errCount + 1), { expirationTtl: 86400 });
+      }
+      // Track avg response time
+      const rtKey = `api_rt:/${match}:${hour}`;
+      const rtData = await c.env.KV.get(rtKey);
+      const rt = rtData ? JSON.parse(rtData) : { sum: 0, count: 0 };
+      rt.sum += duration;
+      rt.count += 1;
+      await c.env.KV.put(rtKey, JSON.stringify(rt), { expirationTtl: 86400 });
+    }
+  } catch {
+    // Non-critical: don't let analytics failures affect requests
+  }
 });
 
 // Global middleware
@@ -266,7 +293,7 @@ api.post('/errors/frontend', async (c) => {
   }
 });
 
-// Phase 5.5: API analytics endpoint (reads KV counters)
+// Phase 5.5: API analytics endpoint (reads KV counters written by middleware)
 api.get('/analytics/api', authMiddleware({ roles: ['admin'] }), async (c) => {
   const hour = new Date().toISOString().substring(0, 13); // YYYY-MM-DDTHH
   const endpoints = ['/trading', '/carbon', '/contracts', '/settlement', '/compliance', '/marketplace', '/p2p', '/metering', '/ai', '/reports'];
@@ -274,7 +301,13 @@ api.get('/analytics/api', authMiddleware({ roles: ['admin'] }), async (c) => {
   for (const ep of endpoints) {
     const countStr = await c.env.KV.get(`api_count:${ep}:${hour}`);
     const errStr = await c.env.KV.get(`api_errors:${ep}:${hour}`);
-    stats[ep] = { requests: parseInt(countStr || '0', 10), errors: parseInt(errStr || '0', 10) };
+    const rtStr = await c.env.KV.get(`api_rt:${ep}:${hour}`);
+    const rt = rtStr ? JSON.parse(rtStr) : { sum: 0, count: 0 };
+    stats[ep] = {
+      requests: parseInt(countStr || '0', 10),
+      errors: parseInt(errStr || '0', 10),
+      avg_response_ms: rt.count > 0 ? Math.round(rt.sum / rt.count) : 0,
+    };
   }
   return c.json({ success: true, data: { hour, endpoints: stats } });
 });
@@ -290,8 +323,9 @@ app.route('/api/v1', api);
 
 // Cron trigger handler
 const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env) => {
-  const { generateId } = await import('./utils/id');
+  const { generateId, nowISO } = await import('./utils/id');
   try {
+    // 1. Licence expiry notifications
     const expiringLicences = await env.DB.prepare(`
       SELECT l.id, l.participant_id, l.type, l.expiry_date FROM licences l
       WHERE l.status = 'active' AND l.expiry_date <= date('now', '+90 days') AND l.expiry_date > date('now')
@@ -306,11 +340,70 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
         licence.id
       ).run();
     }
+
+    // 2. Mark overdue invoices
     await env.DB.prepare(`UPDATE invoices SET status = 'overdue' WHERE status = 'outstanding' AND due_date < date('now')`).run();
+
+    // 3. Expire marketplace listings
     await env.DB.prepare(`UPDATE marketplace_listings SET status = 'expired' WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+
+    // 4. Expire day orders and GTD orders
     await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'day' AND date(created_at) < date('now')`).run();
     await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'gtd' AND gtd_expiry IS NOT NULL AND gtd_expiry < datetime('now')`).run();
+
+    // 5. Expire P2P offers
     await env.DB.prepare(`UPDATE p2p_trades SET status = 'expired' WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+
+    // 6. Phase 3.3: D1 backup to R2 (daily export of critical tables)
+    try {
+      const tables = ['participants', 'trades', 'carbon_credits', 'contract_documents', 'invoices', 'orders'];
+      const dateStr = new Date().toISOString().split('T')[0];
+      for (const table of tables) {
+        const rows = await env.DB.prepare(`SELECT * FROM ${table}`).all();
+        await env.R2.put(
+          `backups/${dateStr}/${table}.json`,
+          JSON.stringify({ table, exported_at: nowISO(), row_count: rows.results.length, data: rows.results }),
+        );
+      }
+      log('info', 'backup_completed', { tables: tables.length, date: dateStr });
+    } catch (backupErr) {
+      log('error', 'backup_failed', { error: backupErr instanceof Error ? backupErr.message : String(backupErr) });
+    }
+
+    // 7. Phase 3.10: Daily risk metrics recalculation
+    try {
+      const participants = await env.DB.prepare(
+        "SELECT id FROM participants WHERE trading_enabled = 1 AND kyc_status = 'verified'"
+      ).all();
+      for (const p of participants.results) {
+        const doId = env.RISK_ENGINE.idFromName(p.id as string);
+        const stub = env.RISK_ENGINE.get(doId);
+        await stub.fetch(new Request('https://do/recalculate', { method: 'POST' }));
+      }
+      log('info', 'risk_recalc_completed', { participants: participants.results.length });
+    } catch (riskErr) {
+      log('error', 'risk_recalc_failed', { error: riskErr instanceof Error ? riskErr.message : String(riskErr) });
+    }
+
+    // 8. Phase 3.10: Weekly compliance report generation (runs on Mondays)
+    if (new Date().getDay() === 1) {
+      try {
+        const report = {
+          id: generateId(),
+          generated_at: nowISO(),
+          type: 'weekly_compliance',
+          kyc_pending: ((await env.DB.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'pending'").first<{ c: number }>())?.c || 0),
+          licences_expiring: expiringLicences.results.length,
+          open_disputes: ((await env.DB.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','escalated')").first<{ c: number }>())?.c || 0),
+          overdue_invoices: ((await env.DB.prepare("SELECT COUNT(*) as c FROM invoices WHERE status = 'overdue'").first<{ c: number }>())?.c || 0),
+        };
+        await env.KV.put(`compliance_report:${new Date().toISOString().split('T')[0]}`, JSON.stringify(report), { expirationTtl: 86400 * 90 });
+        log('info', 'compliance_report_generated', report);
+      } catch (compErr) {
+        log('error', 'compliance_report_failed', { error: compErr instanceof Error ? compErr.message : String(compErr) });
+      }
+    }
+
     log('info', 'cron_completed', { licences: expiringLicences.results.length });
   } catch (err) {
     log('error', 'cron_failed', { error: err instanceof Error ? err.message : String(err) });

@@ -50,7 +50,12 @@ function getAppliedMigrations(): string[] {
   }
 }
 
+const SAFE_FILENAME_RE = /^\d{3}_[a-z0-9_]+\.sql$/;
+
 function applyMigration(filename: string): void {
+  if (!SAFE_FILENAME_RE.test(filename)) {
+    throw new Error(`Invalid migration filename: '${filename}'. Must match pattern NNN_lowercase_name.sql`);
+  }
   const filepath = join(MIGRATIONS_DIR, filename);
   console.log(`Applying migration: ${filename}`);
   execSync(`npx wrangler d1 execute ${DB_NAME} --file="${filepath}"`, { stdio: 'inherit' });
