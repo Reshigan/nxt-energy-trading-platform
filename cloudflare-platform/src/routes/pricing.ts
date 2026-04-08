@@ -159,10 +159,13 @@ pricing.get('/offtaker/:id', async (c) => {
       "SELECT COALESCE(SUM(total_cents), 0) as total_cost_cents, COALESCE(SUM(volume), 0) as total_volume, COUNT(*) as trade_count FROM trades WHERE buyer_id = ? AND status IN ('pending', 'settled')"
     ).bind(participantId).first<{ total_cost_cents: number; total_volume: number; trade_count: number }>();
 
-    // Get active contracts
-    const contracts = await c.env.DB.prepare(
-      "SELECT COUNT(*) as active_contracts FROM contracts WHERE participant_id = ? AND status = 'active'"
-    ).bind(participantId).first<{ active_contracts: number }>();
+    // Get active contracts — wrapped in try/catch since contracts table may not exist in deployed D1
+    let contracts: { active_contracts: number } | null = null;
+    try {
+      contracts = await c.env.DB.prepare(
+        "SELECT COUNT(*) as active_contracts FROM contracts WHERE participant_id = ? AND status = 'active'"
+      ).bind(participantId).first<{ active_contracts: number }>();
+    } catch { /* contracts table may not exist yet */ }
 
     const totalCostCents = trades?.total_cost_cents || 0;
     const totalVolume = trades?.total_volume || 0;

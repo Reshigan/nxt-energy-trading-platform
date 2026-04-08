@@ -14,7 +14,7 @@ interface Position { market: string; direction: string; net_volume: number; avg_
 interface OrderBookEntry { price: number; size: number; total: number; }
 interface PricePoint { time: string; price: number; volume: number; }
 
-const MARKETS = ['solar_ppa', 'wind_ppa', 'gas_spot', 'carbon', 'battery', 'hydro'] as const;
+const MARKETS = ['solar', 'wind', 'gas', 'carbon', 'battery', 'hydro'] as const;
 const TIMEFRAMES = ['1H', '4H', '1D', '1W', '1M'] as const;
 
 export default function Trading() {
@@ -245,7 +245,7 @@ export default function Trading() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((p, i) => { const pnlPositive = p.unrealised_pnl >= 0; return (
+              {positions.map((p, i) => { const pnlPositive = (p.unrealised_pnl_cents ?? p.unrealised_pnl ?? 0) >= 0; return (
                 <tr key={i} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                   <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize">{(p.market || '').replace(/_/g, ' ')}</td>
                   <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${p.direction === 'buy' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{p.direction === 'buy' ? 'Long' : 'Short'}</span></td>
