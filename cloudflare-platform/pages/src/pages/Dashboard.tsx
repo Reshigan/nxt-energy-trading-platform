@@ -58,15 +58,12 @@ export default function Dashboard() {
           if (priceRes.status === 'fulfilled' && Array.isArray(priceRes.value.data?.data)) {
             setPriceData(priceRes.value.data.data);
           }
+          if (sumRes.status === 'rejected' && priceRes.status === 'rejected') {
+            toast.error('Failed to load dashboard data');
+          }
         }
       } catch {
-        // Promise.allSettled doesn't reject, but catch handles unexpected errors
-      }
-      // Check for rejected results and show toast
-      if (!cancelled) {
-        if (sumRes.status === 'rejected' && priceRes.status === 'rejected') {
-          toast.error('Failed to load dashboard data');
-        }
+        toast.error('Failed to load dashboard data');
       }
       if (!cancelled) setLoading(false);
     }
