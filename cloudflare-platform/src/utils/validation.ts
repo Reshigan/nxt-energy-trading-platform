@@ -97,6 +97,7 @@ export const CreateDocumentSchema = z.object({
     'loi', 'term_sheet', 'hoa', 'ppa_wheeling', 'ppa_btm',
     'carbon_purchase', 'carbon_option_isda', 'forward', 'epc',
     'wheeling_agreement', 'side_letter', 'nda',
+    'solar_ppa', 'wind_ppa', 'gas_spot',
   ]),
   counterparty_id: z.string().min(1).optional(),
   governing_law: z.string().optional(),
