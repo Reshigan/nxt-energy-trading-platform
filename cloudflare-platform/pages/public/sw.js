@@ -1,9 +1,9 @@
 // NXT Energy Trading Platform - Service Worker
 // Handles offline caching, push notifications, and background sync
 
-const CACHE_NAME = 'nxt-energy-v1';
-const STATIC_CACHE = 'nxt-static-v1';
-const API_CACHE = 'nxt-api-v1';
+const CACHE_NAME = 'nxt-energy-v2';
+const STATIC_CACHE = 'nxt-static-v2';
+const API_CACHE = 'nxt-api-v2';
 
 const STATIC_ASSETS = [
   '/',

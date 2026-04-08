@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icons/icon-96x96.png" />
@@ -32,7 +32,7 @@
     <script>
       // Prevent FOUC: apply saved theme before first paint
       (function() {
-        var t = localStorage.getItem('nxt_theme') || 'dark';
+        var t = localStorage.getItem('nxt_theme') || 'light';
         if (t === 'dark') document.documentElement.classList.add('dark');
         else document.documentElement.classList.remove('dark');
       })();
