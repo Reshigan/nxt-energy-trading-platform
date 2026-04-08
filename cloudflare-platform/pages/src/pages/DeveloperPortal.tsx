@@ -1,41 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { FiKey, FiGlobe, FiCode, FiPlus, FiTrash2, FiCopy, FiEye, FiEyeOff } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiKey, FiGlobe, FiCode, FiPlus, FiTrash2, FiCopy, FiRefreshCw, FiLoader } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { developerAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const tabs = ['API Keys', 'Webhooks', 'Documentation', 'Usage'];
+const TABS = ['API Keys', 'Webhooks', 'Documentation', 'Usage'] as const;
 
-const apiKeys = [
-  { id: 'key_live_1a2b3c', name: 'Production API', created: '2024-01-15', lastUsed: '2 min ago', requests: '12,847', status: 'Active' },
-  { id: 'key_test_4d5e6f', name: 'Staging API', created: '2024-02-10', lastUsed: '1 hour ago', requests: '3,421', status: 'Active' },
-  { id: 'key_live_7g8h9i', name: 'Trading Bot', created: '2024-03-01', lastUsed: '5 min ago', requests: '89,234', status: 'Active' },
-];
-
-const webhooks = [
-  { id: 'wh_001', url: 'https://api.example.com/hooks/trades', events: ['trade.executed', 'order.filled'], status: 'Active', failures: 0 },
-  { id: 'wh_002', url: 'https://api.example.com/hooks/carbon', events: ['credit.retired', 'credit.transferred'], status: 'Active', failures: 2 },
-  { id: 'wh_003', url: 'https://api.example.com/hooks/contracts', events: ['contract.signed', 'invoice.generated'], status: 'Paused', failures: 12 },
-];
-
-const usageData = Array.from({ length: 14 }, (_, i) => ({
-  date: `Apr ${i + 1}`,
-  requests: 800 + Math.floor(Math.random() * 500),
-  errors: Math.floor(Math.random() * 20),
-}));
-
-const endpoints = [
-  { method: 'POST', path: '/api/v1/trading/orders', description: 'Place a new order' },
-  { method: 'GET', path: '/api/v1/trading/positions', description: 'Get open positions' },
-  { method: 'GET', path: '/api/v1/carbon/credits', description: 'List carbon credits' },
-  { method: 'POST', path: '/api/v1/carbon/credits/:id/retire', description: 'Retire a carbon credit' },
-  { method: 'GET', path: '/api/v1/contracts/documents', description: 'List contracts' },
-  { method: 'POST', path: '/api/v1/contracts/documents', description: 'Create a contract' },
-  { method: 'GET', path: '/api/v1/settlement/invoices', description: 'List invoices' },
-  { method: 'GET', path: '/api/v1/ai/risk/:participantId', description: 'Get risk metrics' },
-];
+interface ApiKey { id: string; name: string; created: string; lastUsed: string; requests: string; status: string; }
+interface Webhook { id: string; url: string; events: string[]; status: string; failures: number; }
+interface UsagePoint { date: string; requests: number; errors: number; }
+interface Endpoint { method: string; path: string; description: string; }
 
 const methodColors: Record<string, string> = {
   GET: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -48,56 +27,79 @@ export default function DeveloperPortal() {
   const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('API Keys');
-  const [keyData, setKeyData] = useState(apiKeys);
-  const [webhookData, setWebhookData] = useState(webhooks);
+  const [keyData, setKeyData] = useState<ApiKey[]>([]);
+  const [webhookData, setWebhookData] = useState<Webhook[]>([]);
+  const [usageData, setUsageData] = useState<UsagePoint[]>([]);
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [keysRes, whRes] = await Promise.all([
-          developerAPI.getKeys(),
-          developerAPI.getWebhooks(),
-        ]);
-        if (keysRes.data?.data?.length) setKeyData(keysRes.data.data);
-        if (whRes.data?.data?.length) setWebhookData(whRes.data.data);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [keysRes, whRes, usRes, docsRes] = await Promise.allSettled([
+        developerAPI.getKeys(), developerAPI.getWebhooks(), developerAPI.getUsage(), developerAPI.getDocs(),
+      ]);
+      if (keysRes.status === 'fulfilled') setKeyData(Array.isArray(keysRes.value.data?.data) ? keysRes.value.data.data : []);
+      if (whRes.status === 'fulfilled') setWebhookData(Array.isArray(whRes.value.data?.data) ? whRes.value.data.data : []);
+      if (usRes.status === 'fulfilled') setUsageData(Array.isArray(usRes.value.data?.data) ? usRes.value.data.data : []);
+      if (docsRes.status === 'fulfilled') setEndpoints(Array.isArray(docsRes.value.data?.data) ? docsRes.value.data.data : []);
+      if (keysRes.status === 'rejected' && whRes.status === 'rejected') setError('Failed to load developer data.');
+    } catch { setError('Failed to load developer data.'); }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleRevokeKey = async (id: string) => {
+    setRevoking(id);
+    try {
+      const res = await developerAPI.revokeKey(id);
+      if (res.data?.success) { toast.success('API key revoked'); loadData(); }
+      else toast.error(res.data?.error || 'Failed to revoke key');
+    } catch { toast.error('Failed to revoke key'); }
+    setRevoking(null);
+  };
+
+  const handleCopyKey = (id: string) => {
+    navigator.clipboard.writeText(id).then(() => toast.success('Key copied to clipboard')).catch(() => toast.error('Failed to copy'));
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Developer Portal page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Developer Portal</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">API keys, webhooks, documentation & usage analytics</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Plus">
-          <FiPlus className="w-4 h-4" /> {activeTab === 'API Keys' ? 'Create Key' : 'Add Webhook'}
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Refresh developer data">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
       </div>
 
-      <div className={`flex items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      <div className={`flex flex-wrap items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} role="tablist" aria-label="Developer sections" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        {TABS.map(tab => (
+          <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === tab ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>
-            {tab === 'API Keys' && <FiKey className="w-3.5 h-3.5 inline mr-1.5" />}
-            {tab === 'Webhooks' && <FiGlobe className="w-3.5 h-3.5 inline mr-1.5" />}
-            {tab === 'Documentation' && <FiCode className="w-3.5 h-3.5 inline mr-1.5" />}
+            {tab === 'API Keys' && <FiKey className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
+            {tab === 'Webhooks' && <FiGlobe className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
+            {tab === 'Documentation' && <FiCode className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
             {tab}
           </button>
         ))}
       </div>
 
-      {activeTab === 'API Keys' && (
+      {loading ? (<div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}</div>) : activeTab === 'API Keys' && (
         <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
-          {keyData.map((key, i) => (
+          {keyData.length === 0 ? <EmptyState title="No API keys" description="Create your first API key to get started." /> : keyData.map((key, i) => (
             <div key={key.id} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 80}ms both` }}>
               <div className="flex items-start justify-between">
                 <div>
@@ -105,8 +107,8 @@ export default function DeveloperPortal() {
                   <p className="text-xs text-slate-400 mt-0.5 mono">{key.id}••••••</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors" aria-label="Copy"><FiCopy className="w-4 h-4" /></button>
-                  <button className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" aria-label="Trash2"><FiTrash2 className="w-4 h-4" /></button>
+                  <button onClick={() => handleCopyKey(key.id)} className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors" aria-label={`Copy key ${key.name}`}><FiCopy className="w-4 h-4" /></button>
+                  <button onClick={() => handleRevokeKey(key.id)} disabled={revoking === key.id} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50" aria-label={`Revoke key ${key.name}`}>{revoking === key.id ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiTrash2 className="w-4 h-4" />}</button>
                 </div>
               </div>
               <div className="flex items-center gap-6 mt-3 text-xs text-slate-400">
