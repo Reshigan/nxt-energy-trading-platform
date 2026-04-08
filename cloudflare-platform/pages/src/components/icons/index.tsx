@@ -401,3 +401,74 @@ export function IconActivity(p: IconProps = defaultProps) {
 export function IconHeart(p: IconProps = defaultProps) {
   return wrap(p, <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />);
 }
+
+// ─── Deep Tools Icons ────────────────────────────────
+export function IconVault(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="3" y="11" width="18" height="11" rx="2" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    <circle cx="12" cy="16" r="1.5" fill={p.color || 'currentColor'} />
+  </>);
+}
+
+export function IconLender(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M3 21h18" />
+    <path d="M3 10h18" />
+    <path d="M12 3l9 7H3z" fill={p.color || 'currentColor'} fillOpacity="0.08" stroke={p.color || 'currentColor'} />
+    <line x1="7" y1="10" x2="7" y2="21" />
+    <line x1="12" y1="10" x2="12" y2="21" />
+    <line x1="17" y1="10" x2="17" y2="21" />
+  </>);
+}
+
+export function IconSurveillance(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <circle cx="11" cy="11" r="8" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    <path d="M11 8v6l4 2" />
+  </>);
+}
+
+export function IconTradeJournal(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <line x1="8" y1="7" x2="16" y2="7" />
+    <line x1="8" y1="11" x2="14" y2="11" />
+  </>);
+}
+
+export function IconCarbonDeep(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <circle cx="12" cy="12" r="9" strokeDasharray="4 2" />
+    <path d="M12 7v4l3 2" />
+    <path d="M8 15s1.5 2 4 2 4-2 4-2" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+    <circle cx="12" cy="12" r="3" fill={p.color || 'currentColor'} fillOpacity="0.15" stroke="none" />
+  </>);
+}
+
+export function IconIPPDeep(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M3 21h18" />
+    <path d="M5 21V7l7-4 7 4v14" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <rect x="9" y="13" width="6" height="8" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+    <circle cx="12" cy="9" r="2" fill={p.color || 'currentColor'} fillOpacity="0.2" stroke={p.color || 'currentColor'} />
+  </>);
+}
+
+export function IconOfftakerDeep(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+    <circle cx="18" cy="5" r="3" fill="#7c3aed" stroke="none" />
+  </>);
+}
+
+export function IconReportingEngine(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="3" y="3" width="18" height="18" rx="2" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <rect x="7" y="12" width="3" height="6" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.2" stroke={p.color || 'currentColor'} />
+    <rect x="11" y="8" width="3" height="10" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.15" stroke={p.color || 'currentColor'} />
+    <rect x="15" y="5" width="3" height="13" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+  </>);
+}
