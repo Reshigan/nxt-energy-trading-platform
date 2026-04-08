@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const compliance = new Hono<HonoEnv>();
 
@@ -58,6 +59,20 @@ compliance.post('/kyc/:id/verify', authMiddleware({ roles: ['admin'] }), async (
       INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, ip_address)
       VALUES (?, ?, 'verify_kyc_document', 'kyc_document', ?, ?)
     `).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    // Fire cascade for KYC verification
+    const kycDoc = await c.env.DB.prepare('SELECT participant_id FROM kyc_documents WHERE id = ?').bind(id).first<{ participant_id: string }>();
+    if (kycDoc) {
+      c.executionCtx.waitUntil(cascade(c.env, {
+        type: 'kyc.approved',
+        actor_id: user.sub,
+        entity_type: 'kyc_document',
+        entity_id: id,
+        data: { participant_id: kycDoc.participant_id },
+        ip: c.req.header('CF-Connecting-IP') || 'unknown',
+        request_id: c.get('requestId'),
+      }));
+    }
 
     return c.json({ success: true, message: 'KYC document verified' });
   } catch (err) {
@@ -198,6 +213,19 @@ compliance.post('/statutory/:id/review', authMiddleware({ roles: ['admin'] }), a
       await c.env.DB.prepare(
         'UPDATE participants SET kyc_status = ?, trading_enabled = ?, updated_at = ? WHERE id = ?'
       ).bind(newKycStatus, allPassed ? 1 : 0, nowISO(), check.entity_id).run();
+
+      // Fire cascade for KYC status change
+      if (newKycStatus === 'verified' || newKycStatus === 'rejected') {
+        c.executionCtx.waitUntil(cascade(c.env, {
+          type: newKycStatus === 'verified' ? 'kyc.approved' : 'kyc.rejected',
+          actor_id: user.sub,
+          entity_type: 'participant',
+          entity_id: check.entity_id as string,
+          data: { participant_id: check.entity_id, new_status: newKycStatus, trading_enabled: allPassed },
+          ip: c.req.header('CF-Connecting-IP') || 'unknown',
+          request_id: c.get('requestId'),
+        }));
+      }
     }
 
     await c.env.DB.prepare(`

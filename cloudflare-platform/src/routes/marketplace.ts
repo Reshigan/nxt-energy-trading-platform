@@ -5,6 +5,7 @@ import { authMiddleware, optionalAuth } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const marketplace = new Hono<HonoEnv>();
 
@@ -54,6 +55,17 @@ marketplace.post('/listings', authMiddleware(), async (c) => {
       body.volume || null, body.price_cents || null, body.tenor_months || null,
       body.location || null, body.description || null, body.expires_at || null
     ).run();
+
+    // Fire cascade for listing creation
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'listing.created',
+      actor_id: user.sub,
+      entity_type: 'marketplace_listing',
+      entity_id: id,
+      data: { type: body.type, technology: body.technology, price_cents: body.price_cents, capacity_mw: body.capacity_mw },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { id } }, 201);
   } catch (err) {
@@ -116,6 +128,17 @@ marketplace.post('/listings/:id/bid', authMiddleware(), async (c) => {
       JSON.stringify({ price_cents: body.price_cents, volume: body.volume }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for bid placed
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'bid.placed',
+      actor_id: user.sub,
+      entity_type: 'marketplace_listing',
+      entity_id: id,
+      data: { seller_id: listing.seller_id, price_cents: body.price_cents, volume: body.volume },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, message: 'Bid placed' });
   } catch (err) {

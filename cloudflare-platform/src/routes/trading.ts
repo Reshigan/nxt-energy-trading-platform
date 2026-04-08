@@ -6,6 +6,7 @@ import { OrderSchema } from '../utils/validation';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const trading = new Hono<HonoEnv>();
 
@@ -111,6 +112,32 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // Fire cascade for order placement
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'order.placed',
+      actor_id: user.sub,
+      entity_type: 'order',
+      entity_id: orderId,
+      data: { market: data.market, direction: data.direction, volume: data.volume, price: data.price, order_type: data.order_type },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
+    // Fire cascade for each trade match
+    if (doResult.matches && doResult.matches.length > 0) {
+      for (const match of doResult.matches) {
+        c.executionCtx.waitUntil(cascade(c.env, {
+          type: 'trade.matched',
+          actor_id: user.sub,
+          entity_type: 'trade',
+          entity_id: match.tradeId,
+          data: { buyer_id: match.buyerId, seller_id: match.sellerId, market: match.market, volume: match.volume, price_cents: match.price, total_cents: Math.round(match.volume * match.price) },
+          ip: c.req.header('CF-Connecting-IP') || 'unknown',
+          request_id: c.get('requestId'),
+        }));
+      }
+    }
+
     return c.json({
       success: true,
       data: {
@@ -155,6 +182,17 @@ trading.delete('/orders/:id', authMiddleware(), async (c) => {
     await c.env.DB.prepare(
       'UPDATE orders SET status = \'cancelled\', updated_at = ? WHERE id = ?'
     ).bind(nowISO(), id).run();
+
+    // Fire cascade for order cancellation
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'order.cancelled',
+      actor_id: user.sub,
+      entity_type: 'order',
+      entity_id: id,
+      data: { market: order.market as string },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, message: 'Order cancelled' });
   } catch (err) {
