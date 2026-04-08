@@ -10,6 +10,8 @@ import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 interface ExposureEntry { name: string; exposure: number; limit: number; }
 interface DrawdownPoint { day: number; drawdown: number; }
@@ -30,6 +32,9 @@ export default function RiskDashboard() {
   const c = (d: string, l: string) => isDark ? d : l;
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
+  const [showStressTest, setShowStressTest] = useState(false);
+  const [stressForm, setStressForm] = useState({ scenario: 'market_crash', severity: '50' });
+  const [stressing, setStressing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [riskMetrics, setRiskMetrics] = useState<Greek[]>([]);
   const [exposureData, setExposureData] = useState<ExposureEntry[]>([]);
@@ -53,6 +58,16 @@ export default function RiskDashboard() {
   }, [user]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleStressTest = async () => {
+    setStressing(true);
+    try {
+      const res = await aiAPI.optimise({ type: 'stress_test', scenario: stressForm.scenario, severity: Number(stressForm.severity) });
+      if (res.data?.success) { toast.success('Stress test complete'); setShowStressTest(false); loadData(); }
+      else toast.error(res.data?.error || 'Stress test failed');
+    } catch { toast.error('Stress test failed'); }
+    setStressing(false);
+  };
 
   return (
     <motion.div
@@ -147,6 +162,22 @@ export default function RiskDashboard() {
         </div>
       </div>
       </>)}
+
+      <Modal isOpen={showStressTest} onClose={() => setShowStressTest(false)} title="Custom Stress Test">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Scenario</label>
+            <select value={stressForm.scenario} onChange={e => setStressForm(p => ({ ...p, scenario: e.target.value }))} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+              <option value="market_crash">Market Crash (-30%)</option><option value="load_shedding">Stage 6 Load Shedding</option><option value="currency_shock">ZAR Depreciation (-15%)</option><option value="supply_disruption">Supply Chain Disruption</option>
+            </select></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Severity (%)</label>
+            <input type="range" min="10" max="100" value={stressForm.severity} onChange={e => setStressForm(p => ({ ...p, severity: e.target.value }))} className="w-full" />
+            <span className="text-sm text-slate-600 dark:text-slate-300">{stressForm.severity}%</span></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowStressTest(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleStressTest} loading={stressing}>Run Test</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

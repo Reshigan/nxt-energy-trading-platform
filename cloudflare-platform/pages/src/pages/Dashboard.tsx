@@ -8,6 +8,7 @@ import { getRoleConfig, type PlatformRole } from '../config/roles';
 import { useTheme } from '../contexts/ThemeContext';
 import { dashboardAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 
 interface DashboardSummary {
@@ -143,11 +144,11 @@ function TraderDashboard({ summary, isDark, config }: { summary: DashboardSummar
     { day: 'Thu', pnl: 125000 }, { day: 'Fri', pnl: -80000 }, { day: 'Sat', pnl: 50000 }, { day: 'Today', pnl: 240000 },
   ];
   const positions = [
-    { market: 'Solar PPA', size: 'R4.2M', pnl: '+R320K', pnlPct: '+7.6%', pos: true },
-    { market: 'Wind Forward', size: 'R2.8M', pnl: '+R145K', pnlPct: '+5.2%', pos: true },
-    { market: 'Gas Spot', size: 'R1.5M', pnl: '-R82K', pnlPct: '-5.5%', pos: false },
-    { market: 'Carbon Credits', size: 'R3.1M', pnl: '+R210K', pnlPct: '+6.8%', pos: true },
-    { market: 'Battery Storage', size: 'R1.9M', pnl: '+R48K', pnlPct: '+2.5%', pos: true },
+    { market: 'Solar PPA', size: formatZAR(420000000), pnl: formatZAR(32000000), pnlPct: '+7.6%', pos: true },
+    { market: 'Wind Forward', size: formatZAR(280000000), pnl: formatZAR(14500000), pnlPct: '+5.2%', pos: true },
+    { market: 'Gas Spot', size: formatZAR(150000000), pnl: '-' + formatZAR(8200000), pnlPct: '-5.5%', pos: false },
+    { market: 'Carbon Credits', size: formatZAR(310000000), pnl: formatZAR(21000000), pnlPct: '+6.8%', pos: true },
+    { market: 'Battery Storage', size: formatZAR(190000000), pnl: formatZAR(4800000), pnlPct: '+2.5%', pos: true },
   ];
   const riskVal = summary ? Math.min(99, 60 + Math.min((summary.my_open_orders || 0) * 5, 30)) : 72;
   return (
@@ -169,7 +170,7 @@ function TraderDashboard({ summary, isDark, config }: { summary: DashboardSummar
               <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
               <XAxis dataKey="day" tick={axisTick(isDark)} axisLine={false} tickLine={false} />
               <YAxis tick={axisTick(isDark)} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => `${v >= 0 ? '+' : ''}${(v / 1000).toFixed(0)}K`} />
-              <Tooltip contentStyle={tooltipStyle(isDark)} formatter={(v: number) => [`R${(v / 1000).toFixed(0)}K`, 'P&L']} />
+              <Tooltip contentStyle={tooltipStyle(isDark)} formatter={(v: number) => [formatZAR(v * 100), 'P&L']} />
               <Bar dataKey="pnl" radius={[6, 6, 0, 0]}>
                 {pnlData.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? '#10B981' : '#EF4444'} opacity={0.85} />)}
               </Bar>
@@ -179,7 +180,7 @@ function TraderDashboard({ summary, isDark, config }: { summary: DashboardSummar
         <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
           <SemiGauge value={riskVal} label="Portfolio Health" sublabel="Risk-adjusted score" accentHex={config.accentHex} size={180} />
           <div className="mt-4 space-y-2">
-            {[{ l: 'VaR (95%)', v: 'R520K' }, { l: 'Sharpe Ratio', v: '2.15' }, { l: 'Max Drawdown', v: '-3.2%' }].map(m => (
+            {[{ l: 'VaR (95%)', v: formatZAR(52000000) }, { l: 'Sharpe Ratio', v: '2.15' }, { l: 'Max Drawdown', v: '-3.2%' }].map(m => (
               <div key={m.l} className="flex items-center justify-between text-xs"><span className="text-slate-400">{m.l}</span><span className="font-semibold text-slate-700 dark:text-slate-300 mono">{m.v}</span></div>
             ))}
           </div>
@@ -274,7 +275,7 @@ function OfftakerDashboard({ summary, isDark, config }: { summary: DashboardSumm
         <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 500ms both' }}>
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Upcoming Invoices</h3>
           <div className="space-y-2">
-            {[{ from: 'TerraVolt Energy', amount: 'R842,000', due: '15 Apr 2026', st: 'pending' }, { from: 'BevCo Power', amount: 'R1,240,000', due: '20 Apr 2026', st: 'pending' }, { from: 'Carbon Bridge', amount: 'R125,000', due: '30 Apr 2026', st: 'paid' }].map((inv, i) => (
+            {[{ from: 'TerraVolt Energy', amount: formatZAR(84200000), due: '15 Apr 2026', st: 'pending' }, { from: 'BevCo Power', amount: formatZAR(124000000), due: '20 Apr 2026', st: 'pending' }, { from: 'Carbon Bridge', amount: formatZAR(12500000), due: '30 Apr 2026', st: 'paid' }].map((inv, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors">
                 <div><p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{inv.from}</p><p className="text-[11px] text-slate-400">Due: {inv.due}</p></div>
                 <div className="text-right">
@@ -297,10 +298,10 @@ function OfftakerDashboard({ summary, isDark, config }: { summary: DashboardSumm
 /* ---- IPP DEVELOPER DASHBOARD ---- */
 function IPPDashboard({ summary, isDark, config }: { summary: DashboardSummary | null; isDark: boolean; config: ReturnType<typeof getRoleConfig> }) {
   const projects = [
-    { name: 'Limpopo Solar 75MW', done: 3, total: 5, phase: 'Construction', disbursed: 'R62.5M', pct: 60 },
-    { name: 'Northern Cape Wind 120MW', done: 2, total: 5, phase: 'Grid Connection', disbursed: 'R18M', pct: 40 },
-    { name: 'Hybrid Plant 50MW', done: 1, total: 5, phase: 'Land Rights', disbursed: 'R5M', pct: 20 },
-    { name: 'Battery Storage 25MW', done: 0, total: 4, phase: 'Feasibility', disbursed: 'R0', pct: 0 },
+    { name: 'Limpopo Solar 75MW', done: 3, total: 5, phase: 'Construction', disbursed: formatZAR(6250000000), pct: 60 },
+    { name: 'Northern Cape Wind 120MW', done: 2, total: 5, phase: 'Grid Connection', disbursed: formatZAR(1800000000), pct: 40 },
+    { name: 'Hybrid Plant 50MW', done: 1, total: 5, phase: 'Land Rights', disbursed: formatZAR(500000000), pct: 20 },
+    { name: 'Battery Storage 25MW', done: 0, total: 4, phase: 'Feasibility', disbursed: formatZAR(0), pct: 0 },
   ];
   return (
     <>
@@ -511,7 +512,7 @@ function LenderDashboard({ summary, isDark, config }: { summary: DashboardSummar
             <CartesianGrid strokeDasharray="3 3" stroke={gridStroke(isDark)} />
             <XAxis dataKey="month" tick={axisTick(isDark)} axisLine={false} tickLine={false} />
             <YAxis tick={axisTick(isDark)} axisLine={false} tickLine={false} width={35} />
-            <Tooltip contentStyle={tooltipStyle(isDark)} formatter={(v: number) => [`R${v}M`, '']} />
+            <Tooltip contentStyle={tooltipStyle(isDark)} formatter={(v: number) => [formatZAR(v * 100000000), '']} />
             <Area type="monotone" dataKey="exposure" stroke="#3B82F6" strokeWidth={2} fill="url(#expGrad)" />
             <Line type="monotone" dataKey="disbursed" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} />
             <Line type="monotone" dataKey="collected" stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} />
@@ -522,7 +523,7 @@ function LenderDashboard({ summary, isDark, config }: { summary: DashboardSummar
         <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 500ms both' }}>
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Disbursement Requests</h3>
           <div className="space-y-2">
-            {[{ proj: 'Limpopo Solar 75MW', amt: 'R37.5M', ms: 'Equipment Procurement', st: 'approved' }, { proj: 'Northern Cape Wind', amt: 'R42M', ms: 'Foundation Construction', st: 'pending' }, { proj: 'Hybrid Plant', amt: 'R15M', ms: 'Land Acquisition', st: 'pending' }].map((d, i) => (
+            {[{ proj: 'Limpopo Solar 75MW', amt: formatZAR(3750000000), ms: 'Equipment Procurement', st: 'approved' }, { proj: 'Northern Cape Wind', amt: formatZAR(4200000000), ms: 'Foundation Construction', st: 'pending' }, { proj: 'Hybrid Plant', amt: formatZAR(1500000000), ms: 'Land Acquisition', st: 'pending' }].map((d, i) => (
               <div key={i} className={`p-3 rounded-xl ${isDark ? 'bg-white/[0.03]' : 'bg-slate-50'}`}>
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{d.proj}</p>

@@ -323,4 +323,32 @@ export const adminAPI = {
   getRevenue: (params?: Record<string, string>) => api.get('/admin/revenue', { params }),
 };
 
+// Document Vault
+export const vaultAPI = {
+  getDocuments: () => api.get('/vault/documents'),
+  uploadDocument: (data: Record<string, unknown>) => api.post('/vault/documents', data),
+  shareDocument: (id: string, data: { participant_ids: string[]; permission: string }) => api.post(`/vault/documents/${id}/share`, data),
+  getTemplates: () => api.get('/vault/templates'),
+  verifyDocument: (id: string) => api.post(`/vault/verify/${id}`),
+};
+
+// Lender Tools
+export const lenderAPI = {
+  getDashboard: () => api.get('/lender/dashboard'),
+  getDisbursements: () => api.get('/lender/disbursements'),
+  approveDisbursement: (id: string) => api.post(`/lender/disbursements/${id}/approve`),
+  rejectDisbursement: (id: string, data: { reason: string }) => api.post(`/lender/disbursements/${id}/reject`, data),
+  getCovenants: () => api.get('/lender/covenants'),
+  getExposure: () => api.get('/lender/exposure'),
+};
+
+// Surveillance / Regulator Tools
+export const surveillanceAPI = {
+  getAlerts: () => api.get('/surveillance/alerts'),
+  investigateAlert: (id: string) => api.post(`/surveillance/alerts/${id}/investigate`),
+  getKYCDeep: () => api.get('/surveillance/kyc-deep'),
+  getStatutoryReports: () => api.get('/surveillance/statutory-reports'),
+  getRiskMonitor: () => api.get('/surveillance/risk-monitor'),
+};
+
 export default api;

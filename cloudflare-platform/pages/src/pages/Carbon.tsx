@@ -9,6 +9,9 @@ import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Button } from '../components/ui/Button';
 
 const TABS = ['Overview', 'Credits', 'Options', 'TCFD', 'Registry', 'Retirement'] as const;
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -28,6 +31,15 @@ export default function Carbon() {
   const [options, setOptions] = useState<CarbonOption[]>([]);
   const [navData, setNavData] = useState<{ nav: number; units: number } | null>(null);
   const [retiring, setRetiring] = useState<string | null>(null);
+  const [transferTarget, setTransferTarget] = useState<string | null>(null);
+  const [transferTo, setTransferTo] = useState('');
+  const [transferQty, setTransferQty] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [showWriteOption, setShowWriteOption] = useState(false);
+  const [optionForm, setOptionForm] = useState({ type: 'call', strike: '', premium: '', quantity: '', expiry: '' });
+  const [writingOption, setWritingOption] = useState(false);
+  const [exerciseTarget, setExerciseTarget] = useState<string | null>(null);
+  const [exercising, setExercising] = useState(false);
   // F6: TCFD reporting state
   const [tcfdGenerating, setTcfdGenerating] = useState(false);
   // F13: Registry import state
@@ -65,6 +77,39 @@ export default function Carbon() {
     } catch { toast.error('Failed to retire credit'); }
     setRetiring(null);
   };
+  const handleTransfer = async () => {
+    if (!transferTarget || !transferTo.trim() || !transferQty) { toast.error('All fields required'); return; }
+    setTransferring(true);
+    try {
+      const res = await carbonAPI.transferCredit(transferTarget, { to_participant_id: transferTo.trim(), quantity: Number(transferQty) });
+      if (res.data?.success) { toast.success('Credit transferred'); setTransferTarget(null); setTransferTo(''); setTransferQty(''); loadData(); }
+      else toast.error(res.data?.error || 'Transfer failed');
+    } catch { toast.error('Transfer failed'); }
+    setTransferring(false);
+  };
+
+  const handleWriteOption = async () => {
+    if (!optionForm.strike || !optionForm.premium || !optionForm.quantity || !optionForm.expiry) { toast.error('All fields required'); return; }
+    setWritingOption(true);
+    try {
+      const res = await carbonAPI.createOption({ type: optionForm.type, strike_price: Number(optionForm.strike) * 100, premium: Number(optionForm.premium) * 100, quantity: Number(optionForm.quantity), expiry: optionForm.expiry });
+      if (res.data?.success) { toast.success('Option created'); setShowWriteOption(false); setOptionForm({ type: 'call', strike: '', premium: '', quantity: '', expiry: '' }); loadData(); }
+      else toast.error(res.data?.error || 'Failed to create option');
+    } catch { toast.error('Failed to create option'); }
+    setWritingOption(false);
+  };
+
+  const handleExerciseOption = async () => {
+    if (!exerciseTarget) return;
+    setExercising(true);
+    try {
+      const res = await carbonAPI.exerciseOption(exerciseTarget);
+      if (res.data?.success) { toast.success('Option exercised'); setExerciseTarget(null); loadData(); }
+      else toast.error(res.data?.error || 'Exercise failed');
+    } catch { toast.error('Exercise failed'); }
+    setExercising(false);
+  };
+
 
   const totalHoldings = allCredits.reduce((sum, c) => sum + (c.quantity || 0), 0);
   const retiredCredits = allCredits.filter(c => c.status === 'retired');
@@ -82,6 +127,7 @@ export default function Carbon() {
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Carbon</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Credits, offsets, and carbon trading</p>
         </div>
+        <button onClick={() => setShowWriteOption(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Write carbon option"><FiPlus className="w-4 h-4" /> Write Option</button>
         <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh carbon data">
           <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
@@ -303,6 +349,46 @@ export default function Carbon() {
           </div>
         </div>
       )}
+
+      {/* Transfer Credit Modal */}
+      <Modal isOpen={!!transferTarget} onClose={() => setTransferTarget(null)} title="Transfer Carbon Credit">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Recipient Participant ID</label>
+            <input value={transferTo} onChange={e => setTransferTo(e.target.value)} placeholder="Enter participant ID" className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500' : 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400'}`} /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Quantity (tonnes)</label>
+            <input type="number" value={transferQty} onChange={e => setTransferQty(e.target.value)} min="1" className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white' : 'bg-slate-50 border-black/[0.06] text-slate-900'}`} /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setTransferTarget(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleTransfer} loading={transferring} disabled={!transferTo.trim() || !transferQty}>Transfer</Button>
+          </div>
+        </div>
+      </Modal>
+      {/* Write Option Modal */}
+      <Modal isOpen={showWriteOption} onClose={() => setShowWriteOption(false)} title="Write Carbon Option" size="lg">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Type</label>
+              <select value={optionForm.type} onChange={e => setOptionForm(p => ({ ...p, type: e.target.value }))} className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white' : 'bg-slate-50 border-black/[0.06] text-slate-900'}`}>
+                <option value="call">Call</option><option value="put">Put</option>
+              </select></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Strike Price (R/t)</label>
+              <input type="number" value={optionForm.strike} onChange={e => setOptionForm(p => ({ ...p, strike: e.target.value }))} placeholder="0.00" className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500' : 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400'}`} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Premium (R/t)</label>
+              <input type="number" value={optionForm.premium} onChange={e => setOptionForm(p => ({ ...p, premium: e.target.value }))} placeholder="0.00" className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500' : 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400'}`} /></div>
+            <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Quantity (tonnes)</label>
+              <input type="number" value={optionForm.quantity} onChange={e => setOptionForm(p => ({ ...p, quantity: e.target.value }))} placeholder="100" className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500' : 'bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400'}`} /></div>
+          </div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Expiry Date</label>
+            <input type="date" value={optionForm.expiry} onChange={e => setOptionForm(p => ({ ...p, expiry: e.target.value }))} className={`w-full px-3 py-2 rounded-xl text-sm border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white' : 'bg-slate-50 border-black/[0.06] text-slate-900'}`} /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowWriteOption(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleWriteOption} loading={writingOption}>Write Option</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog isOpen={!!exerciseTarget} onClose={() => setExerciseTarget(null)} onConfirm={handleExerciseOption} title="Exercise Option" description="Are you sure you want to exercise this carbon option? This action is irreversible." confirmLabel="Exercise" variant="warning" loading={exercising} />
     </motion.div>
   );
 }

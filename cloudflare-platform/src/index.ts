@@ -28,6 +28,9 @@ import popia from './routes/popia';
 import demand from './routes/demand';
 import subscriptions from './routes/subscriptions';
 import pricing from './routes/pricing';
+import vault from './routes/vault';
+import lender from './routes/lender';
+import surveillance from './routes/surveillance';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -205,6 +208,9 @@ api.route('/popia', popia);
 api.route('/demand', demand);
 api.route('/subscriptions', subscriptions);
 api.route('/pricing', pricing);
+api.route('/vault', vault);
+api.route('/lender', lender);
+api.route('/surveillance', surveillance);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {

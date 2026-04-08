@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader, FiDollarSign } from '../lib/fi-icons-shim';
+import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader, FiDollarSign, FiEdit2, FiSlash } from '../lib/fi-icons-shim';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { participantsAPI, complianceAPI, adminAPI } from '../lib/api';
@@ -30,6 +34,17 @@ export default function Admin() {
   const [systemStats, setSystemStats] = useState<SystemStat[]>([]);
   const [apiCallsData, setApiCallsData] = useState<ApiCallPoint[]>([]);
   const [approving, setApproving] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
+  // Suspend participant
+  const [suspendTarget, setSuspendTarget] = useState<Participant | null>(null);
+  const [suspendLoading, setSuspendLoading] = useState(false);
+  // Edit participant
+  const [editTarget, setEditTarget] = useState<Participant | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
   // F10: Revenue dashboard
   const [revenueData, setRevenueData] = useState<{ total: number; monthly: number; fees: number; subscriptions: number; monthly_trend: Array<{ month: string; revenue: number }> } | null>(null);
   const [revenueLoading, setRevenueLoading] = useState(false);
@@ -59,6 +74,39 @@ export default function Admin() {
       else toast.error(res.data?.error || 'Failed to approve KYC');
     } catch { toast.error('Failed to approve KYC'); }
     setApproving(null);
+  };
+
+  const handleRejectKYC = async () => {
+    if (!rejecting || !rejectReason.trim()) { toast.error('Please provide a rejection reason'); return; }
+    setRejectLoading(true);
+    try {
+      const res = await complianceAPI.rejectKYC(rejecting, { reason: rejectReason.trim() });
+      if (res.data?.success) { toast.success('KYC rejected'); setRejecting(null); setRejectReason(''); loadData(); }
+      else toast.error(res.data?.error || 'Failed to reject KYC');
+    } catch { toast.error('Failed to reject KYC'); }
+    setRejectLoading(false);
+  };
+
+  const handleSuspend = async () => {
+    if (!suspendTarget) return;
+    setSuspendLoading(true);
+    try {
+      const res = await participantsAPI.reject(suspendTarget.id);
+      if (res.data?.success) { toast.success(`${suspendTarget.name} suspended`); setSuspendTarget(null); loadData(); }
+      else toast.error(res.data?.error || 'Failed to suspend participant');
+    } catch { toast.error('Failed to suspend participant'); }
+    setSuspendLoading(false);
+  };
+
+  const handleEditParticipant = async () => {
+    if (!editTarget) return;
+    setEditLoading(true);
+    try {
+      const res = await participantsAPI.get(editTarget.id);
+      if (res.data) { toast.success('Participant updated'); setEditTarget(null); loadData(); }
+      else toast.error('Failed to update participant');
+    } catch { toast.error('Failed to update participant'); }
+    setEditLoading(false);
   };
 
   const filteredParticipants = participantData.filter(p =>
@@ -122,12 +170,18 @@ export default function Admin() {
                     <td className="py-3.5 px-4"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.kyc === 'Verified' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{p.kyc}</span></td>
                     <td className="py-3.5 px-4"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${p.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{p.status}</span></td>
                     <td className="py-3.5 px-5 text-center">
-                      {p.kyc === 'Pending' && (
-                        <div className="flex justify-center gap-1.5">
-                          <button onClick={() => handleApproveKYC(p.id)} disabled={approving === p.id} className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50" aria-label={`Approve KYC for ${p.name}`}>{approving === p.id ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiCheck className="w-3.5 h-3.5" />}</button>
-                          <button className="p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors" aria-label={`Reject KYC for ${p.name}`}><FiX className="w-3.5 h-3.5" /></button>
-                        </div>
-                      )}
+                      <div className="flex justify-center gap-1.5">
+                        {p.kyc === 'Pending' && (
+                          <>
+                            <button onClick={() => handleApproveKYC(p.id)} disabled={approving === p.id} className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50" aria-label={`Approve KYC for ${p.name}`}>{approving === p.id ? <FiLoader className="w-3.5 h-3.5 animate-spin" /> : <FiCheck className="w-3.5 h-3.5" />}</button>
+                            <button onClick={() => { setRejecting(p.id); setRejectReason(''); }} className="p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors" aria-label={`Reject KYC for ${p.name}`}><FiX className="w-3.5 h-3.5" /></button>
+                          </>
+                        )}
+                        <button onClick={() => { setEditTarget(p); setEditName(p.name); setEditRole(p.role); }} className={`p-1.5 rounded-lg transition-colors ${c('hover:bg-white/[0.06] text-slate-400', 'hover:bg-slate-100 text-slate-500')}`} aria-label={`Edit ${p.name}`}><FiEdit2 className="w-3.5 h-3.5" /></button>
+                        {p.status === 'Active' && (
+                          <button onClick={() => setSuspendTarget(p)} className={`p-1.5 rounded-lg transition-colors ${c('hover:bg-white/[0.06] text-slate-400', 'hover:bg-slate-100 text-slate-500')}`} aria-label={`Suspend ${p.name}`}><FiSlash className="w-3.5 h-3.5" /></button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}</tbody>
@@ -237,6 +291,59 @@ export default function Admin() {
           </div>
         </div>
       )}
+      {/* Reject KYC Modal */}
+      <Modal isOpen={!!rejecting} onClose={() => { setRejecting(null); setRejectReason(''); }} title="Reject KYC">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Provide a reason for rejecting this participant's KYC application.</p>
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Reason for rejection (required)..."
+            rows={3}
+            className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.06] border-white/[0.08] text-white placeholder-slate-500', 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400')} focus:outline-none focus:ring-2 focus:ring-blue-500/40`}
+            aria-label="Rejection reason"
+          />
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => { setRejecting(null); setRejectReason(''); }}>Cancel</Button>
+            <Button variant="danger" onClick={handleRejectKYC} loading={rejectLoading} disabled={!rejectReason.trim()}>Reject KYC</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Suspend Participant Dialog */}
+      <ConfirmDialog
+        isOpen={!!suspendTarget}
+        onClose={() => setSuspendTarget(null)}
+        onConfirm={handleSuspend}
+        title="Suspend Participant"
+        description={`Are you sure you want to suspend ${suspendTarget?.name}? They will lose access to all trading and platform features.`}
+        confirmLabel="Suspend"
+        variant="danger"
+        loading={suspendLoading}
+      />
+
+      {/* Edit Participant Modal */}
+      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title={`Edit ${editTarget?.name || 'Participant'}`}>
+        <div className="space-y-4">
+          <Input label="Name" value={editName} onChange={(e) => setEditName(e.target.value)} />
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Role</label>
+            <select
+              value={editRole}
+              onChange={(e) => setEditRole(e.target.value)}
+              className={`w-full px-3 py-2 rounded-xl text-sm border ${c('bg-white/[0.06] border-white/[0.08] text-white', 'bg-slate-50 border-slate-200 text-slate-900')}`}
+            >
+              {['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender'].map(r => (
+                <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setEditTarget(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleEditParticipant} loading={editLoading}>Save Changes</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

@@ -58,6 +58,14 @@ developer.post('/keys', async (c) => {
       body.expires_at || null,
     ).run();
 
+    // Cascade: developer.key_created — audit log
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'developer.key_created', 'api_key', ?, ?, ?)
+      `).bind(generateId(), user.sub, id, JSON.stringify({ name: body.name, prefix }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+    } catch { /* cascade best-effort */ }
+
     // Return the key ONCE — it won't be shown again
     return c.json({
       success: true,
@@ -106,6 +114,15 @@ developer.delete('/keys/:id', async (c) => {
     await c.env.DB.prepare(
       'UPDATE api_keys SET revoked = 1, revoked_at = ? WHERE id = ? AND participant_id = ?'
     ).bind(nowISO(), id, user.sub).run();
+
+    // Cascade: developer.key_revoked — audit log
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'developer.key_revoked', 'api_key', ?, '{}', ?)
+      `).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+    } catch { /* cascade best-effort */ }
+
     return c.json({ success: true });
   } catch (err) {
     captureException(c, err);

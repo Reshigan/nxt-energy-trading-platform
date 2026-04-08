@@ -4,10 +4,14 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Responsive
 import { useTheme } from '../contexts/ThemeContext';
 import { meteringAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Button } from '../components/ui/Button';
 
 interface MeterReading { time: string; solar: number; wind: number; demand: number; }
 interface MonthlyData { month: string; generation: number; consumption: number; }
@@ -18,13 +22,15 @@ export default function Metering() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [loading, setLoading] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [validateTarget, setValidateTarget] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [meterData, setMeterData] = useState<Meter[]>([]);
   const [readingsData, setReadingsData] = useState<MeterReading[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  // F5: CSV upload state
-  const [uploading, setUploading] = useState(false);
-  const [showUpload, setShowUpload] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -41,6 +47,28 @@ export default function Metering() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleUploadReadings = async () => {
+    if (!uploadFile.trim()) { toast.error('Please select a file'); return; }
+    setUploading(true);
+    try {
+      const res = await meteringAPI.ingest({ filename: uploadFile, readings: [] });
+      if (res.data?.success) { toast.success('Readings uploaded'); setShowUpload(false); setUploadFile(''); loadData(); }
+      else toast.error(res.data?.error || 'Upload failed');
+    } catch { toast.error('Upload failed'); }
+    setUploading(false);
+  };
+
+  const handleValidate = async () => {
+    if (!validateTarget) return;
+    setValidating(true);
+    try {
+      const res = await meteringAPI.validate([validateTarget]);
+      if (res.data?.success) { toast.success('Reading validated'); setValidateTarget(null); loadData(); }
+      else toast.error(res.data?.error || 'Validation failed');
+    } catch { toast.error('Validation failed'); }
+    setValidating(false);
+  };
 
   // F5: CSV upload handler
   const handleCSVUpload = async (file: File) => {
@@ -195,6 +223,19 @@ export default function Metering() {
         </div>
       </div>
       </>)}
+
+      <Modal isOpen={showUpload} onClose={() => setShowUpload(false)} title="Upload Meter Readings">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">CSV File Name</label>
+            <input value={uploadFile} onChange={e => setUploadFile(e.target.value)} placeholder="readings-2024-01.csv" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <p className="text-xs text-slate-400">Upload a CSV file with columns: meter_id, timestamp, value_kwh, quality</p>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleUploadReadings} loading={uploading}>Upload</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog isOpen={!!validateTarget} onClose={() => setValidateTarget(null)} onConfirm={handleValidate} title="Validate Reading" description="Confirm that this meter reading has been verified and is accurate." confirmLabel="Validate" variant="info" loading={validating} />
     </motion.div>
   );
 }
