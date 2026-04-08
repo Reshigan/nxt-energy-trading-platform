@@ -53,31 +53,33 @@ app.use('*', async (c, next) => {
     duration_ms: duration,
   }, c.get('requestId'));
 
-  // Phase 5.5: Increment KV-based API analytics counters
-  try {
-    const path = c.req.path;
-    const segments = ['trading', 'carbon', 'contracts', 'settlement', 'compliance', 'marketplace', 'p2p', 'metering', 'ai', 'reports'];
-    const match = segments.find((s) => path.includes(`/${s}`));
-    if (match) {
-      const hour = new Date().toISOString().substring(0, 13);
-      const countKey = `api_count:/${match}:${hour}`;
-      const current = parseInt(await c.env.KV.get(countKey) || '0', 10);
-      await c.env.KV.put(countKey, String(current + 1), { expirationTtl: 86400 });
-      if (c.res.status >= 400) {
-        const errKey = `api_errors:/${match}:${hour}`;
-        const errCount = parseInt(await c.env.KV.get(errKey) || '0', 10);
-        await c.env.KV.put(errKey, String(errCount + 1), { expirationTtl: 86400 });
+  // Phase 5.5: Increment KV-based API analytics counters via waitUntil (non-blocking)
+  const reqPath = c.req.path;
+  const resStatus = c.res.status;
+  const segments = ['trading', 'carbon', 'contracts', 'settlement', 'compliance', 'marketplace', 'p2p', 'metering', 'ai', 'reports'];
+  const matchedSegment = segments.find((s) => reqPath.includes(`/${s}`));
+  if (matchedSegment) {
+    c.executionCtx.waitUntil((async () => {
+      try {
+        const hour = new Date().toISOString().substring(0, 13);
+        const countKey = `api_count:/${matchedSegment}:${hour}`;
+        const current = parseInt(await c.env.KV.get(countKey) || '0', 10);
+        await c.env.KV.put(countKey, String(current + 1), { expirationTtl: 86400 });
+        if (resStatus >= 400) {
+          const errKey = `api_errors:/${matchedSegment}:${hour}`;
+          const errCount = parseInt(await c.env.KV.get(errKey) || '0', 10);
+          await c.env.KV.put(errKey, String(errCount + 1), { expirationTtl: 86400 });
+        }
+        const rtKey = `api_rt:/${matchedSegment}:${hour}`;
+        const rtData = await c.env.KV.get(rtKey);
+        const rt = rtData ? JSON.parse(rtData) : { sum: 0, count: 0 };
+        rt.sum += duration;
+        rt.count += 1;
+        await c.env.KV.put(rtKey, JSON.stringify(rt), { expirationTtl: 86400 });
+      } catch {
+        // Non-critical: don't let analytics failures affect requests
       }
-      // Track avg response time
-      const rtKey = `api_rt:/${match}:${hour}`;
-      const rtData = await c.env.KV.get(rtKey);
-      const rt = rtData ? JSON.parse(rtData) : { sum: 0, count: 0 };
-      rt.sum += duration;
-      rt.count += 1;
-      await c.env.KV.put(rtKey, JSON.stringify(rt), { expirationTtl: 86400 });
-    }
-  } catch {
-    // Non-critical: don't let analytics failures affect requests
+    })());
   }
 });
 

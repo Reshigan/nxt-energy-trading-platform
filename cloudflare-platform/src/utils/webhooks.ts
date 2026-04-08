@@ -13,7 +13,6 @@ interface WebhookPayload {
  */
 export async function deliverWebhook(
   db: D1Database,
-  kv: KVNamespace,
   event: string,
   data: unknown,
 ): Promise<void> {
