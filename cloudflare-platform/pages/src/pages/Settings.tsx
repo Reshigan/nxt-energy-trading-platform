@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2, FiLoader } from 'react-icons/fi';
+import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2, FiLoader, FiSmartphone, FiCreditCard } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
-import { popiaAPI, authAPI } from '../lib/api';
+import { popiaAPI, authAPI, subscriptionsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
 
-const SECTIONS = ['Profile', 'Notifications', 'Appearance', 'API Keys', 'Security', 'Privacy (POPIA)', 'Language'] as const;
+const SECTIONS = ['Profile', 'Notifications', 'Appearance', 'Security', '2FA', 'Billing', 'API Keys', 'Privacy (POPIA)', 'Language'] as const;
 
 export default function Settings() {
   const toast = useToast();
@@ -16,6 +16,15 @@ export default function Settings() {
   const [profileForm, setProfileForm] = useState({ name: '', email: '', company: '', phone: '' });
   const [passwordForm, setPasswordForm] = useState({ current: '', newPw: '' });
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({ 'Trade Confirmations': true, 'Order Fills': true, 'Carbon Retirements': true, 'Contract Updates': true, 'Invoice Reminders': true, 'System Alerts': true, 'Marketing Updates': false });
+  // F7: 2FA state
+  const [twoFAEnabled, setTwoFAEnabled] = useState(false);
+  const [twoFASetup, setTwoFASetup] = useState<{ secret?: string; qr_url?: string } | null>(null);
+  const [twoFACode, setTwoFACode] = useState('');
+  const [enabling2FA, setEnabling2FA] = useState(false);
+  // F11: Billing state
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<{ plan_name?: string; status?: string; billing_cycle?: string; next_billing?: string } | null>(null);
+  const [plans, setPlans] = useState<Array<{ id: string; name: string; price: number; features: string[] }>>([]);
 
   const saveProfile = useCallback(async () => {
     if (!profileForm.name.trim() || !profileForm.email.trim()) { toast.error('Name and email are required'); return; }
@@ -58,7 +67,7 @@ export default function Settings() {
             const icons: Record<string, React.ReactNode> = {
               Profile: <FiUser className="w-4 h-4" />, Notifications: <FiBell className="w-4 h-4" />,
               Appearance: <FiMoon className="w-4 h-4" />, 'API Keys': <FiKey className="w-4 h-4" />,
-              Security: <FiLock className="w-4 h-4" />, 'Privacy (POPIA)': <FiShield className="w-4 h-4" />, Language: <FiGlobe className="w-4 h-4" />,
+              Security: <FiLock className="w-4 h-4" />, '2FA': <FiSmartphone className="w-4 h-4" />, Billing: <FiCreditCard className="w-4 h-4" />, 'Privacy (POPIA)': <FiShield className="w-4 h-4" />, Language: <FiGlobe className="w-4 h-4" />,
             };
             return (
               <button key={s} role="tab" aria-selected={activeSection === s} onClick={() => setActiveSection(s)}
@@ -233,6 +242,126 @@ export default function Settings() {
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-all flex items-center gap-1">
                     <FiTrash2 className="w-3 h-3" /> Request Erasure
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* F7: 2FA Section */}
+          {activeSection === '2FA' && (
+            <div className={`cp-card !p-6 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-2">Two-Factor Authentication</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-5">Add an extra layer of security to your account with TOTP-based 2FA.</p>
+              <div className="space-y-4 max-w-lg">
+                {twoFAEnabled ? (
+                  <div className={`p-4 rounded-xl ${c('bg-emerald-500/10', 'bg-emerald-50')}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <FiShield className="w-5 h-5 text-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">2FA is enabled</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your account is protected with two-factor authentication.</p>
+                    <button onClick={async () => {
+                      const pw = prompt('Enter your password to disable 2FA:');
+                      if (!pw) return;
+                      try {
+                        const res = await authAPI.disable2FA(pw);
+                        if (res.data?.success) { setTwoFAEnabled(false); toast.success('2FA disabled'); }
+                        else toast.error(res.data?.error || 'Failed to disable 2FA');
+                      } catch { toast.error('Failed to disable 2FA'); }
+                    }} className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition-all">
+                      Disable 2FA
+                    </button>
+                  </div>
+                ) : twoFASetup ? (
+                  <div className="space-y-4">
+                    <div className={`p-4 rounded-xl ${c('bg-white/[0.04]', 'bg-slate-50')}`}>
+                      <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-2">Scan this QR code with your authenticator app:</p>
+                      {twoFASetup.qr_url && <img src={twoFASetup.qr_url} alt="2FA QR Code" className="w-48 h-48 mx-auto mb-3 rounded-lg" />}
+                      {twoFASetup.secret && (
+                        <div className="text-center">
+                          <p className="text-xs text-slate-400 mb-1">Or enter this secret manually:</p>
+                          <code className="text-sm font-mono bg-slate-100 dark:bg-white/[0.06] px-3 py-1 rounded select-all">{twoFASetup.secret}</code>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label htmlFor="2fa-code" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Enter verification code</label>
+                      <input id="2fa-code" type="text" maxLength={6} value={twoFACode} onChange={e => setTwoFACode(e.target.value.replace(/\D/g, ''))} placeholder="000000" aria-label="2FA verification code"
+                        className={`w-full px-4 py-2.5 rounded-xl text-sm text-center tracking-[0.3em] font-mono outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400')}`} />
+                    </div>
+                    <button onClick={async () => {
+                      if (twoFACode.length !== 6) { toast.error('Enter a 6-digit code'); return; }
+                      setEnabling2FA(true);
+                      try {
+                        const res = await authAPI.verify2FA(twoFACode);
+                        if (res.data?.success) { setTwoFAEnabled(true); setTwoFASetup(null); setTwoFACode(''); toast.success('2FA enabled successfully'); }
+                        else toast.error(res.data?.error || 'Invalid code');
+                      } catch { toast.error('Failed to verify code'); }
+                      setEnabling2FA(false);
+                    }} disabled={enabling2FA || twoFACode.length !== 6}
+                      className="w-full px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center justify-center gap-2">
+                      {enabling2FA ? <FiLoader className="w-4 h-4 animate-spin" /> : null} Verify & Enable 2FA
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={async () => {
+                    try {
+                      const res = await authAPI.enable2FA();
+                      if (res.data?.data) setTwoFASetup(res.data.data);
+                      else toast.error('Failed to initiate 2FA setup');
+                    } catch { toast.error('Failed to start 2FA setup'); }
+                  }} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
+                    <FiSmartphone className="w-4 h-4" /> Set Up 2FA
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* F11: Billing Section */}
+          {activeSection === 'Billing' && (
+            <div className={`cp-card !p-6 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-5">Billing & Subscription</h3>
+              <div className="space-y-4">
+                {currentPlan ? (
+                  <div className={`p-4 rounded-xl ${c('bg-white/[0.04]', 'bg-slate-50')}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Current Plan: {currentPlan.plan_name}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${currentPlan.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600' : 'bg-slate-100 dark:bg-white/[0.06] text-slate-500'}`}>{currentPlan.status}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Billing cycle: {currentPlan.billing_cycle} | Next billing: {currentPlan.next_billing || 'N/A'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No active subscription. Choose a plan below.</p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(plans.length > 0 ? plans : [
+                    { id: 'starter', name: 'Starter', price: 0, features: ['5 trades/month', 'Basic analytics', 'Email support'] },
+                    { id: 'professional', name: 'Professional', price: 299900, features: ['Unlimited trades', 'Advanced analytics', 'Priority support', 'API access'] },
+                    { id: 'enterprise', name: 'Enterprise', price: 999900, features: ['Everything in Pro', 'Dedicated account manager', 'Custom integrations', 'SLA guarantee'] },
+                  ]).map(plan => (
+                    <div key={plan.id} className={`p-4 rounded-xl border transition-all ${currentPlan?.plan_name === plan.name ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10' : c('border-white/[0.06] bg-white/[0.02]', 'border-black/[0.06] bg-white')}`}>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{plan.name}</h4>
+                      <p className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">{plan.price === 0 ? 'Free' : `R ${(plan.price / 100).toLocaleString('en-ZA')}`}<span className="text-xs font-normal text-slate-400">/mo</span></p>
+                      <ul className="mt-3 space-y-1">
+                        {plan.features.map(f => <li key={f} className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1"><span className="text-emerald-500">&#10003;</span> {f}</li>)}
+                      </ul>
+                      <button onClick={async () => {
+                        setBillingLoading(true);
+                        try {
+                          const res = await subscriptionsAPI.subscribe({ plan_id: plan.id });
+                          if (res.data?.success) { toast.success(`Subscribed to ${plan.name}`); setCurrentPlan({ plan_name: plan.name, status: 'active', billing_cycle: 'monthly' }); }
+                          else toast.error(res.data?.error || 'Failed to subscribe');
+                        } catch { toast.error('Failed to subscribe'); }
+                        setBillingLoading(false);
+                      }} disabled={billingLoading || currentPlan?.plan_name === plan.name}
+                        className={`w-full mt-3 py-2 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 ${
+                          currentPlan?.plan_name === plan.name ? c('bg-white/[0.06] text-slate-400', 'bg-slate-100 text-slate-400') : 'bg-blue-500 text-white hover:bg-blue-600 shadow-lg shadow-blue-500/25'
+                        }`}>
+                        {currentPlan?.plan_name === plan.name ? 'Current Plan' : 'Subscribe'}
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
