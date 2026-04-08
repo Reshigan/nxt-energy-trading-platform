@@ -44,6 +44,7 @@ const Metering = lazy(() => import('./pages/Metering'));
 const P2PTrading = lazy(() => import('./pages/P2PTrading'));
 const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
 const DeveloperPortal = lazy(() => import('./pages/DeveloperPortal'));
+const DemandProfile = lazy(() => import('./pages/DemandProfile'));
 const Landing = lazy(() => import('./pages/Landing'));
 const TermsPage = lazy(() => import('./pages/Terms'));
 const PrivacyPage = lazy(() => import('./pages/Privacy'));
@@ -92,6 +93,7 @@ function App() {
         <Route path="/reports" element={<ReportBuilder />} />
         <Route path="/developer" element={<DeveloperPortal />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/demand" element={<DemandProfile />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
