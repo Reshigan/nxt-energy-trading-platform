@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { FiBell, FiCheck, FiCheckCircle, FiLoader, FiAlertCircle } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiBell, FiCheck, FiCheckCircle } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { notificationsAPI } from '../lib/api';
 import { useNotificationStore } from '../lib/store';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
 interface Notification {
   id: string;
@@ -25,12 +28,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  async function loadNotifications() {
-    setLoading(true);
+  const loadNotifications = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
       const res = await notificationsAPI.list({ limit: '50' });
       const data = res.data?.data || [];
@@ -38,9 +37,14 @@ export default function Notifications() {
       setNotifications(data.map((n: Notification) => ({ id: n.id, title: n.title, body: n.body, type: n.type, read: !!n.read, created_at: n.created_at })));
     } catch {
       setError('Failed to load notifications');
+      toast.error('Failed to load notifications');
     }
     setLoading(false);
-  }
+  }, [setNotifications, toast]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
 
   async function handleMarkRead(id: string) {
     try {
@@ -74,7 +78,7 @@ export default function Notifications() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
+      className="space-y-6" role="main" aria-label="Notifications page">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</h1>
@@ -91,22 +95,15 @@ export default function Notifications() {
       </div>
 
       {loading && (
-        <div className="flex items-center justify-center py-12 text-slate-400">
-          <FiLoader className="w-6 h-6 animate-spin" />
+        <div className="space-y-3" role="status" aria-label="Loading notifications">
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}
         </div>
       )}
 
-      {error && (
-        <div className="flex items-center gap-2 p-4 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-sm">
-          <FiAlertCircle className="w-4 h-4" /> {error}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} onRetry={loadNotifications} />}
 
-      {!loading && items.length === 0 && (
-        <div className="text-center py-16">
-          <FiBell className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
-          <p className="text-slate-500 dark:text-slate-400">No notifications yet</p>
-        </div>
+      {!loading && !error && items.length === 0 && (
+        <EmptyState icon={<FiBell className="w-8 h-8 text-slate-400" />} title="No notifications yet" description="You'll see notifications here when there are updates to your trades, contracts, and account." />
       )}
 
       <div className="space-y-2">
