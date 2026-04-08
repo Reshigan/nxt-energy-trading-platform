@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const projects = new Hono<HonoEnv>();
 
@@ -119,6 +120,22 @@ projects.post('/', authMiddleware({ roles: ['admin', 'ipp'] }), async (c) => {
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // B3: Fire cascade for project creation
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'project.phase_changed',
+      actor_id: user.sub,
+      entity_type: 'project',
+      entity_id: id,
+      data: {
+        party_ids: [user.sub, body.offtaker_id, body.lender_id, body.grid_operator_id].filter(Boolean) as string[],
+        project_name: body.name,
+        new_phase: 'development',
+        project_id: id,
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({ success: true, data: { id } }, 201);
   } catch (err) {
     captureException(c, err);
@@ -204,6 +221,28 @@ projects.patch('/:id/phase', authMiddleware({ roles: ['admin', 'ipp'] }), async 
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // B3: Fire cascade for phase change
+    const partyIds = [
+      project.developer_id as string,
+      project.offtaker_id as string,
+      project.lender_id as string,
+      project.grid_operator_id as string,
+    ].filter(Boolean);
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'project.phase_changed',
+      actor_id: user.sub,
+      entity_type: 'project',
+      entity_id: id,
+      data: {
+        party_ids: partyIds,
+        project_name: project.name as string,
+        new_phase: body.target_phase,
+        project_id: id,
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({ success: true, data: { phase: body.target_phase } });
   } catch (err) {
     captureException(c, err);
@@ -227,6 +266,29 @@ projects.post('/:id/milestones/:milestoneId/complete', authMiddleware(), async (
       'UPDATE milestones SET status = \'completed\', completed_date = ?, completed_by = ? WHERE id = ?'
     ).bind(nowISO(), user.sub, milestoneId).run();
 
+    // B3: Fire cascade for milestone completion
+    const milestoneProject = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
+    const mPartyIds = milestoneProject ? [
+      milestoneProject.developer_id as string,
+      milestoneProject.offtaker_id as string,
+      milestoneProject.lender_id as string,
+      milestoneProject.grid_operator_id as string,
+    ].filter(Boolean) : [user.sub];
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'project.milestone_completed',
+      actor_id: user.sub,
+      entity_type: 'milestone',
+      entity_id: milestoneId,
+      data: {
+        party_ids: mPartyIds,
+        project_name: (milestoneProject?.name as string) || 'Project',
+        milestone_name: milestone.name as string,
+        project_id: id,
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({ success: true, message: 'Milestone completed' });
   } catch (err) {
     captureException(c, err);
@@ -249,6 +311,29 @@ projects.post('/:id/cps/:cpId/satisfy', authMiddleware(), async (c) => {
     await c.env.DB.prepare(
       'UPDATE conditions_precedent SET status = \'satisfied\', satisfied_date = ?, satisfied_by = ? WHERE id = ?'
     ).bind(nowISO(), user.sub, cpId).run();
+
+    // B3: Fire cascade for CP satisfied
+    const cpProject = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
+    const cpPartyIds = cpProject ? [
+      cpProject.developer_id as string,
+      cpProject.offtaker_id as string,
+      cpProject.lender_id as string,
+      cpProject.grid_operator_id as string,
+    ].filter(Boolean) : [user.sub];
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'project.cp_satisfied',
+      actor_id: user.sub,
+      entity_type: 'condition',
+      entity_id: cpId,
+      data: {
+        party_ids: cpPartyIds,
+        project_name: (cpProject?.name as string) || 'Project',
+        cp_name: cp.description as string,
+        project_id: id,
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, message: 'CP satisfied' });
   } catch (err) {
@@ -329,6 +414,24 @@ projects.post('/:id/disbursements/:disbursementId/approve', authMiddleware({ rol
     await c.env.DB.prepare(
       'UPDATE disbursements SET lender_approval = 1, lender_approved_by = ?, lender_approved_at = ?, status = \'approved\' WHERE id = ?'
     ).bind(user.sub, nowISO(), disbursementId).run();
+
+    // B3: Fire cascade for disbursement approved
+    const disbProject = await c.env.DB.prepare(
+      'SELECT p.developer_id, p.name FROM projects p JOIN disbursements d ON d.project_id = p.id WHERE d.id = ?'
+    ).bind(disbursementId).first<{ developer_id: string; name: string }>();
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'disbursement.approved',
+      actor_id: user.sub,
+      entity_type: 'disbursement',
+      entity_id: disbursementId,
+      data: {
+        ipp_id: disbProject?.developer_id || '',
+        amount_cents: d.amount_cents,
+        project_name: disbProject?.name || 'Project',
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, message: 'Disbursement approved' });
   } catch (err) {

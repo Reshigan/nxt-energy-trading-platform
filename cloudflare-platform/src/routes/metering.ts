@@ -4,6 +4,7 @@ import { authMiddleware } from '../auth/middleware';
 import { generateId } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const metering = new Hono<HonoEnv>();
 
@@ -66,24 +67,58 @@ metering.post('/ingest', async (c) => {
 
     await c.env.DB.batch(batch);
 
-    // Trigger smart contract rules (metering_trigger)
+    // B5: Enhanced smart contract action execution
+    const totalKwh = body.readings.reduce((s, r) => s + r.value_kwh, 0);
     try {
       const doId = c.env.SMART_CONTRACT.idFromName(body.project_id);
       const stub = c.env.SMART_CONTRACT.get(doId);
-      await stub.fetch(new Request('https://do/evaluate', {
+      const scResponse = await stub.fetch(new Request('https://do/evaluate', {
         method: 'POST',
         body: JSON.stringify({
           event_type: 'meter_reading',
           data: {
             project_id: body.project_id,
             readings_count: body.readings.length,
-            total_kwh: body.readings.reduce((s, r) => s + r.value_kwh, 0),
+            total_kwh: totalKwh,
+            source: body.source,
+            timestamp: new Date().toISOString(),
           },
         }),
       }));
+
+      // If smart contract triggers auto-invoice, record it
+      if (scResponse.ok) {
+        const scResult = await scResponse.json().catch(() => null) as { action?: string; invoice_id?: string } | null;
+        if (scResult?.action === 'auto_invoice') {
+          // Record the auto-invoice action in audit
+          await c.env.DB.prepare(
+            `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, 'system', 'smart_contract_auto_invoice', 'meter_reading', ?, ?, ?)`
+          ).bind(
+            generateId(), body.project_id,
+            JSON.stringify({ total_kwh: totalKwh, invoice_id: scResult.invoice_id }),
+            c.req.header('CF-Connecting-IP') || 'unknown'
+          ).run();
+        }
+      }
     } catch {
       // Non-critical: smart contract evaluation failure shouldn't block ingestion
     }
+
+    // B3/B5: Fire cascade for meter ingestion
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'meter.ingested',
+      actor_id: 'system',
+      entity_type: 'meter_reading',
+      entity_id: body.project_id,
+      data: {
+        project_id: body.project_id,
+        readings_count: body.readings.length,
+        total_kwh: totalKwh,
+        source: body.source,
+        contract_id: body.project_id,
+      },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+    }));
 
     return c.json({
       success: true,
@@ -91,6 +126,7 @@ metering.post('/ingest', async (c) => {
         ingested: body.readings.length,
         source: body.source,
         project_id: body.project_id,
+        total_kwh: totalKwh,
       },
     });
   } catch (err) {
