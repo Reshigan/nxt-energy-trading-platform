@@ -144,6 +144,11 @@ pricing.get('/offtaker/:id', async (c) => {
     const user = c.get('user');
     const participantId = id === 'me' ? user.sub : id;
 
+    // Authorization: users can only view their own data unless admin
+    if (participantId !== user.sub && user.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+
     // Look up participant — use SELECT * to avoid column-not-found errors on deployed D1
     const participant = await c.env.DB.prepare(
       'SELECT * FROM participants WHERE id = ?'
