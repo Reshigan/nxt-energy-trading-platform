@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const reports = new Hono<HonoEnv>();
 reports.use('*', authMiddleware());
@@ -38,6 +39,7 @@ reports.post('/', async (c) => {
 
     return c.json({ success: true, data: { id, name: body.name } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -51,6 +53,7 @@ reports.get('/', async (c) => {
     ).bind(user.sub).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -66,6 +69,7 @@ reports.get('/:id', async (c) => {
     if (!report) return c.json({ success: false, error: 'Report not found' }, 404);
     return c.json({ success: true, data: report });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -171,6 +175,7 @@ reports.post('/:id/generate', async (c) => {
 
     return c.json({ success: true, data: { report_id: id, report_type: reportType, generated_at: nowISO(), data } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -185,6 +190,7 @@ reports.delete('/:id', async (c) => {
     ).bind(id, user.sub).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

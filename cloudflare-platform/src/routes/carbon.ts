@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth/middleware';
 import { CreditRetireSchema, CreditTransferSchema, OptionCreateSchema } from '../utils/validation';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const carbon = new Hono<HonoEnv>();
 
@@ -37,6 +38,7 @@ carbon.get('/credits', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -88,6 +90,7 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { retired_quantity: quantity, remaining: newAvailable } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -155,6 +158,7 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { transferred_quantity: quantity, to: to_participant_id } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -192,6 +196,7 @@ carbon.post('/credits/:id/list', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { listing_id: listingId } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -217,6 +222,7 @@ carbon.get('/options', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -273,6 +279,7 @@ carbon.post('/options', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
 
     return c.json({ success: true, data: { id: optionId, escrow_id: escrowId } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -352,6 +359,7 @@ carbon.post('/options/:id/exercise', authMiddleware(), async (c) => {
       data: { exercised: true, intrinsic_value_cents: intrinsicValue, settlement_type: option.settlement_type },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -393,6 +401,7 @@ carbon.get('/fund/nav', authMiddleware({ roles: ['admin', 'carbon_fund'] }), asy
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -412,6 +421,7 @@ carbon.post('/registry/sync/:registry', authMiddleware({ roles: ['admin'] }), as
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

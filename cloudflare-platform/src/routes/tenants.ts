@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const tenants = new Hono<HonoEnv>();
 
@@ -38,6 +39,7 @@ tenants.post('/', authMiddleware({ roles: ['admin'] }), async (c) => {
 
     return c.json({ success: true, data: { id, subdomain: body.subdomain, url: `https://${body.subdomain}.et.vantax.co.za` } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -50,6 +52,7 @@ tenants.get('/', authMiddleware({ roles: ['admin'] }), async (c) => {
     ).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -62,6 +65,7 @@ tenants.get('/:id', authMiddleware(), async (c) => {
     if (!tenant) return c.json({ success: false, error: 'Tenant not found' }, 404);
     return c.json({ success: true, data: tenant });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -82,6 +86,7 @@ tenants.get('/resolve/:subdomain', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -121,6 +126,7 @@ tenants.patch('/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
 
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -143,6 +149,7 @@ tenants.post('/:id/logo', authMiddleware({ roles: ['admin'] }), async (c) => {
 
     return c.json({ success: true, data: { r2_key: r2Key } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -156,6 +163,7 @@ tenants.delete('/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
     ).bind(nowISO(), id).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

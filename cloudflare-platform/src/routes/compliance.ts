@@ -4,6 +4,7 @@ import { generateId, nowISO } from '../utils/id';
 import { authMiddleware } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const compliance = new Hono<HonoEnv>();
 
@@ -38,6 +39,7 @@ compliance.get('/kyc', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -59,6 +61,7 @@ compliance.post('/kyc/:id/verify', authMiddleware({ roles: ['admin'] }), async (
 
     return c.json({ success: true, message: 'KYC document verified' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -89,6 +92,7 @@ compliance.get('/licences', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -121,6 +125,7 @@ compliance.get('/statutory', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -154,6 +159,7 @@ compliance.post('/statutory/:id/override', authMiddleware({ roles: ['admin'] }),
 
     return c.json({ success: true, message: 'Statutory check overridden' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -205,6 +211,7 @@ compliance.post('/statutory/:id/review', authMiddleware({ roles: ['admin'] }), a
 
     return c.json({ success: true, message: `Statutory check ${body.decision === 'pass' ? 'approved' : 'rejected'}` });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -237,6 +244,7 @@ compliance.post('/statutory/:id/evidence', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Evidence uploaded' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -270,6 +278,7 @@ compliance.get('/audit', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -286,6 +295,7 @@ compliance.get('/reports', authMiddleware({ roles: ['admin'] }), async (c) => {
       ],
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
