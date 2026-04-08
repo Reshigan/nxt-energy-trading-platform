@@ -322,7 +322,7 @@ demand.post('/profiles/:id/express-interest', authMiddleware({ roles: ['admin', 
     const offtaker = await c.env.DB.prepare('SELECT company_name FROM participants WHERE id = ?').bind(user.sub).first<{ company_name: string }>();
 
     // Update match status
-    await c.env.DB.prepare("UPDATE demand_matches SET status = 'interested', updated_at = datetime('now') WHERE id = ?").bind(body.match_id).run();
+    await c.env.DB.prepare("UPDATE demand_matches SET status = 'interested' WHERE id = ?").bind(body.match_id).run();
 
     // Auto-create LOI document
     const loiId = generateId();
