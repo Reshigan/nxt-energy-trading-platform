@@ -211,6 +211,18 @@ reports.post('/:id/generate', async (c) => {
       'UPDATE report_definitions SET last_generated_at = ? WHERE id = ?'
     ).bind(nowISO(), id).run();
 
+    // Cascade: report.generated — notify user + audit
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Report Generated', ?, 'success', 'report', ?)
+      `).bind(generateId(), user.sub, `Your ${reportType} report has been generated.`, id).run();
+      await c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'report.generated', 'report', ?, ?, ?)
+      `).bind(generateId(), user.sub, id, JSON.stringify({ report_type: reportType }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+    } catch { /* cascade best-effort */ }
+
     return c.json({ success: true, data: { report_id: id, report_type: reportType, generated_at: nowISO(), data } });
   } catch (err) {
     captureException(c, err);

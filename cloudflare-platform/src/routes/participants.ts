@@ -138,6 +138,14 @@ participants.patch('/:id', authMiddleware(), async (c) => {
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // Cascade: participant.updated
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Profile Updated', 'Your participant profile has been updated.', 'info', 'participant', ?)
+      `).bind(generateId(), id, id).run();
+    } catch { /* cascade best-effort */ }
+
     return c.json({ success: true, message: 'Participant updated' });
   } catch (err) {
     captureException(c, err);
@@ -174,6 +182,17 @@ participants.post('/:id/suspend', authMiddleware({ roles: ['admin'] }), async (c
       INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
       VALUES (?, ?, 'Account Suspended', ?, 'danger', 'participant', ?)
     `).bind(generateId(), id, `Your account has been suspended: ${body.reason}`, id).run();
+
+    // Cascade: participant.suspended — notify admins
+    try {
+      const admins = await c.env.DB.prepare("SELECT id FROM participants WHERE role = 'admin' AND id != ?").bind(user.sub).all();
+      for (const a of admins.results) {
+        await c.env.DB.prepare(`
+          INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+          VALUES (?, ?, 'Participant Suspended', ?, 'warning', 'participant', ?)
+        `).bind(generateId(), a.id as string, `Participant ${id} has been suspended: ${body.reason}`, id).run();
+      }
+    } catch { /* cascade best-effort */ }
 
     return c.json({ success: true, message: 'Participant suspended' });
   } catch (err) {
