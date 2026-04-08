@@ -56,12 +56,10 @@ contracts.post('/documents', authMiddleware(), async (c) => {
 
     await c.env.DB.prepare(`
       INSERT INTO contract_documents (id, title, document_type, phase, creator_id, counterparty_id,
-        governing_law, jurisdiction, commercial_terms, template_id, version)
-      VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, 'v1.0')
+        commercial_terms, template_id, version)
+      VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, 'v1.0')
     `).bind(
       id, data.title, data.document_type, user.sub, counterpartyId,
-      data.governing_law || 'South Africa',
-      data.jurisdiction || 'Gauteng Division, High Court of South Africa',
       data.commercial_terms ? JSON.stringify(data.commercial_terms) : null,
       data.template_id || null
     ).run();
