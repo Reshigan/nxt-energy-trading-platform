@@ -1,39 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { FiShield, FiAlertTriangle, FiTrendingDown } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiShield, FiAlertTriangle, FiTrendingDown, FiRefreshCw } from 'react-icons/fi';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { aiAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { formatZAR } from '../lib/format';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const exposureData = [
-  { name: 'Eskom', exposure: 4200, limit: 5000 },
-  { name: 'BevCo', exposure: 2800, limit: 4000 },
-  { name: 'TerraVolt', exposure: 1900, limit: 3000 },
-  { name: 'GreenFund', exposure: 1200, limit: 2500 },
-  { name: 'Carbon Bridge', exposure: 800, limit: 2000 },
-];
-
-const drawdownData = Array.from({ length: 30 }, (_, i) => ({
-  day: i + 1,
-  drawdown: -(2 + (i % 5) * 0.8 + (i > 15 && i < 22 ? 5 : 0)),
-}));
-
-const stressScenarios = [
-  { name: 'Load Shedding Stage 6', impact: '-R2.4M', probability: '15%', severity: 'High' },
-  { name: 'Carbon Tax +50%', impact: '+R1.8M', probability: '20%', severity: 'Medium' },
-  { name: 'Rand Devaluation 20%', impact: '-R3.1M', probability: '10%', severity: 'Critical' },
-  { name: 'Solar Oversupply', impact: '-R890K', probability: '35%', severity: 'Low' },
-  { name: 'NERSA Tariff Freeze', impact: '-R1.2M', probability: '25%', severity: 'Medium' },
-];
-
-const greeks = [
-  { name: 'Delta', value: '0.65', desc: 'Portfolio sensitivity to price', change: '+0.03' },
-  { name: 'Gamma', value: '0.12', desc: 'Rate of delta change', change: '-0.01' },
-  { name: 'Theta', value: '-R42K/day', desc: 'Time decay exposure', change: '-R3K' },
-  { name: 'Vega', value: 'R180K/1%', desc: 'Volatility sensitivity', change: '+R12K' },
-];
+interface ExposureEntry { name: string; exposure: number; limit: number; }
+interface DrawdownPoint { day: number; drawdown: number; }
+interface StressScenario { name: string; impact: string; probability: string; severity: string; }
+interface Greek { name: string; value: string; desc: string; change: string; }
+interface VaRMetric { label: string; value: number; sub: string; }
 
 const severityColors: Record<string, string> = {
   Critical: 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400',
@@ -47,48 +29,58 @@ export default function RiskDashboard() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const { user } = useAuthStore();
-  const [riskMetrics, setRiskMetrics] = useState(greeks);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [riskMetrics, setRiskMetrics] = useState<Greek[]>([]);
+  const [exposureData, setExposureData] = useState<ExposureEntry[]>([]);
+  const [drawdownData, setDrawdownData] = useState<DrawdownPoint[]>([]);
+  const [stressScenarios, setStressScenarios] = useState<StressScenario[]>([]);
+  const [varMetrics, setVarMetrics] = useState<VaRMetric[]>([]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const pid = user?.id || 'default';
-        const res = await aiAPI.risk(pid);
-        if (res.data?.data?.greeks?.length) setRiskMetrics(res.data.data.greeks);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const pid = user?.id || 'default';
+      const res = await aiAPI.risk(pid);
+      const d = res.data?.data;
+      if (d?.greeks) setRiskMetrics(d.greeks);
+      if (d?.exposure) setExposureData(d.exposure);
+      if (d?.drawdown) setDrawdownData(d.drawdown);
+      if (d?.stress_scenarios) setStressScenarios(d.stress_scenarios);
+      if (d?.var_metrics) setVarMetrics(d.var_metrics);
+    } catch { setError('Failed to load risk data.'); }
+    setLoading(false);
   }, [user]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Risk Dashboard page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Risk Dashboard</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">VaR, Greeks, stress tests & exposure monitoring</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 transition-all flex items-center gap-2" aria-label="Alert Triangle">
-          <FiAlertTriangle className="w-4 h-4" /> Run Stress Test
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-red-500 text-white shadow-lg shadow-red-500/25 hover:bg-red-600 transition-all flex items-center gap-2" aria-label="Refresh risk data">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
       </div>
 
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {loading ? (<div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />)}</div>) : (<>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {[
-          { label: 'Value at Risk (95%)', value: '-R1.24M', sub: '1-day holding period', icon: FiShield, color: 'text-blue-500' },
-          { label: 'Value at Risk (99%)', value: '-R2.18M', sub: '1-day holding period', icon: FiShield, color: 'text-purple-500' },
-          { label: 'Conditional VaR', value: '-R3.42M', sub: 'Expected shortfall beyond VaR', icon: FiTrendingDown, color: 'text-orange-500' },
-        ].map((v, i) => (
+        {varMetrics.length > 0 ? varMetrics.map((v, i) => (
           <div key={v.label} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 500ms ease ${100 + i * 60}ms both` }}>
-            <div className="flex items-center gap-2 mb-3"><v.icon className={`w-4 h-4 ${v.color}`} /><span className="text-xs text-slate-400">{v.label}</span></div>
-            <p className="text-2xl font-bold text-red-500 mono">{v.value}</p>
+            <div className="flex items-center gap-2 mb-3"><FiShield className="w-4 h-4 text-blue-500" aria-hidden="true" /><span className="text-xs text-slate-400">{v.label}</span></div>
+            <p className="text-2xl font-bold text-red-500 mono">{formatZAR(v.value)}</p>
             <p className="text-xs text-slate-400 mt-1">{v.sub}</p>
           </div>
-        ))}
+        )) : <div className="col-span-full"><EmptyState title="No VaR data" description="Risk metrics will appear once positions are established." /></div>}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
@@ -154,6 +146,7 @@ export default function RiskDashboard() {
           </table>
         </div>
       </div>
+      </>)}
     </motion.div>
   );
 }
