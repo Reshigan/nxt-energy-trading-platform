@@ -25,7 +25,7 @@ export default function Trading() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [obData, setObData] = useState<{ bids: OrderBookEntry[]; asks: OrderBookEntry[] }>({ bids: [], asks: [] });
   const [priceData, setPriceData] = useState<PricePoint[]>([]);
-  const [selectedMarket, setSelectedMarket] = useState('solar_ppa');
+  const [selectedMarket, setSelectedMarket] = useState('solar');
   const [selectedTimeframe, setSelectedTimeframe] = useState('1D');
   const [orderType, setOrderType] = useState<'limit' | 'market'>('limit');
   const [orderSide, setOrderSide] = useState<'buy' | 'sell'>('buy');
