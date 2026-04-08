@@ -21,7 +21,9 @@ export default function Settings() {
     if (!profileForm.name.trim() || !profileForm.email.trim()) { toast.error('Name and email are required'); return; }
     setSaving(true);
     try {
-      toast.success('Profile updated');
+      const res = await authAPI.updateProfile({ name: profileForm.name, email: profileForm.email, company_name: profileForm.company, phone: profileForm.phone });
+      if (res.data?.success) toast.success('Profile updated');
+      else toast.error(res.data?.error || 'Failed to save profile');
     } catch { toast.error('Failed to save profile'); }
     setSaving(false);
   }, [profileForm, toast]);
@@ -31,7 +33,9 @@ export default function Settings() {
     if (passwordForm.newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     setSaving(true);
     try {
-      toast.success('Password changed');
+      const res = await authAPI.changePassword({ current_password: passwordForm.current, new_password: passwordForm.newPw });
+      if (res.data?.success) toast.success('Password changed');
+      else toast.error(res.data?.error || 'Failed to change password');
     } catch { toast.error('Failed to change password'); }
     setSaving(false);
     setPasswordForm({ current: '', newPw: '' });

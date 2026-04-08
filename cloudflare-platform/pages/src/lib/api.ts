@@ -40,6 +40,8 @@ export const authAPI = {
   me: () => api.get('/register/me'),
   refresh: (refreshToken: string) => api.post('/auth/refresh', { refreshToken }),
   logout: () => api.post('/auth/logout'),
+  updateProfile: (data: Record<string, unknown>) => api.patch('/register/me', data),
+  changePassword: (data: { current_password: string; new_password: string }) => api.post('/register/me/password', data),
 };
 
 // Dashboard
@@ -130,6 +132,7 @@ export const settlementAPI = {
   getDisputes: (params?: Record<string, string>) => api.get('/settlement/disputes', { params }),
   fileDispute: (data: Record<string, unknown>) => api.post('/settlement/disputes', data),
   updateDisputeStatus: (id: string, data: Record<string, unknown>) => api.patch(`/settlement/disputes/${id}/status`, data),
+  getNetting: (data: { period_start: string; period_end: string; execute?: boolean }) => api.post('/settlement/netting', data),
 };
 
 // Compliance

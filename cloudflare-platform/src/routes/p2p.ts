@@ -22,6 +22,14 @@ p2p.post('/offers', async (c) => {
       expires_at?: string;
     };
 
+    // B1: KYC gates trading — reject unverified users
+    const participant = await c.env.DB.prepare(
+      'SELECT kyc_status, trading_enabled FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{ kyc_status: string; trading_enabled: number }>();
+    if (!participant || participant.kyc_status !== 'verified' || participant.trading_enabled !== 1) {
+      return c.json({ success: false, error: 'KYC verification required before trading' }, 403);
+    }
+
     // Validate volume limits: min 10 kWh
     if (body.volume_kwh < 10) {
       return c.json({ success: false, error: 'Minimum volume is 10 kWh' }, 400);
