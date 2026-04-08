@@ -99,6 +99,8 @@ export const contractsAPI = {
   coolingOff: (id: string) => api.post(`/contracts/documents/${id}/cooling-off`),
   request2FA: (id: string) => api.post(`/contracts/documents/${id}/request-2fa`),
   verify2FA: (id: string, otp: string) => api.post(`/contracts/documents/${id}/verify-2fa`, { otp }),
+  uploadAttachment: (id: string, data: FormData) => api.post(`/contracts/documents/${id}/attachments`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  getAttachments: (id: string) => api.get(`/contracts/documents/${id}/attachments`),
 };
 
 // POPIA Compliance
