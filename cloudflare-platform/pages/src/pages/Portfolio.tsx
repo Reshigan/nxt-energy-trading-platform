@@ -80,7 +80,13 @@ export default function Portfolio() {
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
-      {loading ? (<div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />)}</div>) : (<>
+      {loading ? (<div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />)}</div>) : !scenarioData.length && !allocationData.length && !radarData.length && !forecastData.length && portfolioValue === 0 ? (
+        <div className={`cp-card !p-12 text-center ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+          <FiCpu className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">No portfolio data yet</h3>
+          <p className="text-sm text-slate-400 mt-1">Use the AI Assistant below to start optimising your portfolio.</p>
+        </div>
+      ) : (<>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         {[
           { label: 'Portfolio Value', value: portfolioValue > 0 ? formatZAR(portfolioValue) : '--', icon: FiTrendingUp },

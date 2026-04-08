@@ -49,6 +49,11 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'settlement:metering', 'participants:view', 'compliance:view',
     'marketplace:view',
   ],
+  regulator: [
+    'trading:view', 'contracts:view', 'ipp:view', 'carbon:view',
+    'settlement:view', 'participants:view', 'compliance:manage',
+    'marketplace:view',
+  ],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {

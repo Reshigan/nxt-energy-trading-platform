@@ -127,6 +127,14 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!loading && !summary && (
+        <div className={`cp-card !p-12 text-center ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`}>
+          <FiTrendingUp className="w-10 h-10 mx-auto text-slate-400 mb-3" />
+          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300">No dashboard data yet</h3>
+          <p className="text-sm text-slate-400 mt-1">Get started by creating trades, contracts, or carbon credits.</p>
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1 space-y-6">
