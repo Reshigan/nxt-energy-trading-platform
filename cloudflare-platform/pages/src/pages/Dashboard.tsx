@@ -241,9 +241,9 @@ export default function Dashboard() {
         <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 800ms both' }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Recent Transfers</h3>
-            <button className="flex items-center gap-1 text-xs font-medium text-blue-500 hover:text-blue-600 transition-colors">
+            <a href="/settlement" className="flex items-center gap-1 text-xs font-medium text-blue-500 hover:text-blue-600 transition-colors">
               View all <FiArrowRight className="w-3 h-3" />
-            </button>
+            </a>
           </div>
           <TransfersList />
         </div>

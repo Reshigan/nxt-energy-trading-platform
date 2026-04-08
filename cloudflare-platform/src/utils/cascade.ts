@@ -558,6 +558,24 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
     },
   ],
 
+  // ── Registration ────────────────────────────────────────────────────────
+
+  'participant.registered': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { participant_id, company_name } = event.data;
+        await notifyParticipant(env.DB, participant_id as string, 'Welcome to NXT Energy', `Registration successful for ${company_name}. Your KYC verification is in progress.`, 'info', 'participant', event.entity_id);
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'participant.registered', event.data);
+      },
+    },
+  ],
+
   // ── KYC / Compliance ─────────────────────────────────────────────────────
 
   'kyc.approved': [

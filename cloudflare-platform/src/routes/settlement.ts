@@ -490,4 +490,132 @@ settlement.patch('/disputes/:id/status', authMiddleware({ roles: ['admin'] }), a
   }
 });
 
+// B7: POST /settlement/netting — Calculate and execute settlement netting
+settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as { period_start: string; period_end: string; execute?: boolean };
+
+    if (!body.period_start || !body.period_end) {
+      return c.json({ success: false, error: 'period_start and period_end are required' }, 400);
+    }
+
+    // Get all settled trades in the period
+    const trades = await c.env.DB.prepare(`
+      SELECT t.*
+      FROM trades t
+      WHERE t.created_at >= ? AND t.created_at <= ? AND t.status = 'settled'
+    `).bind(body.period_start, body.period_end).all();
+
+    // Get all outstanding/overdue invoices in the period
+    const invoices = await c.env.DB.prepare(`
+      SELECT * FROM invoices WHERE created_at >= ? AND created_at <= ? AND status IN ('outstanding', 'overdue')
+    `).bind(body.period_start, body.period_end).all();
+
+    // Calculate net positions per participant
+    const netPositions: Record<string, { receivable_cents: number; payable_cents: number; net_cents: number; trade_count: number }> = {};
+
+    for (const trade of trades.results) {
+      const buyerId = trade.buyer_id as string;
+      const sellerId = trade.seller_id as string;
+      const totalCents = trade.total_cents as number;
+
+      if (!netPositions[buyerId]) netPositions[buyerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
+      if (!netPositions[sellerId]) netPositions[sellerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
+
+      netPositions[buyerId].payable_cents += totalCents;
+      netPositions[buyerId].trade_count += 1;
+      netPositions[sellerId].receivable_cents += totalCents;
+      netPositions[sellerId].trade_count += 1;
+    }
+
+    // Add invoice amounts
+    for (const inv of invoices.results) {
+      const payerId = inv.to_participant_id as string;
+      const payeeId = inv.from_participant_id as string;
+      const amount = inv.total_cents as number;
+
+      if (!netPositions[payerId]) netPositions[payerId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
+      if (!netPositions[payeeId]) netPositions[payeeId] = { receivable_cents: 0, payable_cents: 0, net_cents: 0, trade_count: 0 };
+
+      netPositions[payerId].payable_cents += amount;
+      netPositions[payeeId].receivable_cents += amount;
+    }
+
+    // Calculate net for each participant
+    const nettingResults: Array<{ participant_id: string; receivable_cents: number; payable_cents: number; net_cents: number; trade_count: number }> = [];
+    let totalGrossPayable = 0;
+    let totalNetPayable = 0;
+
+    for (const [pid, pos] of Object.entries(netPositions)) {
+      pos.net_cents = pos.receivable_cents - pos.payable_cents;
+      totalGrossPayable += pos.payable_cents;
+      totalNetPayable += Math.abs(pos.net_cents);
+      nettingResults.push({ participant_id: pid, ...pos });
+    }
+
+    const nettingId = generateId();
+    const savingsPercent = totalGrossPayable > 0 ? Math.round((1 - totalNetPayable / totalGrossPayable / 2) * 10000) / 100 : 0;
+
+    // Execute netting if requested
+    if (body.execute) {
+      // Record netting run
+      await c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'settlement_netting', 'netting', ?, ?, ?)
+      `).bind(
+        generateId(), user.sub, nettingId,
+        JSON.stringify({
+          period_start: body.period_start,
+          period_end: body.period_end,
+          participants: nettingResults.length,
+          total_gross: totalGrossPayable,
+          total_net: totalNetPayable,
+          savings_percent: savingsPercent,
+        }),
+        c.req.header('CF-Connecting-IP') || 'unknown'
+      ).run();
+
+      // Record net position per participant in audit (no balance_cents column exists)
+      for (const result of nettingResults) {
+        if (result.net_cents !== 0) {
+          await c.env.DB.prepare(
+            `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+             VALUES (?, ?, 'netting_position', 'participant', ?, ?, ?)`
+          ).bind(
+            generateId(), user.sub, result.participant_id,
+            JSON.stringify({ net_cents: result.net_cents, receivable: result.receivable_cents, payable: result.payable_cents }),
+            c.req.header('CF-Connecting-IP') || 'unknown'
+          ).run();
+        }
+      }
+
+      // Mark invoices as paid
+      await c.env.DB.prepare(
+        "UPDATE invoices SET status = 'paid', paid_at = ? WHERE created_at >= ? AND created_at <= ? AND status IN ('outstanding', 'overdue')"
+      ).bind(nowISO(), body.period_start, body.period_end).run();
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        netting_id: nettingId,
+        period: { start: body.period_start, end: body.period_end },
+        participants: nettingResults.sort((a, b) => b.net_cents - a.net_cents),
+        summary: {
+          total_trades: trades.results.length,
+          total_invoices: invoices.results.length,
+          total_gross_payable_cents: totalGrossPayable,
+          total_net_payable_cents: totalNetPayable,
+          netting_savings_percent: savingsPercent,
+          executed: !!body.execute,
+        },
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default settlement;
