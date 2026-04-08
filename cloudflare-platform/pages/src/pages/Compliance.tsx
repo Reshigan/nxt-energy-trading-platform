@@ -1,48 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText, FiRefreshCw } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { complianceAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const tabs = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'];
+const TABS = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'] as const;
 
-const kycDocs = [
-  { name: 'CIPC Registration', status: 'Verified', date: '2024-01-15', score: 100 },
-  { name: 'SARS Tax Clearance', status: 'Verified', date: '2024-02-10', score: 100 },
-  { name: 'VAT Registration', status: 'Verified', date: '2024-01-20', score: 100 },
-  { name: 'FICA Compliance', status: 'Pending', date: '2024-03-25', score: 60 },
-  { name: 'BBBEE Certificate', status: 'Expired', date: '2023-06-30', score: 0 },
-  { name: 'Directors ID Documents', status: 'Verified', date: '2024-01-15', score: 100 },
-  { name: 'Proof of Address', status: 'Verified', date: '2024-01-18', score: 100 },
-  { name: 'Bank Confirmation', status: 'Pending', date: '2024-03-28', score: 50 },
-  { name: 'Sanctions Screening', status: 'Verified', date: '2024-03-01', score: 100 },
-  { name: 'POPIA Consent', status: 'Verified', date: '2024-01-15', score: 100 },
-];
-
-const licences = [
-  { name: 'NERSA Generation Licence', number: 'NER-GEN-2024-001', status: 'Active', expiry: '2029-01-15', issuer: 'NERSA' },
-  { name: 'FSCA Financial Services', number: 'FSP-48291', status: 'Active', expiry: '2025-12-31', issuer: 'FSCA' },
-  { name: 'FAIS Compliance', number: 'FAIS-2024-882', status: 'Active', expiry: '2025-06-30', issuer: 'FSCA' },
-  { name: 'CIDB Registration', number: 'CIDB-9-CE', status: 'Pending Renewal', expiry: '2024-06-30', issuer: 'CIDB' },
-];
-
-const statutoryChecks = [
-  { rule: 'CIPC Annual Return Filed', status: 'Pass', lastCheck: '2024-04-01', regulator: 'CIPC' },
-  { rule: 'SARS Tax Compliance', status: 'Pass', lastCheck: '2024-03-28', regulator: 'SARS' },
-  { rule: 'VAT Returns Up to Date', status: 'Pass', lastCheck: '2024-03-31', regulator: 'SARS' },
-  { rule: 'FICA CDD Complete', status: 'Warning', lastCheck: '2024-03-25', regulator: 'FIC' },
-  { rule: 'Sanctions List Clear', status: 'Pass', lastCheck: '2024-04-01', regulator: 'FIC' },
-  { rule: 'BBBEE Level Valid', status: 'Fail', lastCheck: '2024-04-01', regulator: 'DTI' },
-  { rule: 'NERSA Licence Active', status: 'Pass', lastCheck: '2024-04-01', regulator: 'NERSA' },
-  { rule: 'FSCA Returns Filed', status: 'Pass', lastCheck: '2024-03-15', regulator: 'FSCA' },
-  { rule: 'FAIS Fit & Proper', status: 'Pass', lastCheck: '2024-02-28', regulator: 'FSCA' },
-  { rule: 'CIDB Grading Current', status: 'Warning', lastCheck: '2024-03-20', regulator: 'CIDB' },
-  { rule: 'POPIA Consent Valid', status: 'Pass', lastCheck: '2024-04-01', regulator: 'Info Regulator' },
-  { rule: 'ERA Compliance', status: 'Pass', lastCheck: '2024-03-28', regulator: 'NERSA' },
-  { rule: 'Environmental Authorisation', status: 'Pass', lastCheck: '2024-02-15', regulator: 'DFFE' },
-  { rule: 'Water Use Licence', status: 'N/A', lastCheck: '-', regulator: 'DWS' },
-];
+interface KYCDoc { name: string; status: string; date: string; score: number; }
+interface Licence { name: string; number: string; status: string; expiry: string; issuer: string; }
+interface StatutoryCheck { rule: string; status: string; lastCheck: string; regulator: string; }
 
 const statusBadge: Record<string, string> = {
   Verified: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -60,55 +30,58 @@ export default function Compliance() {
   const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('Overview');
-  const [kycData, setKycData] = useState(kycDocs);
-  const [licenceData, setLicenceData] = useState(licences);
-  const [statutoryData, setStatutoryData] = useState(statutoryChecks);
+  const [kycData, setKycData] = useState<KYCDoc[]>([]);
+  const [licenceData, setLicenceData] = useState<Licence[]>([]);
+  const [statutoryData, setStatutoryData] = useState<StatutoryCheck[]>([]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [kycRes, licRes, statRes] = await Promise.all([
-          complianceAPI.getKYC(),
-          complianceAPI.getLicences(),
-          complianceAPI.getStatutory(),
-        ]);
-        if (kycRes.data?.data?.length) setKycData(kycRes.data.data);
-        if (licRes.data?.data?.length) setLicenceData(licRes.data.data);
-        if (statRes.data?.data?.length) setStatutoryData(statRes.data.data);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [kycRes, licRes, statRes] = await Promise.allSettled([
+        complianceAPI.getKYC(), complianceAPI.getLicences(), complianceAPI.getStatutory(),
+      ]);
+      if (kycRes.status === 'fulfilled') setKycData(Array.isArray(kycRes.value.data?.data) ? kycRes.value.data.data : []);
+      if (licRes.status === 'fulfilled') setLicenceData(Array.isArray(licRes.value.data?.data) ? licRes.value.data.data : []);
+      if (statRes.status === 'fulfilled') setStatutoryData(Array.isArray(statRes.value.data?.data) ? statRes.value.data.data : []);
+      if (kycRes.status === 'rejected' && licRes.status === 'rejected' && statRes.status === 'rejected') setError('Failed to load compliance data.');
+    } catch { setError('Failed to load compliance data.'); }
+    setLoading(false);
   }, []);
 
+  useEffect(() => { loadData(); }, [loadData]);
+
   const verifiedCount = kycData.filter(d => d.status === 'Verified').length;
-  const overallScore = Math.round(kycData.reduce((s, d) => s + d.score, 0) / kycData.length);
+  const overallScore = kycData.length > 0 ? Math.round(kycData.reduce((s, d) => s + (d.score || 0), 0) / kycData.length) : 0;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Compliance page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Compliance</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">KYC verification, licences & statutory compliance</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Upload">
-          <FiUpload className="w-4 h-4" /> Upload Document
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Refresh compliance data">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
       </div>
 
-      <div className={`flex items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      <div className={`flex flex-wrap items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} role="tablist" aria-label="Compliance sections" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        {TABS.map(tab => (
+          <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === tab ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>{tab}</button>
         ))}
       </div>
 
-      {activeTab === 'Overview' && (
+      {loading ? (<div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}</div>) : activeTab === 'Overview' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 150ms both' }}>
             {[

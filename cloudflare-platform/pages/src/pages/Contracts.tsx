@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
 const tabs = ['All', 'Draft', 'Active', 'Pending', 'Completed', 'Smart Rules', 'Templates'];
 
@@ -37,15 +40,7 @@ const statusConfig: Record<string, { bg: string; text: string; icon: React.React
   amended: { bg: 'bg-blue-50 dark:bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400', icon: <FiCheck className="w-3 h-3" /> },
 };
 
-const smartRules = [
-  { rule: 'Auto-renew PPA if generation > 90%', type: 'Threshold', status: 'Active', triggers: 12, lastTriggered: '2 days ago' },
-  { rule: 'Penalty clause if delivery < 80%', type: 'Penalty', status: 'Active', triggers: 3, lastTriggered: '1 week ago' },
-  { rule: 'Price escalation at CPI + 2%', type: 'Escalation', status: 'Active', triggers: 4, lastTriggered: '1 month ago' },
-  { rule: 'Force majeure notification', type: 'Event', status: 'Active', triggers: 0, lastTriggered: 'Never' },
-  { rule: 'Carbon offset obligation', type: 'Compliance', status: 'Active', triggers: 6, lastTriggered: '3 days ago' },
-  { rule: 'Automatic invoicing on delivery', type: 'Billing', status: 'Paused', triggers: 48, lastTriggered: '1 day ago' },
-  { rule: 'Dispute escalation after 14 days', type: 'Dispute', status: 'Active', triggers: 1, lastTriggered: '2 weeks ago' },
-];
+interface SmartRule { id: string; rule: string; type: string; status: string; triggers: number; last_triggered: string; }
 
 const GOVERNING_LAW_OPTIONS = ['South Africa', 'England & Wales', 'New York', 'Singapore'];
 const JURISDICTION_OPTIONS = [
@@ -60,32 +55,27 @@ export default function Contracts() {
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState('All');
   const [documents, setDocuments] = useState<ContractDoc[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<ContractDoc | null>(null);
   const [verification, setVerification] = useState<Verification | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [governingLaw, setGoverningLaw] = useState('South Africa');
   const [jurisdiction, setJurisdiction] = useState('Gauteng Division, High Court of South Africa');
+  const [creating, setCreating] = useState(false);
 
-  useEffect(() => { loadDocuments(); }, []);
-
-  const loadDocuments = async () => {
-    setLoading(true);
+  const loadDocuments = useCallback(async () => {
+    setLoading(true); setError(null);
     try {
       const res = await contractsAPI.list();
       setDocuments(res.data?.data || []);
     } catch {
-      setDocuments([
-        { id: 'PPA-2024-001', title: 'Solar PPA - TerraVolt', document_type: 'ppa_wheeling', phase: 'active', version: 'v1.0', creator_id: '1', counterparty_id: '2', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: 'abc123', created_at: '2024-01-15' },
-        { id: 'PPA-2024-002', title: 'Wind PPA - BevCo', document_type: 'ppa_btm', phase: 'active', version: 'v1.0', creator_id: '1', counterparty_id: '3', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: 'def456', created_at: '2024-03-01' },
-        { id: 'FWD-2024-003', title: 'Gas Forward - GreenFund', document_type: 'forward', phase: 'execution', version: 'v1.0', creator_id: '1', counterparty_id: '4', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: null, created_at: '2024-07-01' },
-        { id: 'PPA-2024-004', title: 'Solar PPA - Envera', document_type: 'ppa_wheeling', phase: 'draft', version: 'v1.0', creator_id: '1', counterparty_id: '5', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: null, created_at: '2024-09-01' },
-        { id: 'OPT-2024-005', title: 'Carbon Option - CarbonBridge', document_type: 'carbon_option_isda', phase: 'active', version: 'v2.0', creator_id: '1', counterparty_id: '6', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: 'ghi789', created_at: '2024-02-15' },
-        { id: 'NDA-2024-006', title: 'NDA - Absa Capital', document_type: 'nda', phase: 'terminated', version: 'v1.0', creator_id: '1', counterparty_id: '7', governing_law: 'South Africa', jurisdiction: 'Gauteng Division, High Court of South Africa', integrity_seal: 'jkl012', created_at: '2023-01-01' },
-      ]);
+      setError('Failed to load contracts. Please try again.');
     }
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
   const handleVerify = async (doc: ContractDoc) => {
     setSelectedDoc(doc);
@@ -143,15 +133,15 @@ export default function Contracts() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Contracts management page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Contracts</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">PPAs, forwards, options & smart rules — ECT Act compliant</p>
         </div>
         <div className="flex gap-2">
-          <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Download">
-            <FiDownload className="w-4 h-4" /> Export
+          <button onClick={loadDocuments} className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Refresh contracts">
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
           <button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-600 transition-all flex items-center gap-2">
             <FiPlus className="w-4 h-4" /> New Contract
@@ -159,10 +149,12 @@ export default function Contracts() {
         </div>
       </div>
 
+      {error && <ErrorBanner message={error} onRetry={loadDocuments} />}
+
       {/* Tabs */}
-      <div className={`flex items-center rounded-full p-1 w-fit overflow-x-auto ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`} style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+      <div className={`flex flex-wrap items-center rounded-full p-1 w-fit overflow-x-auto ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`} role="tablist" aria-label="Contract tabs" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
+          <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === tab ? isDark ? 'bg-white/[0.12] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm' : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
             {tab}
           </button>
@@ -214,7 +206,7 @@ export default function Contracts() {
         </div>
       )}
 
-      {activeTab === 'Templates' ? (
+      {loading ? (<div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}</div>) : activeTab === 'Templates' ? (
         /* Templates View */
         <div className={`${cardClass} p-5`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">SA-Law Compliant Contract Templates</h3>
@@ -249,32 +241,9 @@ export default function Contracts() {
           </div>
         </div>
       ) : activeTab === 'Smart Rules' ? (
-        /* Smart Rules Table */
-        <div className={`${cardClass} !p-0 overflow-hidden`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`text-xs border-b ${isDark ? 'border-white/[0.06] text-slate-500' : 'border-black/[0.06] text-slate-400'}`}>
-                  <th className="text-left py-3.5 px-5 font-medium">Rule</th>
-                  <th className="text-left py-3.5 px-4 font-medium">Type</th>
-                  <th className="text-left py-3.5 px-4 font-medium">Status</th>
-                  <th className="text-right py-3.5 px-4 font-medium">Triggers</th>
-                  <th className="text-right py-3.5 px-5 font-medium">Last Triggered</th>
-                </tr>
-              </thead>
-              <tbody>
-                {smartRules.map((r, i) => (
-                  <tr key={i} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                    <td className="py-3.5 px-5 font-medium text-slate-800 dark:text-slate-200">{r.rule}</td>
-                    <td className="py-3.5 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isDark ? 'bg-white/[0.06] text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{r.type}</span></td>
-                    <td className="py-3.5 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${r.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{r.status}</span></td>
-                    <td className="py-3.5 px-4 text-right font-medium text-slate-700 dark:text-slate-300 mono">{r.triggers}</td>
-                    <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{r.lastTriggered}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        /* Smart Rules — placeholder until API endpoint is built */
+        <div className={`${cardClass} p-5`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          <EmptyState title="Smart Rules" description="Smart contract rules will be configured and displayed here once the Smart Contract DO is connected." />
         </div>
       ) : (
         /* Contracts Table */
@@ -292,7 +261,7 @@ export default function Contracts() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d, i) => {
+                {filtered.length === 0 ? <tr><td colSpan={6} className="py-12 text-center"><EmptyState title="No contracts" description="No contracts match the selected filter." /></td></tr> : filtered.map((d, i) => {
                   const sc = statusConfig[phaseToStatus(d.phase)] || statusConfig.draft;
                   return (
                     <tr key={d.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}
@@ -389,8 +358,16 @@ export default function Contracts() {
                 <button onClick={() => setShowCreateModal(false)} className={`flex-1 py-2.5 rounded-xl text-sm font-medium ${isDark ? 'bg-white/[0.06] text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
                   Cancel
                 </button>
-                <button className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all">
-                  Create Contract
+                <button type="button" disabled={creating} onClick={async () => {
+                  setCreating(true);
+                  try {
+                    const res = await contractsAPI.create({ document_type: 'ppa_wheeling', governing_law: governingLaw, jurisdiction, title: 'New Contract' });
+                    if (res.data?.success) { toast.success('Contract created'); setShowCreateModal(false); loadDocuments(); }
+                    else toast.error(res.data?.error || 'Failed to create contract');
+                  } catch { toast.error('Failed to create contract'); }
+                  setCreating(false);
+                }} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {creating && <FiLoader className="w-4 h-4 animate-spin" />} Create Contract
                 </button>
               </div>
             </div>
