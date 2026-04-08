@@ -1,46 +1,65 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import ErrorBoundary from './components/ErrorBoundary';
-import Dashboard from './pages/Dashboard';
-import Markets from './pages/Markets';
-import Portfolio from './pages/Portfolio';
-import Contracts from './pages/Contracts';
-import Carbon from './pages/Carbon';
-import IPP from './pages/IPP';
-import Analytics from './pages/Analytics';
-import Settings from './pages/Settings';
-import Trading from './pages/Trading';
-import Compliance from './pages/Compliance';
-import Settlement from './pages/Settlement';
-import Marketplace from './pages/Marketplace';
-import Notifications from './pages/Notifications';
-import Admin from './pages/Admin';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import NotFound from './pages/NotFound';
-import RiskDashboard from './pages/RiskDashboard';
-import Metering from './pages/Metering';
-import P2PTrading from './pages/P2PTrading';
-import ReportBuilder from './pages/ReportBuilder';
-import DeveloperPortal from './pages/DeveloperPortal';
-// Spec 8: Production readiness pages
-import Landing from './pages/Landing';
-import Signup from './pages/Signup';
-import TermsPage from './pages/Terms';
-import PrivacyPage from './pages/Privacy';
-import CookiesPage from './pages/Cookies';
-import RulesPage from './pages/Rules';
-import RiskDisclosurePage from './pages/Risk';
-import AMLPage from './pages/AML';
+
+// Loading skeleton for lazy-loaded pages
+function LoadingSkeleton() {
+  return (
+    <div className="p-6 space-y-4 animate-pulse">
+      <div className="h-8 bg-slate-700/50 rounded w-1/3" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-24 bg-slate-700/30 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="h-64 bg-slate-700/20 rounded-xl" />
+        <div className="h-64 bg-slate-700/20 rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+// Lazy-loaded pages (code splitting)
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Markets = lazy(() => import('./pages/Markets'));
+const Portfolio = lazy(() => import('./pages/Portfolio'));
+const Contracts = lazy(() => import('./pages/Contracts'));
+const Carbon = lazy(() => import('./pages/Carbon'));
+const IPP = lazy(() => import('./pages/IPP'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Trading = lazy(() => import('./pages/Trading'));
+const Compliance = lazy(() => import('./pages/Compliance'));
+const Settlement = lazy(() => import('./pages/Settlement'));
+const Marketplace = lazy(() => import('./pages/Marketplace'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Admin = lazy(() => import('./pages/Admin'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const RiskDashboard = lazy(() => import('./pages/RiskDashboard'));
+const Metering = lazy(() => import('./pages/Metering'));
+const P2PTrading = lazy(() => import('./pages/P2PTrading'));
+const ReportBuilder = lazy(() => import('./pages/ReportBuilder'));
+const DeveloperPortal = lazy(() => import('./pages/DeveloperPortal'));
+const Landing = lazy(() => import('./pages/Landing'));
+const TermsPage = lazy(() => import('./pages/Terms'));
+const PrivacyPage = lazy(() => import('./pages/Privacy'));
+const CookiesPage = lazy(() => import('./pages/Cookies'));
+const RulesPage = lazy(() => import('./pages/Rules'));
+const RiskDisclosurePage = lazy(() => import('./pages/Risk'));
+const AMLPage = lazy(() => import('./pages/AML'));
 
 function App() {
   return (
     <ErrorBoundary>
+    <Suspense fallback={<LoadingSkeleton />}>
     <Routes>
       {/* Public routes (no layout) */}
       <Route path="/landing" element={<Landing />} />
-      <Route path="/signup" element={<Signup />} />
+      <Route path="/signup" element={<Register />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       {/* Legal pages (public) */}
@@ -75,6 +94,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
+    </Suspense>
     </ErrorBoundary>
   );
 }
