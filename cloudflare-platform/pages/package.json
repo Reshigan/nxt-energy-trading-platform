@@ -11,19 +11,20 @@
     "preview-history": "vite preview --host localhost --port 4173"
   },
   "dependencies": {
+    "@sentry/browser": "^10.47.0",
+    "autoprefixer": "^10.4.16",
+    "axios": "^1.5.0",
+    "framer-motion": "^10.16.4",
+    "postcss": "^8.4.30",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-icons": "^4.11.0",
+    "react-query": "^3.39.3",
     "react-router-dom": "^6.16.0",
     "recharts": "^2.8.0",
-    "framer-motion": "^10.16.4",
     "styled-components": "^6.0.8",
-    "axios": "^1.5.0",
-    "zustand": "^4.4.1",
-    "react-query": "^3.39.3",
-    "react-icons": "^4.11.0",
     "tailwindcss": "^3.3.3",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.30"
+    "zustand": "^4.4.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",
