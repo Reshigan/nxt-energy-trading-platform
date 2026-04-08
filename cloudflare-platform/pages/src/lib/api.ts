@@ -218,4 +218,21 @@ export const p2pAPI = {
   getMyTrades: () => api.get('/p2p/my'),
 };
 
+// Demand Profiles
+export const demandAPI = {
+  getProfiles: (params?: Record<string, string>) => api.get('/demand/profiles', { params }),
+  getProfile: (id: string) => api.get(`/demand/profiles/${id}`),
+  createProfile: (data: Record<string, unknown>) => api.post('/demand/profiles', data),
+  updateProfile: (id: string, data: Record<string, unknown>) => api.put(`/demand/profiles/${id}`, data),
+  uploadBill: (profileId: string, data: Record<string, unknown>) => api.post(`/demand/profiles/${profileId}/bills`, data),
+  analyze: (profileId: string) => api.post(`/demand/profiles/${profileId}/analyze`),
+  expressInterest: (profileId: string, data: { match_id: string; message?: string }) => api.post(`/demand/profiles/${profileId}/express-interest`, data),
+  getMatches: () => api.get('/demand/matches'),
+};
+
+// Fees
+export const feesAPI = {
+  getSchedule: () => api.get('/fees'),
+};
+
 export default api;

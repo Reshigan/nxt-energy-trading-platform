@@ -1,41 +1,49 @@
-import React, { useState, useEffect } from 'react';
-import { FiSearch, FiFilter, FiPlus, FiStar } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiSearch, FiRefreshCw, FiPlus, FiStar, FiLoader } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { marketplaceAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { formatZAR } from '../lib/format';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const listings = [
-  { id: 'MKT-001', title: 'Solar PPA 50MW Limpopo', type: 'PPA', technology: 'Solar PV', price: 'R580/MWh', volume: '50 MW', seller: 'TerraVolt Energy', listed: '2024-04-01', bids: 3, featured: true },
-  { id: 'MKT-002', title: 'VCS Carbon Credits 10,000t', type: 'Carbon Credit', technology: 'Forestry', price: 'R180/t', volume: '10,000 t', seller: 'GreenFund SA', listed: '2024-03-28', bids: 7, featured: true },
-  { id: 'MKT-003', title: 'Wind Forward H2 2025', type: 'Forward', technology: 'Onshore Wind', price: 'R620/MWh', volume: '30 MW', seller: 'Eastern Cape Wind', listed: '2024-04-03', bids: 1, featured: false },
-  { id: 'MKT-004', title: 'Gold Standard CERs 5,000t', type: 'Carbon Credit', technology: 'Cookstoves', price: 'R210/t', volume: '5,000 t', seller: 'Carbon Bridge', listed: '2024-03-25', bids: 4, featured: false },
-  { id: 'MKT-005', title: 'Biomass Baseload 25MW', type: 'PPA', technology: 'Biomass', price: 'R540/MWh', volume: '25 MW', seller: 'KZN Biogas', listed: '2024-04-02', bids: 2, featured: false },
-  { id: 'MKT-006', title: 'REC Certificates Q2 2024', type: 'REC', technology: 'Solar PV', price: 'R65/MWh', volume: '28,600', seller: 'Solar One Cape', listed: '2024-04-05', bids: 0, featured: false },
-  { id: 'MKT-007', title: 'CSP Option Dec 2024', type: 'Option', technology: 'CSP', price: 'R12K premium', volume: '20 MW', seller: 'Northern Cape CSP', listed: '2024-04-04', bids: 1, featured: false },
-  { id: 'MKT-008', title: 'Hydro PPA 30MW Free State', type: 'PPA', technology: 'Small Hydro', price: 'R490/MWh', volume: '30 MW', seller: 'Drakensberg Hydro', listed: '2024-04-06', bids: 5, featured: true },
-];
+interface Listing { id: string; title: string; type: string; technology: string; price: number; unit: string; volume: string; seller: string; listed: string; bids: number; featured: boolean; }
 
-const types = ['All', 'PPA', 'Carbon Credit', 'Forward', 'Option', 'REC'];
+const TYPES = ['All', 'PPA', 'Carbon Credit', 'Forward', 'Option', 'REC'] as const;
 
 export default function Marketplace() {
   const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeType, setActiveType] = useState('All');
   const [search, setSearch] = useState('');
-  const [listingData, setListingData] = useState(listings);
+  const [listingData, setListingData] = useState<Listing[]>([]);
+  const [bidding, setBidding] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await marketplaceAPI.list();
-        if (res.data?.data?.length) setListingData(res.data.data);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await marketplaceAPI.list();
+      setListingData(Array.isArray(res.data?.data) ? res.data.data : []);
+    } catch { setError('Failed to load marketplace listings.'); }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleBid = async (id: string) => {
+    setBidding(id);
+    try {
+      const res = await marketplaceAPI.bid(id, {});
+      if (res.data?.success) { toast.success('Bid placed successfully'); loadData(); }
+      else toast.error(res.data?.error || 'Failed to place bid');
+    } catch { toast.error('Failed to place bid'); }
+    setBidding(null);
+  };
 
   const filtered = listingData.filter(l =>
     (activeType === 'All' || l.type === activeType) &&
@@ -47,36 +55,39 @@ export default function Marketplace() {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Marketplace page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Marketplace</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Browse & list energy assets, PPAs, carbon credits</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Plus">
-          <FiPlus className="w-4 h-4" /> Create Listing
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Refresh marketplace">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
       </div>
+
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
 
       <div className="flex items-center gap-3 flex-wrap" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border ${c('bg-white/[0.04] border-white/[0.06]', 'bg-white border-black/[0.06]')}`}>
           <FiSearch className="w-4 h-4 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search listings..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search listings..." aria-label="Search marketplace listings"
             className={`bg-transparent text-sm outline-none ${c('text-white placeholder-slate-500', 'text-slate-800 placeholder-slate-400')}`} />
         </div>
-        <div className={`flex items-center rounded-full p-1 ${c('bg-white/[0.04]', 'bg-slate-100')}`}>
-          {types.map(t => (
-            <button key={t} onClick={() => setActiveType(t)}
+        <div className={`flex flex-wrap items-center rounded-full p-1 ${c('bg-white/[0.04]', 'bg-slate-100')}`} role="tablist" aria-label="Filter by type">
+          {TYPES.map(t => (
+            <button key={t} role="tab" aria-selected={activeType === t} onClick={() => setActiveType(t)}
               className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${activeType === t ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400', 'text-slate-500')}`}>{t}</button>
           ))}
         </div>
       </div>
 
+      {loading ? (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="w-full h-48" />)}</div>) : filtered.length === 0 ? (<EmptyState title="No listings" description={search ? 'No listings match your search.' : 'No marketplace listings available yet.'} />) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
         {filtered.map((l, i) => (
           <div key={l.id} className={`cp-card !p-5 relative ${c('!bg-[#151F32] !border-white/[0.06]', '')} ${l.featured ? 'ring-1 ring-amber-500/30' : ''}`}
             style={{ animation: `cardFadeUp 400ms ease ${200 + i * 50}ms both` }}>
-            {l.featured && <FiStar className="absolute top-3 right-3 w-4 h-4 text-amber-400 fill-amber-400" />}
+            {l.featured && <FiStar className="absolute top-3 right-3 w-4 h-4 text-amber-400 fill-amber-400" aria-label="Featured listing" />}
             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold mb-3 ${
               l.type === 'PPA' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' :
               l.type === 'Carbon Credit' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' :
@@ -87,16 +98,17 @@ export default function Marketplace() {
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">{l.title}</h3>
             <p className="text-xs text-slate-400 mb-3">{l.seller} &middot; {l.technology}</p>
             <div className="flex items-center justify-between mb-3">
-              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mono">{l.price}</span>
+              <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mono">{formatZAR(l.price / 100)}/{l.unit || 'MWh'}</span>
               <span className="text-xs text-slate-400">{l.volume}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-400">{l.bids} bid{l.bids !== 1 ? 's' : ''}</span>
-              <button className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors">Place Bid</button>
+              <button onClick={() => handleBid(l.id)} disabled={bidding === l.id} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-1" aria-label={`Place bid on ${l.title}`}>{bidding === l.id && <FiLoader className="w-3 h-3 animate-spin" />} Place Bid</button>
             </div>
           </div>
         ))}
       </div>
+      )}
     </motion.div>
   );
 }
