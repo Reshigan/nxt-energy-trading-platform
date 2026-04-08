@@ -70,6 +70,17 @@ popia.post('/consent', authMiddleware(), async (c) => {
       ).run();
     } catch { /* audit log table may not exist */ }
 
+    // Cascade: popia.consent_changed — notify admins
+    try {
+      const admins = await c.env.DB.prepare("SELECT id FROM participants WHERE role = 'admin'").all();
+      for (const a of admins.results) {
+        await c.env.DB.prepare(`
+          INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+          VALUES (?, ?, 'POPIA Consent Updated', ?, 'info', 'participant', ?)
+        `).bind(generateId(), a.id as string, `Participant ${user.sub} ${body.consent ? 'granted' : 'withdrew'} POPIA consent.`, user.sub).run();
+      }
+    } catch { /* cascade best-effort */ }
+
     return c.json({ success: true, data: { consent_given: body.consent } });
   } catch (err) {
     return c.json({ success: false, error: 'Failed to record consent' }, 500);
@@ -119,6 +130,14 @@ popia.get('/export', authMiddleware(), async (c) => {
         VALUES (?, ?, 'popia_data_export', 'participant', ?, '{}', ?)
       `).bind(generateId(), user.sub, user.sub, c.req.header('CF-Connecting-IP') || 'unknown').run();
     } catch { /* audit log write may fail */ }
+
+    // Cascade: popia.data_exported — notify user
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Data Export Complete', 'Your POPIA data export has been generated successfully.', 'success', 'participant', ?)
+      `).bind(generateId(), user.sub, user.sub).run();
+    } catch { /* cascade best-effort */ }
 
     return c.json({
       success: true,
@@ -208,6 +227,17 @@ popia.delete('/erasure', authMiddleware(), async (c) => {
     JSON.stringify({ reason: body.reason || 'User requested erasure' }),
     c.req.header('CF-Connecting-IP') || 'unknown'
   ).run();
+
+  // Cascade: popia.erasure_completed — notify admins
+  try {
+    const admins = await c.env.DB.prepare("SELECT id FROM participants WHERE role = 'admin'").all();
+    for (const a of admins.results) {
+      await c.env.DB.prepare(`
+        INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Data Erasure Completed', ?, 'warning', 'participant', ?)
+      `).bind(generateId(), a.id as string, `Participant ${user.sub} data has been erased per POPIA Section 24.`, user.sub).run();
+    }
+  } catch { /* cascade best-effort */ }
 
   return c.json({
     success: true,
