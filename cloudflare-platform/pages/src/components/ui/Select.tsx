@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiChevronDown } from 'react-icons/fi';
+import { FiChevronDown } from '../../lib/fi-icons-shim';
 
 interface SelectOption {
   value: string;

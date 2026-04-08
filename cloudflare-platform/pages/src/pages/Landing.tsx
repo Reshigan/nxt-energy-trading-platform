@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiZap, FiGlobe, FiFileText, FiTrendingUp, FiShield, FiCpu, FiChevronDown, FiChevronUp, FiArrowRight, FiCheck, FiSun, FiMoon } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { motion } from 'framer-motion';
+import NXTLogo from '../components/NXTLogo';
+import {
+  IconTrading, IconCarbon, IconZap, IconContracts, IconCompliance, IconAI,
+  IconSun, IconMoon, IconArrowRight, IconCheck, IconChevronDown,
+} from '../components/icons';
 
 const faqs = [
   { q: 'What is NXT Energy Trading Platform?', a: 'NXT is South Africa\'s first open-market energy trading platform, enabling generators, traders, offtakers, and IPP developers to trade energy, manage carbon credits, and close IPP deals digitally.' },
@@ -18,15 +22,13 @@ const faqs = [
 ];
 
 const features = [
-  { icon: 'FiTrendingUp', title: 'Trading Engine', desc: 'Real-time order matching with limit, market, stop, and iceberg orders. WebSocket price feeds and position management.' },
-  { icon: 'FiGlobe', title: 'Carbon Marketplace', desc: 'Trade, retire, transfer, and tokenize carbon credits from Gold Standard and Verra-certified projects.' },
-  { icon: 'FiZap', title: 'IPP Lifecycle', desc: 'Track projects from development through COD with milestone tracking, condition precedent management, and disbursement control.' },
-  { icon: 'FiFileText', title: 'Digital Contracts', desc: 'Create, negotiate, validate, sign, and execute contracts digitally with SHA-256 integrity hashing and statutory compliance.' },
-  { icon: 'FiShield', title: 'Compliance & KYC', desc: 'Automated 10-point KYC verification with CIPC, SARS, NERSA, FSCA, FICA, and sanctions screening integration.' },
-  { icon: 'FiCpu', title: 'AI Analytics', desc: 'AI-powered portfolio optimisation, risk management, weather-adjusted forecasting, and market insights.' },
+  { Icon: IconTrading, title: 'Trading Engine', desc: 'Real-time order matching with limit, market, stop, and iceberg orders. WebSocket price feeds and position management.' },
+  { Icon: IconCarbon, title: 'Carbon Marketplace', desc: 'Trade, retire, transfer, and tokenize carbon credits from Gold Standard and Verra-certified projects.' },
+  { Icon: IconZap, title: 'IPP Lifecycle', desc: 'Track projects from development through COD with milestone tracking, condition precedent management, and disbursement control.' },
+  { Icon: IconContracts, title: 'Digital Contracts', desc: 'Create, negotiate, validate, sign, and execute contracts digitally with SHA-256 integrity hashing and statutory compliance.' },
+  { Icon: IconCompliance, title: 'Compliance & KYC', desc: 'Automated 10-point KYC verification with CIPC, SARS, NERSA, FSCA, FICA, and sanctions screening integration.' },
+  { Icon: IconAI, title: 'AI Analytics', desc: 'AI-powered portfolio optimisation, risk management, weather-adjusted forecasting, and market insights.' },
 ];
-
-const iconMap: Record<string, any> = { FiTrendingUp, FiGlobe, FiZap, FiFileText, FiShield, FiCpu };
 
 const pricingTiers = [
   { name: 'Starter', price: 'R5,000', period: '/month', participants: '5', projects: '3', contracts: '10', trading: 'View only', carbon: 'No', ai: 'Basic', highlight: false },
@@ -53,14 +55,12 @@ export default function Landing() {
       <nav className={`sticky top-0 z-50 backdrop-blur-xl ${isDark ? 'bg-[#0a1628]/90 border-b border-white/[0.06]' : 'bg-white/90 border-b border-slate-200'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <FiZap className="text-white w-4 h-4" />
-            </div>
+            <NXTLogo size={32} animated />
             <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">NXT Energy</span>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className={`p-2 rounded-lg ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-500 hover:bg-slate-100'}`}>
-              {isDark ? <FiSun className="w-4 h-4" /> : <FiMoon className="w-4 h-4" />}
+            <button onClick={toggleTheme} className={`p-2 rounded-lg ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-500 hover:bg-slate-100'}`} aria-label="Toggle theme">
+              {isDark ? <IconSun size={16} /> : <IconMoon size={16} />}
             </button>
             <Link to="/login" className={`px-4 py-2 text-sm font-medium rounded-lg ${isDark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'}`}>Sign In</Link>
             <Link to="/register" className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/25">Start Free Trial</Link>
@@ -80,7 +80,7 @@ export default function Landing() {
           </p>
           <div className="flex items-center justify-center gap-4">
             <Link to="/register" className="px-8 py-3.5 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-600/25 flex items-center gap-2">
-              Start Free Trial <FiArrowRight className="w-4 h-4" />
+              Start Free Trial <IconArrowRight size={16} />
             </Link>
             <a href="mailto:reshigan@gonxt.tech?subject=NXT%20Demo%20Request" className={`px-8 py-3.5 text-base font-semibold rounded-xl border ${isDark ? 'border-white/[0.1] text-white hover:bg-white/[0.04]' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
               Book Demo
@@ -102,13 +102,13 @@ export default function Landing() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { icon: FiTrendingUp, title: 'Trade Energy', desc: 'Real-time order book with limit, market, and stop orders. Automated settlement and clearing.' },
-            { icon: FiGlobe, title: 'Manage Carbon', desc: 'Buy, sell, retire, and tokenize carbon credits from certified registries. Write options and manage your carbon fund.' },
-            { icon: FiZap, title: 'Close IPP Deals', desc: 'Track IPP projects end-to-end from development through COD. Manage milestones, CPs, and disbursements.' },
+            { Icon: IconTrading, title: 'Trade Energy', desc: 'Real-time order book with limit, market, and stop orders. Automated settlement and clearing.' },
+            { Icon: IconCarbon, title: 'Manage Carbon', desc: 'Buy, sell, retire, and tokenize carbon credits from certified registries. Write options and manage your carbon fund.' },
+            { Icon: IconZap, title: 'Close IPP Deals', desc: 'Track IPP projects end-to-end from development through COD. Manage milestones, CPs, and disbursements.' },
           ].map((item, i) => (
             <div key={i} className={`p-8 rounded-2xl border ${cardBg} text-center`}>
               <div className="w-14 h-14 rounded-xl bg-blue-500/10 flex items-center justify-center mx-auto mb-5">
-                <item.icon className="w-7 h-7 text-blue-500" />
+                <item.Icon size={28} color="#3b82f6" />
               </div>
               <h3 className="text-xl font-bold mb-3">{item.title}</h3>
               <p className={textSec}>{item.desc}</p>
@@ -123,16 +123,13 @@ export default function Landing() {
           <h2 className="text-3xl font-bold text-center mb-4">Everything You Need</h2>
           <p className={`text-center mb-12 ${textSec}`}>A complete platform for South African energy market participants</p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f, i) => {
-              const Icon = iconMap[f.icon];
-              return (
-                <div key={i} className={`p-6 rounded-xl border ${cardBg}`}>
-                  <Icon className="w-8 h-8 text-blue-500 mb-4" />
-                  <h3 className="text-lg font-bold mb-2">{f.title}</h3>
-                  <p className={`text-sm ${textSec}`}>{f.desc}</p>
-                </div>
-              );
-            })}
+            {features.map((f, i) => (
+              <div key={i} className={`p-6 rounded-xl border ${cardBg}`}>
+                <div className="mb-4"><f.Icon size={32} color="#3b82f6" /></div>
+                <h3 className="text-lg font-bold mb-2">{f.title}</h3>
+                <p className={`text-sm ${textSec}`}>{f.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -148,12 +145,12 @@ export default function Landing() {
               <h3 className="text-xl font-bold mb-1">{tier.name}</h3>
               <div className="mb-6"><span className="text-3xl font-extrabold">{tier.price}</span><span className={textSec}>{tier.period}</span></div>
               <ul className="space-y-3 mb-8">
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />{tier.participants} participants</li>
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />{tier.projects} projects</li>
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />{tier.contracts} contracts</li>
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />Trading: {tier.trading}</li>
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />Carbon: {tier.carbon}</li>
-                <li className="flex items-center gap-2 text-sm"><FiCheck className="w-4 h-4 text-blue-500 shrink-0" />AI: {tier.ai}</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />{tier.participants} participants</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />{tier.projects} projects</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />{tier.contracts} contracts</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />Trading: {tier.trading}</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />Carbon: {tier.carbon}</li>
+                <li className="flex items-center gap-2 text-sm"><IconCheck size={16} color="#3b82f6" />AI: {tier.ai}</li>
               </ul>
               <Link to="/register" className={`block w-full py-3 text-center rounded-xl font-semibold ${tier.highlight ? 'bg-blue-600 hover:bg-blue-700 text-white' : isDark ? 'bg-white/[0.06] hover:bg-white/[0.1] text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-900'}`}>
                 Get Started
@@ -175,7 +172,7 @@ export default function Landing() {
               <div key={i} className={`rounded-xl border ${cardBg} overflow-hidden`}>
                 <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between p-5 text-left">
                   <span className="font-medium pr-4">{faq.q}</span>
-                  {openFaq === i ? <FiChevronUp className="w-5 h-5 shrink-0" /> : <FiChevronDown className="w-5 h-5 shrink-0" />}
+                  <span className={`shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`}><IconChevronDown size={18} /></span>
                 </button>
                 {openFaq === i && <div className={`px-5 pb-5 text-sm ${textSec}`}>{faq.a}</div>}
               </div>
@@ -190,9 +187,7 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                  <FiZap className="text-white w-3.5 h-3.5" />
-                </div>
+                <NXTLogo size={28} animated={false} />
                 <span className="font-bold">NXT Energy</span>
               </div>
               <p className={`text-sm ${textSec}`}>GONXT Technology (Pty) Ltd<br />Lanseria Corporate Park<br />reshigan@gonxt.tech</p>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiTrendingUp } from 'react-icons/fi';
+import { FiTrendingUp } from '../lib/fi-icons-shim';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function PortfolioSummary() {

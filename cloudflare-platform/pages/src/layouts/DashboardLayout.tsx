@@ -1,8 +1,17 @@
 import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { FiZap, FiBell, FiLogOut, FiSun, FiMoon, FiMenu, FiX, FiChevronDown, FiHelpCircle, FiSearch } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
+import NXTLogo from '../components/NXTLogo';
+import {
+  IconNotifications, IconLogout, IconSun, IconMoon, IconMenu, IconClose,
+  IconChevronDown, IconHelp, IconSearch, IconDashboard, IconTrading,
+  IconCarbon, IconContracts, IconAnalytics, IconMarkets, IconPortfolio,
+  IconRisk, IconMetering, IconP2P, IconIPP, IconMarketplace, IconSettlement,
+  IconCompliance, IconReports, IconDeveloper, IconSettings, IconDemand,
+  IconOfftakerCost, IconDisputes, IconInvoices, IconSmartRules, IconAuditTrail,
+  IconSystemHealth, IconTenant, IconAdmin,
+} from '../components/icons';
 import AIChatWidget from '../components/AIChatWidget';
 import GuidedTour from '../components/GuidedTour';
 import KYCBanner from '../components/KYCBanner';
@@ -12,36 +21,36 @@ import { useTheme } from '../contexts/ThemeContext';
 import { getRoleConfig } from '../config/roles';
 
 const ALL_MAIN_TABS = [
-  { name: 'Dashboard', href: '/' },
-  { name: 'Trading', href: '/trading' },
-  { name: 'Carbon', href: '/carbon' },
-  { name: 'Contracts', href: '/contracts' },
-  { name: 'Analytics', href: '/analytics' },
+  { name: 'Dashboard', href: '/', icon: IconDashboard },
+  { name: 'Trading', href: '/trading', icon: IconTrading },
+  { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+  { name: 'Contracts', href: '/contracts', icon: IconContracts },
+  { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
 ];
 
 const ALL_MORE_LINKS = [
-  { name: 'Markets', href: '/markets' },
-  { name: 'AI Portfolio', href: '/portfolio' },
-  { name: 'Risk Dashboard', href: '/risk' },
-  { name: 'Metering & IoT', href: '/metering' },
-  { name: 'P2P Trading', href: '/p2p' },
-  { name: 'IPP Projects', href: '/ipp' },
-  { name: 'Marketplace', href: '/marketplace' },
-  { name: 'Settlement', href: '/settlement' },
-  { name: 'Compliance', href: '/compliance' },
-  { name: 'Report Builder', href: '/reports' },
-  { name: 'Developer Portal', href: '/developer' },
-  { name: 'Demand Profile', href: '/demand' },
-  { name: 'Offtaker Cost', href: '/offtaker-cost' },
-  { name: 'Disputes', href: '/disputes' },
-  { name: 'Invoices', href: '/invoices' },
-  { name: 'Smart Rules', href: '/smart-rules' },
-  { name: 'Audit Trail', href: '/audit-trail' },
-  { name: 'System Health', href: '/system-health' },
-  { name: 'Tenant Admin', href: '/tenant-admin' },
-  { name: 'Notifications', href: '/notifications' },
-  { name: 'Admin', href: '/admin' },
-  { name: 'Settings', href: '/settings' },
+  { name: 'Markets', href: '/markets', icon: IconMarkets },
+  { name: 'AI Portfolio', href: '/portfolio', icon: IconPortfolio },
+  { name: 'Risk Dashboard', href: '/risk', icon: IconRisk },
+  { name: 'Metering & IoT', href: '/metering', icon: IconMetering },
+  { name: 'P2P Trading', href: '/p2p', icon: IconP2P },
+  { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+  { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
+  { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+  { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+  { name: 'Report Builder', href: '/reports', icon: IconReports },
+  { name: 'Developer Portal', href: '/developer', icon: IconDeveloper },
+  { name: 'Demand Profile', href: '/demand', icon: IconDemand },
+  { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
+  { name: 'Disputes', href: '/disputes', icon: IconDisputes },
+  { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+  { name: 'Smart Rules', href: '/smart-rules', icon: IconSmartRules },
+  { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
+  { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
+  { name: 'Tenant Admin', href: '/tenant-admin', icon: IconTenant },
+  { name: 'Notifications', href: '/notifications', icon: IconNotifications },
+  { name: 'Admin', href: '/admin', icon: IconAdmin },
+  { name: 'Settings', href: '/settings', icon: IconSettings },
 ];
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin'] as const;
@@ -98,26 +107,28 @@ export default function DashboardLayout() {
         <div className="flex items-center justify-between h-14 px-4 sm:px-8">
           {/* Left: Logo + Tabs */}
           <div className="flex items-center gap-6">
-            <Link to="/" className="flex items-center gap-2 shrink-0">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${isDark ? 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/25' : 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/20'}`}>
-                <FiZap className="text-white w-4 h-4" />
-              </div>
-              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block">NXT Energy</span>
+            <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+              <NXTLogo size={36} animated />
+              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block group-hover:opacity-80 transition-opacity">NXT Energy</span>
             </Link>
 
             {/* Tab Pills */}
             <nav className="hidden md:flex items-center">
               <div className={`flex items-center rounded-full p-1 ${isDark ? 'bg-white/[0.04]' : 'bg-slate-100'}`}>
-                {mainTabs.map(tab => (
-                  <Link key={tab.href} to={tab.href}
-                    className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-250 ${
-                      isTabActive(tab.href)
-                        ? isDark ? 'bg-white/[0.12] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm'
-                        : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
-                    }`}>
-                    {tab.name}
-                  </Link>
-                ))}
+                {mainTabs.map(tab => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <Link key={tab.href} to={tab.href}
+                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-250 ${
+                        isTabActive(tab.href)
+                          ? isDark ? 'bg-white/[0.12] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm'
+                          : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
+                      }`}>
+                      <TabIcon size={15} />
+                      {tab.name}
+                    </Link>
+                  );
+                })}
 
                 {/* More dropdown */}
                 <div className="relative">
@@ -127,7 +138,7 @@ export default function DashboardLayout() {
                         ? isDark ? 'bg-white/[0.12] text-white shadow-sm' : 'bg-white text-slate-900 shadow-sm'
                         : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'
                     }`}>
-                    More <FiChevronDown className="w-3 h-3" />
+                    More <IconChevronDown size={12} />
                   </button>
                 </div>
               </div>
@@ -137,18 +148,18 @@ export default function DashboardLayout() {
           {/* Right: Search + Actions */}
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${isDark ? 'bg-white/[0.04] text-slate-400' : 'bg-slate-100 text-slate-400'}`}>
-              <FiSearch className="w-3.5 h-3.5" />
+            <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm cursor-pointer transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:bg-white/[0.06]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+              <IconSearch size={14} />
               <span className="text-xs">Search...</span>
               <kbd className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-white/[0.06] text-slate-500' : 'bg-white text-slate-400'}`}>⌘K</kbd>
             </div>
 
-            <button onClick={() => setHelpOpen(true)} className={`p-2 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>
-              <FiHelpCircle className="w-[18px] h-[18px]" />
+            <button onClick={() => setHelpOpen(true)} className={`p-2 rounded-xl transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`} aria-label="Help">
+              <IconHelp size={18} />
             </button>
 
-            <button onClick={toggleTheme} className={`p-2 rounded-xl transition-all ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-400 hover:bg-slate-100'}`}>
-              {isDark ? <FiSun className="w-[18px] h-[18px]" /> : <FiMoon className="w-[18px] h-[18px]" />}
+            <button onClick={toggleTheme} className={`p-2 rounded-xl transition-all ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-400 hover:bg-slate-100'}`} aria-label="Toggle theme">
+              {isDark ? <IconSun size={18} /> : <IconMoon size={18} />}
             </button>
 
             {/* Role Switcher */}
@@ -161,7 +172,7 @@ export default function DashboardLayout() {
             </div>
 
             <Link to="/notifications" className={`p-2 rounded-xl relative transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`} aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}>
-              <FiBell className="w-[18px] h-[18px]" />
+              <IconNotifications size={18} />
               {unreadCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold shadow-lg shadow-blue-500/30 notification-dot">
                   {unreadCount > 99 ? '99+' : unreadCount}
@@ -184,14 +195,14 @@ export default function DashboardLayout() {
 
             {isAuthenticated && (
               <button onClick={() => { logout(); navigate('/login'); }}
-                className={`p-2 rounded-xl transition-all ${isDark ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Logout">
-                <FiLogOut className="w-[18px] h-[18px]" />
+                className={`p-2 rounded-xl transition-all ${isDark ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`} title="Logout" aria-label="Logout">
+                <IconLogout size={18} />
               </button>
             )}
 
             {/* Mobile menu */}
-            <button className={`md:hidden p-2 rounded-xl ${isDark ? 'text-slate-400 hover:bg-white/[0.06]' : 'text-slate-500 hover:bg-slate-100'}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <FiX className="w-5 h-5" /> : <FiMenu className="w-5 h-5" />}
+            <button className={`md:hidden p-2 rounded-xl ${isDark ? 'text-slate-400 hover:bg-white/[0.06]' : 'text-slate-500 hover:bg-slate-100'}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Menu">
+              {mobileMenuOpen ? <IconClose size={20} /> : <IconMenu size={20} />}
             </button>
           </div>
         </div>
@@ -206,16 +217,20 @@ export default function DashboardLayout() {
             <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }}
               className={`fixed top-[92px] left-4 right-4 z-50 rounded-2xl shadow-2xl p-4 md:hidden max-h-[70vh] overflow-y-auto ${isDark ? 'bg-[#151F32] border border-white/[0.08]' : 'bg-white border border-black/[0.06]'}`}>
               <div className="grid grid-cols-2 gap-2">
-                {[...mainTabs, ...moreLinks].map(link => (
-                  <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)}
-                    className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                      location.pathname === link.href
-                        ? isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600'
-                        : isDark ? 'text-slate-400 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
-                    }`}>
-                    {link.name}
-                  </Link>
-                ))}
+                {[...mainTabs, ...moreLinks].map(link => {
+                  const LinkIcon = link.icon;
+                  return (
+                    <Link key={link.href} to={link.href} onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                        location.pathname === link.href
+                          ? isDark ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600'
+                          : isDark ? 'text-slate-400 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
+                      }`}>
+                      <LinkIcon size={16} />
+                      {link.name}
+                    </Link>
+                  );
+                })}
               </div>
             </motion.div>
           </>
@@ -237,22 +252,26 @@ export default function DashboardLayout() {
       {moreOpen && createPortal(
         <div className="fixed inset-0 z-[9998]" onClick={() => setMoreOpen(false)}>
           <div
-            className={`absolute w-56 rounded-2xl shadow-2xl py-2 max-h-[60vh] overflow-y-auto ${isDark ? 'bg-[#151F32] border border-white/[0.08]' : 'bg-white border border-black/[0.06] shadow-slate-200/50'}`}
+            className={`absolute w-64 rounded-2xl shadow-2xl py-2 max-h-[60vh] overflow-y-auto ${isDark ? 'bg-[#151F32] border border-white/[0.08]' : 'bg-white border border-black/[0.06] shadow-slate-200/50'}`}
             style={{
               top: moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect().bottom + 8 : 0,
               left: moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect().left : 0,
             }}
             onClick={e => e.stopPropagation()}>
-            {moreLinks.map(link => (
-              <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
-                className={`block px-4 py-2 text-sm transition-colors ${
-                  location.pathname === link.href
-                    ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
-                    : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
-                }`}>
-                {link.name}
-              </Link>
-            ))}
+            {moreLinks.map(link => {
+              const LinkIcon = link.icon;
+              return (
+                <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
+                  className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
+                    location.pathname === link.href
+                      ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
+                      : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
+                  }`}>
+                  <LinkIcon size={16} />
+                  {link.name}
+                </Link>
+              );
+            })}
           </div>
         </div>,
         document.body

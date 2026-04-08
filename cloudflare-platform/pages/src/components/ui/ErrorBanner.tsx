@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+import { FiAlertTriangle, FiRefreshCw } from '../../lib/fi-icons-shim';
 import { useThemeClasses } from '../../hooks/useThemeClasses';
 
 interface ErrorBannerProps {

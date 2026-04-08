@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiDownload, FiCalendar, FiFilter, FiRefreshCw, FiLoader, FiClock, FiTrash2 } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiCalendar, FiFilter, FiRefreshCw, FiLoader, FiClock, FiTrash2 } from '../lib/fi-icons-shim';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { reportsAPI } from '../lib/api';

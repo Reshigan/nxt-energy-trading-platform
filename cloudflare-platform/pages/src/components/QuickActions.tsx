@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiPlus, FiUpload, FiRefreshCw, FiActivity, FiFileText, FiShield, FiFilePlus, FiSearch, FiAlertTriangle, FiUsers, FiHeart, FiCode, FiDollarSign, FiCheckCircle, FiBarChart2, FiShoppingBag, FiGlobe, FiDownload } from 'react-icons/fi';
+import { FiPlus, FiUpload, FiRefreshCw, FiActivity, FiFileText, FiShield, FiFilePlus, FiSearch, FiAlertTriangle, FiUsers, FiHeart, FiCode, FiDollarSign, FiCheckCircle, FiBarChart2, FiShoppingBag, FiGlobe, FiDownload } from '../lib/fi-icons-shim';
 
 const iconMap: Record<string, React.ReactNode> = {
   'plus': <FiPlus className="w-4 h-4" />,

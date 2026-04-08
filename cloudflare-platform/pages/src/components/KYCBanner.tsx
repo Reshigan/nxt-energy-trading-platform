@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FiAlertCircle, FiArrowRight } from 'react-icons/fi';
+import { FiAlertCircle, FiArrowRight } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../lib/store';
 

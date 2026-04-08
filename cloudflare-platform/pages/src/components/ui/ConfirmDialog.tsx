@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiAlertTriangle, FiX } from 'react-icons/fi';
+import { FiAlertTriangle, FiX } from '../../lib/fi-icons-shim';
 import { Button } from './Button';
 
 interface ConfirmDialogProps {

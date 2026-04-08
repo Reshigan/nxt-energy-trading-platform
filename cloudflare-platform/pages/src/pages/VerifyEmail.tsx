@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FiMail, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { FiMail, FiCheck, FiAlertCircle } from '../lib/fi-icons-shim';
 import { motion } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiShield, FiAlertTriangle, FiTrendingDown, FiRefreshCw } from 'react-icons/fi';
+import { FiShield, FiAlertTriangle, FiTrendingDown, FiRefreshCw } from '../lib/fi-icons-shim';
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { aiAPI } from '../lib/api';

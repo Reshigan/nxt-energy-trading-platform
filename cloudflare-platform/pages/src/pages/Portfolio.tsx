@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiCpu, FiTrendingUp, FiShield, FiZap, FiSend, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiCpu, FiTrendingUp, FiShield, FiZap, FiSend, FiRefreshCw, FiLoader } from '../lib/fi-icons-shim';
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { aiAPI } from '../lib/api';

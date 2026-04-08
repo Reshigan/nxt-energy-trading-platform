@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiLoader } from 'react-icons/fi';
+import { FiLoader } from '../../lib/fi-icons-shim';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
 type ButtonSize = 'sm' | 'md' | 'lg';

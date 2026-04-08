@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2, FiLoader, FiSmartphone, FiCreditCard } from 'react-icons/fi';
+import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, FiTrash2, FiLoader, FiSmartphone, FiCreditCard } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { popiaAPI, authAPI, subscriptionsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
