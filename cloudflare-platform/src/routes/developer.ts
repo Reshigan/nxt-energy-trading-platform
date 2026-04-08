@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const developer = new Hono<HonoEnv>();
 developer.use('*', authMiddleware());
@@ -71,6 +72,7 @@ developer.post('/keys', async (c) => {
       },
     }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -91,6 +93,7 @@ developer.get('/keys', async (c) => {
       })),
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -105,6 +108,7 @@ developer.delete('/keys/:id', async (c) => {
     ).bind(nowISO(), id, user.sub).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -137,6 +141,7 @@ developer.post('/webhooks', async (c) => {
       },
     }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -157,6 +162,7 @@ developer.get('/webhooks', async (c) => {
       })),
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -171,6 +177,7 @@ developer.delete('/webhooks/:id', async (c) => {
     ).bind(id, user.sub).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -186,6 +193,7 @@ developer.patch('/webhooks/:id', async (c) => {
     ).bind(active ? 1 : 0, id, user.sub).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -214,6 +222,7 @@ developer.get('/usage', async (c) => {
 
     return c.json({ success: true, data: usage });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -262,6 +271,7 @@ developer.get('/docs', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

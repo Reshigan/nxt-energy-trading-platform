@@ -4,6 +4,7 @@ import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const p2p = new Hono<HonoEnv>();
 p2p.use('*', authMiddleware());
@@ -60,6 +61,7 @@ p2p.post('/offers', async (c) => {
 
     return c.json({ success: true, data: { id, total_cents: total } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -82,6 +84,7 @@ p2p.get('/offers', async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -130,6 +133,7 @@ p2p.post('/offers/:id/accept', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -163,6 +167,7 @@ p2p.post('/offers/:id/settle', authMiddleware({ roles: ['admin', 'grid'] }), asy
 
     return c.json({ success: true, data: { id, status: 'settled' } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -184,6 +189,7 @@ p2p.delete('/offers/:id', async (c) => {
 
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -196,6 +202,7 @@ p2p.get('/zones', async (c) => {
     ).all();
     return c.json({ success: true, data: zones.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -209,6 +216,7 @@ p2p.get('/my', async (c) => {
     ).bind(user.sub, user.sub).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

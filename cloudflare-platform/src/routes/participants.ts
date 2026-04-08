@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { generateId, nowISO } from '../utils/id';
 import { authMiddleware } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const participants = new Hono<HonoEnv>();
 
@@ -51,6 +52,7 @@ participants.get('/', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: participant });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -78,6 +80,7 @@ participants.get('/:id', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: participant });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -137,6 +140,7 @@ participants.patch('/:id', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Participant updated' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -173,6 +177,7 @@ participants.post('/:id/suspend', authMiddleware({ roles: ['admin'] }), async (c
 
     return c.json({ success: true, message: 'Participant suspended' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
