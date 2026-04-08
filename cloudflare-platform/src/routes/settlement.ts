@@ -10,6 +10,85 @@ import { cascade } from '../utils/cascade';
 
 const settlement = new Hono<HonoEnv>();
 
+// GET /settlements — List trades with settlement info
+settlement.get('/settlements', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const pg = parsePagination(c.req.query());
+    const status = c.req.query('status');
+
+    let query: string;
+    const params: unknown[] = [];
+
+    if (user.role === 'admin') {
+      query = 'SELECT * FROM trades';
+    } else {
+      query = 'SELECT * FROM trades WHERE (buyer_id = ? OR seller_id = ?)';
+      params.push(user.sub, user.sub);
+    }
+
+    if (status) {
+      query += params.length > 0 ? ' AND status = ?' : ' WHERE status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(pg.per_page, pg.offset);
+
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /netting — Get netting summary for a counterparty
+settlement.get('/netting', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const counterpartyId = c.req.query('counterparty_id');
+    const from = c.req.query('from') || new Date(Date.now() - 30 * 86400000).toISOString();
+    const to = c.req.query('to') || new Date().toISOString();
+
+    let query = "SELECT * FROM trades WHERE status = 'settled' AND created_at >= ? AND created_at <= ?";
+    const params: unknown[] = [from, to];
+
+    if (user.role !== 'admin') {
+      query += ' AND (buyer_id = ? OR seller_id = ?)';
+      params.push(user.sub, user.sub);
+    }
+
+    if (counterpartyId) {
+      query += ' AND (buyer_id = ? OR seller_id = ?)';
+      params.push(counterpartyId, counterpartyId);
+    }
+
+    const trades = await c.env.DB.prepare(query).bind(...params).all();
+
+    let totalReceivable = 0;
+    let totalPayable = 0;
+    for (const t of trades.results) {
+      if (t.seller_id === user.sub) totalReceivable += (t.total_cents as number) || 0;
+      if (t.buyer_id === user.sub) totalPayable += (t.total_cents as number) || 0;
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        period: { from, to },
+        trade_count: trades.results.length,
+        receivable_cents: totalReceivable,
+        payable_cents: totalPayable,
+        net_cents: totalReceivable - totalPayable,
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 // POST /settlements/:tradeId/confirm — Settlement confirmation
 settlement.post('/settlements/:tradeId/confirm', authMiddleware(), async (c) => {
   try {
