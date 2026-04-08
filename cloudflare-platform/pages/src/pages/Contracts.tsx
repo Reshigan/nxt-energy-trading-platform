@@ -325,8 +325,19 @@ export default function Contracts() {
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
                             <FiEye className="w-3.5 h-3.5" />
                           </button>
-                          <button title="Download PDF"
-                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label="Download">
+                          <button onClick={async () => {
+                            try {
+                              const res = await contractsAPI.getPdf(d.id);
+                              const content = res.data?.data || res.data;
+                              const blob = new Blob([typeof content === 'string' ? content : JSON.stringify(content, null, 2)], { type: 'application/pdf' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url; a.download = `INV-${d.id}.pdf`; a.click();
+                              URL.revokeObjectURL(url);
+                              toast.success('PDF downloaded');
+                            } catch { toast.error('PDF not available for this contract'); }
+                          }} title="Download PDF"
+                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label={`Download PDF for ${d.title}`}>
                             <FiDownload className="w-3.5 h-3.5" />
                           </button>
                         </div>
