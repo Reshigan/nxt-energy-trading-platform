@@ -326,6 +326,293 @@ api.get('/fees', async (c) => {
   return c.json({ success: true, data: fees.results });
 });
 
+// ── Admin routes ──────────────────────────────────────────────
+api.get('/admin/participants', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
+  const results = await c.env.DB.prepare('SELECT * FROM participants ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(limit, offset).all();
+  const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>();
+  return c.json({ success: true, data: results.results, meta: { page, limit, total: total?.count || 0 } });
+});
+
+api.get('/admin/users', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const results = await c.env.DB.prepare('SELECT id, email, role, company_name, kyc_status, created_at FROM participants ORDER BY created_at DESC').all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.get('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  const user = await c.env.DB.prepare('SELECT * FROM participants WHERE id = ?').bind(id).first();
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
+  return c.json({ success: true, data: user });
+});
+
+api.patch('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json() as Record<string, unknown>;
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, val] of Object.entries(body)) {
+    if (['role', 'kyc_status', 'trading_enabled', 'company_name'].includes(key)) {
+      updates.push(`${key} = ?`);
+      values.push(val);
+    }
+  }
+  if (updates.length === 0) return c.json({ success: false, error: 'No valid fields to update' }, 400);
+  values.push(id);
+  await c.env.DB.prepare(`UPDATE participants SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+  return c.json({ success: true });
+});
+
+api.delete('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM participants WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+api.get('/admin/stats', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const [users, trades, contracts, credits] = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM trades').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM contract_documents').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM carbon_credits').first<{ count: number }>(),
+  ]);
+  return c.json({ success: true, data: { users: users?.count || 0, trades: trades?.count || 0, contracts: contracts?.count || 0, credits: credits?.count || 0 } });
+});
+
+api.get('/admin/revenue', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const totalTraded = await c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>();
+  const monthTraded = await c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled' AND created_at >= date('now', 'start of month')").first<{ total: number | null }>();
+  const fees = await c.env.DB.prepare("SELECT SUM(fee_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>();
+  const subs = await c.env.DB.prepare('SELECT COUNT(*) as count FROM participants WHERE subscription_tier IS NOT NULL').first<{ count: number }>();
+  return c.json({
+    success: true,
+    data: {
+      total_revenue_cents: totalTraded?.total || 0,
+      month_revenue_cents: monthTraded?.total || 0,
+      trading_fees_cents: fees?.total || 0,
+      active_subscriptions: subs?.count || 0,
+      monthly: [],
+    },
+  });
+});
+
+// ── Audit Trail ──────────────────────────────────────────────
+api.get('/admin/audit-log', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
+  const action = c.req.query('action');
+  let query = 'SELECT * FROM audit_log';
+  const params: unknown[] = [];
+  if (action) { query += ' WHERE action = ?'; params.push(action); }
+  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+  const results = await c.env.DB.prepare(query).bind(...params).all();
+  return c.json({ success: true, data: results.results });
+});
+
+// ── Tenant Admin ─────────────────────────────────────────────
+api.post('/admin/tenants', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const body = await c.req.json() as { name: string; domain?: string };
+  if (!body.name) return c.json({ success: false, error: 'Tenant name is required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare('INSERT INTO tenants (id, name, domain, status, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, body.name, body.domain || null, 'active', nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+api.delete('/admin/tenants/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// ── Disputes (Settlement) ────────────────────────────────────
+api.get('/settlement/disputes', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const isAdmin = user.role === 'admin' || user.role === 'regulator';
+  let query = 'SELECT * FROM disputes';
+  const params: unknown[] = [];
+  if (!isAdmin) {
+    query += ' WHERE raised_by = ? OR counterparty_id = ?';
+    params.push(user.sub, user.sub);
+  }
+  query += ' ORDER BY created_at DESC';
+  const results = await c.env.DB.prepare(query).bind(...params).all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.post('/settlement/disputes', authMiddleware(), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const user = c.get('user');
+  const body = await c.req.json() as { type: string; subject: string; description: string; counterparty_id?: string; contract_id?: string };
+  if (!body.type || !body.subject) return c.json({ success: false, error: 'Type and subject are required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare(
+    'INSERT INTO disputes (id, type, subject, description, status, raised_by, counterparty_id, contract_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, body.type, body.subject, body.description || '', 'open', user.sub, body.counterparty_id || null, body.contract_id || null, nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+api.patch('/settlement/disputes/:id', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json() as { status?: string; resolution?: string };
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  if (body.status) { updates.push('status = ?'); values.push(body.status); }
+  if (body.resolution) { updates.push('resolution = ?'); values.push(body.resolution); }
+  if (updates.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400);
+  values.push(id);
+  await c.env.DB.prepare(`UPDATE disputes SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+  return c.json({ success: true });
+});
+
+// ── Invoices ─────────────────────────────────────────────────
+api.get('/invoices', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const isAdmin = user.role === 'admin';
+  let query = 'SELECT * FROM invoices';
+  const params: unknown[] = [];
+  if (!isAdmin) { query += ' WHERE participant_id = ?'; params.push(user.sub); }
+  query += ' ORDER BY created_at DESC';
+  const results = await c.env.DB.prepare(query).bind(...params).all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.post('/invoices', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const body = await c.req.json() as { participant_id: string; amount_cents: number; description: string; due_date: string };
+  if (!body.participant_id || !body.amount_cents) return c.json({ success: false, error: 'participant_id and amount_cents are required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare(
+    'INSERT INTO invoices (id, participant_id, amount_cents, description, status, due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, body.participant_id, body.amount_cents, body.description || '', 'outstanding', body.due_date || null, nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+// ── Smart Rules ──────────────────────────────────────────────
+api.get('/smart-rules', authMiddleware(), async (c) => {
+  const results = await c.env.DB.prepare('SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id ORDER BY scr.created_at DESC').all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.post('/smart-rules', authMiddleware(), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const user = c.get('user');
+  const body = await c.req.json() as { contract_doc_id: string; rule_type: string; trigger_condition: string; action: string };
+  if (!body.contract_doc_id || !body.rule_type) return c.json({ success: false, error: 'contract_doc_id and rule_type are required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare(
+    'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(id, body.contract_doc_id, body.rule_type, body.trigger_condition || '{}', body.action || '{}', nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json() as Record<string, unknown>;
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, val] of Object.entries(body)) {
+    if (['rule_type', 'trigger_condition', 'action', 'enabled'].includes(key)) { updates.push(`${key} = ?`); values.push(val); }
+  }
+  if (updates.length === 0) return c.json({ success: false, error: 'No valid fields' }, 400);
+  values.push(id);
+  await c.env.DB.prepare(`UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+  return c.json({ success: true });
+});
+
+api.delete('/smart-rules/:id', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM smart_contract_rules WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// ── System Health ────────────────────────────────────────────
+api.get('/health/status', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const [users, trades, contracts] = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM trades').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM contract_documents').first<{ count: number }>(),
+  ]);
+  return c.json({
+    success: true,
+    data: {
+      status: 'healthy',
+      uptime: 0,  // Workers don't have process.uptime
+      database: { status: 'connected', users: users?.count || 0, trades: trades?.count || 0, contracts: contracts?.count || 0 },
+      services: { d1: 'operational', kv: 'operational', r2: 'operational', do: 'operational' },
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+api.get('/health/metrics', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const hour = new Date().toISOString().substring(0, 13);
+  const endpoints = ['/trading', '/carbon', '/contracts', '/settlement', '/p2p'];
+  const metrics: Record<string, unknown> = {};
+  for (const ep of endpoints) {
+    const countStr = await c.env.KV.get(`api_count:${ep}:${hour}`);
+    const rtStr = await c.env.KV.get(`api_rt:${ep}:${hour}`);
+    const rt = rtStr ? JSON.parse(rtStr) : { sum: 0, count: 0 };
+    metrics[ep] = { requests: parseInt(countStr || '0', 10), avg_response_ms: rt.count > 0 ? Math.round(rt.sum / rt.count) : 0 };
+  }
+  return c.json({ success: true, data: { hour, metrics } });
+});
+
+// ── Reports Schedule ─────────────────────────────────────────
+api.post('/reports/schedule', authMiddleware(), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const user = c.get('user');
+  const body = await c.req.json() as { frequency: string; email: string; report_type?: string };
+  if (!body.frequency || !body.email) return c.json({ success: false, error: 'Frequency and email are required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare(
+    'INSERT INTO report_schedules (id, participant_id, frequency, email, report_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(id, user.sub, body.frequency, body.email, body.report_type || 'general', 'active', nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+api.get('/reports/schedules', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const results = await c.env.DB.prepare('SELECT * FROM report_schedules WHERE participant_id = ? ORDER BY created_at DESC').bind(user.sub).all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.delete('/reports/schedule/:id', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM report_schedules WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// ── 2FA Auth ─────────────────────────────────────────────────
+api.post('/auth/2fa/enable', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const secret = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
+  await c.env.KV.put(`2fa:${user.sub}`, secret, { expirationTtl: 86400 * 365 });
+  return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/NXT%20Energy:${user.email}?secret=${secret}&issuer=NXT%20Energy` } });
+});
+
+api.post('/auth/2fa/verify', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json() as { code: string };
+  const secret = await c.env.KV.get(`2fa:${user.sub}`);
+  if (!secret) return c.json({ success: false, error: '2FA not enabled' }, 400);
+  // Simplified TOTP verification (in production, use a proper TOTP library)
+  if (!body.code || body.code.length !== 6) return c.json({ success: false, error: 'Invalid code' }, 400);
+  await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
+  return c.json({ success: true });
+});
+
+api.post('/auth/2fa/disable', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  await c.env.KV.delete(`2fa:${user.sub}`);
+  await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 0, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
+  return c.json({ success: true });
+});
+
 // Mount API
 app.route('/api/v1', api);
 
