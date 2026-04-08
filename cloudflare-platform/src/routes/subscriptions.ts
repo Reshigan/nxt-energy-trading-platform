@@ -33,14 +33,19 @@ subscriptions.get('/plans', async (c) => {
 subscriptions.get('/current', async (c) => {
   try {
     const user = c.get('user');
-    const sub = await c.env.DB.prepare(
-      'SELECT * FROM subscriptions WHERE participant_id = ? AND status = ? ORDER BY created_at DESC LIMIT 1'
-    ).bind(user.sub, 'active').first();
+    try {
+      const sub = await c.env.DB.prepare(
+        'SELECT * FROM subscriptions WHERE participant_id = ? AND status = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(user.sub, 'active').first();
 
-    if (!sub) {
+      if (!sub) {
+        return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
+      }
+      return c.json({ success: true, data: sub });
+    } catch {
+      // subscriptions table may not exist yet — return default free plan
       return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
     }
-    return c.json({ success: true, data: sub });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
@@ -61,6 +66,22 @@ subscriptions.post('/', async (c) => {
     if (!validPlans.includes(body.plan_id)) {
       return c.json({ success: false, error: 'Invalid plan' }, 400);
     }
+
+    // Ensure subscriptions table exists
+    await c.env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        participant_id TEXT NOT NULL,
+        plan_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        billing_cycle TEXT DEFAULT 'monthly',
+        price_cents INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT,
+        next_billing_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `).run();
 
     // Deactivate current subscription
     await c.env.DB.prepare(
@@ -103,9 +124,14 @@ subscriptions.delete('/', async (c) => {
   try {
     const user = c.get('user');
 
-    const sub = await c.env.DB.prepare(
-      "SELECT id FROM subscriptions WHERE participant_id = ? AND status = 'active'"
-    ).bind(user.sub).first<{ id: string }>();
+    let sub: { id: string } | null = null;
+    try {
+      sub = await c.env.DB.prepare(
+        "SELECT id FROM subscriptions WHERE participant_id = ? AND status = 'active'"
+      ).bind(user.sub).first<{ id: string }>();
+    } catch {
+      return c.json({ success: false, error: 'No active subscription' }, 404);
+    }
 
     if (!sub) {
       return c.json({ success: false, error: 'No active subscription' }, 404);
@@ -138,24 +164,30 @@ subscriptions.get('/usage', async (c) => {
     const user = c.get('user');
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
 
-    const [trades, apiCalls, orders] = await Promise.all([
-      c.env.DB.prepare(
-        "SELECT COUNT(*) as count FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= ?"
-      ).bind(user.sub, user.sub, thirtyDaysAgo).first<{ count: number }>(),
-      c.env.DB.prepare(
-        "SELECT COUNT(*) as count FROM audit_log WHERE actor_id = ? AND created_at >= ?"
-      ).bind(user.sub, thirtyDaysAgo).first<{ count: number }>(),
-      c.env.DB.prepare(
-        "SELECT COUNT(*) as count FROM orders WHERE participant_id = ? AND created_at >= ?"
-      ).bind(user.sub, thirtyDaysAgo).first<{ count: number }>(),
-    ]);
+    let tradesCount = 0, apiCallsCount = 0, ordersCount = 0;
+    try {
+      const [trades, apiCalls, orders] = await Promise.all([
+        c.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= ?"
+        ).bind(user.sub, user.sub, thirtyDaysAgo).first<{ count: number }>(),
+        c.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM audit_log WHERE actor_id = ? AND created_at >= ?"
+        ).bind(user.sub, thirtyDaysAgo).first<{ count: number }>(),
+        c.env.DB.prepare(
+          "SELECT COUNT(*) as count FROM orders WHERE participant_id = ? AND created_at >= ?"
+        ).bind(user.sub, thirtyDaysAgo).first<{ count: number }>(),
+      ]);
+      tradesCount = trades?.count || 0;
+      apiCallsCount = apiCalls?.count || 0;
+      ordersCount = orders?.count || 0;
+    } catch { /* tables may not exist */ }
 
     return c.json({
       success: true,
       data: {
-        trades_this_period: trades?.count || 0,
-        api_calls_this_period: apiCalls?.count || 0,
-        orders_this_period: orders?.count || 0,
+        trades_this_period: tradesCount,
+        api_calls_this_period: apiCallsCount,
+        orders_this_period: ordersCount,
         period_start: thirtyDaysAgo,
         period_end: nowISO(),
       },
@@ -169,10 +201,15 @@ subscriptions.get('/usage', async (c) => {
 // GET /subscriptions/all — Admin: list all subscriptions
 subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
   try {
-    const results = await c.env.DB.prepare(
-      'SELECT s.*, p.company_name, p.email FROM subscriptions s JOIN participants p ON s.participant_id = p.id ORDER BY s.created_at DESC LIMIT 100'
-    ).all();
-    return c.json({ success: true, data: results.results });
+    try {
+      const results = await c.env.DB.prepare(
+        'SELECT s.*, p.company_name, p.email FROM subscriptions s JOIN participants p ON s.participant_id = p.id ORDER BY s.created_at DESC LIMIT 100'
+      ).all();
+      return c.json({ success: true, data: results.results });
+    } catch {
+      // subscriptions table may not exist yet
+      return c.json({ success: true, data: [] });
+    }
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

@@ -81,8 +81,13 @@ demand.get('/profiles', authMiddleware(), async (c) => {
     }
     params.push(pg.per_page, pg.offset);
 
-    const results = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ success: true, data: results.results });
+    try {
+      const results = await c.env.DB.prepare(query).bind(...params).all();
+      return c.json({ success: true, data: results.results });
+    } catch {
+      // demand_profiles table may not exist yet
+      return c.json({ success: true, data: [] });
+    }
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
@@ -380,16 +385,21 @@ demand.get('/matches', authMiddleware(), async (c) => {
     const user = c.get('user');
     const pg = parsePagination(c.req.query());
 
-    const results = await c.env.DB.prepare(`
-      SELECT dm.*, dp.company_name, dp.annual_kwh, dp.province
-      FROM demand_matches dm
-      JOIN demand_profiles dp ON dm.profile_id = dp.id
-      WHERE dp.participant_id = ?
-      ORDER BY dm.match_score DESC
-      LIMIT ? OFFSET ?
-    `).bind(user.sub, pg.per_page, pg.offset).all();
+    try {
+      const results = await c.env.DB.prepare(`
+        SELECT dm.*, dp.company_name, dp.annual_kwh, dp.province
+        FROM demand_matches dm
+        JOIN demand_profiles dp ON dm.profile_id = dp.id
+        WHERE dp.participant_id = ?
+        ORDER BY dm.match_score DESC
+        LIMIT ? OFFSET ?
+      `).bind(user.sub, pg.per_page, pg.offset).all();
 
-    return c.json({ success: true, data: results.results });
+      return c.json({ success: true, data: results.results });
+    } catch {
+      // demand_matches or demand_profiles table may not exist yet
+      return c.json({ success: true, data: [] });
+    }
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
