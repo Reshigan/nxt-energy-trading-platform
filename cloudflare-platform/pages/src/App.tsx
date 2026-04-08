@@ -63,6 +63,14 @@ const CookiesPage = lazy(() => import('./pages/Cookies'));
 const RulesPage = lazy(() => import('./pages/Rules'));
 const RiskDisclosurePage = lazy(() => import('./pages/Risk'));
 const AMLPage = lazy(() => import('./pages/AML'));
+const DocumentVault = lazy(() => import('./pages/DocumentVault'));
+const LenderDashboard = lazy(() => import('./pages/LenderDashboard'));
+const SurveillancePage = lazy(() => import('./pages/Surveillance'));
+const TradeJournal = lazy(() => import('./pages/TradeJournal'));
+const CarbonDeep = lazy(() => import('./pages/CarbonDeep'));
+const IPPDeep = lazy(() => import('./pages/IPPDeep'));
+const OfftakerDeep = lazy(() => import('./pages/OfftakerDeep'));
+const ReportingEngine = lazy(() => import('./pages/ReportingEngine'));
 
 function App() {
   return (
@@ -116,6 +124,14 @@ function App() {
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/smart-rules" element={<SmartRules />} />
         <Route path="/contracts/:id" element={<ContractDeep />} />
+        <Route path="/vault" element={<DocumentVault />} />
+        <Route path="/lender" element={<LenderDashboard />} />
+        <Route path="/surveillance" element={<SurveillancePage />} />
+        <Route path="/trade-journal" element={<TradeJournal />} />
+        <Route path="/carbon-deep" element={<CarbonDeep />} />
+        <Route path="/ipp-deep" element={<IPPDeep />} />
+        <Route path="/offtaker-deep" element={<OfftakerDeep />} />
+        <Route path="/reporting-engine" element={<ReportingEngine />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
