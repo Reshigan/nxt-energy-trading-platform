@@ -7,7 +7,7 @@ import AIChatWidget from '../components/AIChatWidget';
 import GuidedTour from '../components/GuidedTour';
 import KYCBanner from '../components/KYCBanner';
 import HelpPanel from '../components/HelpPanel';
-import { useAuthStore } from '../lib/store';
+import { useAuthStore, useNotificationStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { getRoleConfig } from '../config/roles';
 
@@ -32,6 +32,13 @@ const ALL_MORE_LINKS = [
   { name: 'Report Builder', href: '/reports' },
   { name: 'Developer Portal', href: '/developer' },
   { name: 'Demand Profile', href: '/demand' },
+  { name: 'Offtaker Cost', href: '/offtaker-cost' },
+  { name: 'Disputes', href: '/disputes' },
+  { name: 'Invoices', href: '/invoices' },
+  { name: 'Smart Rules', href: '/smart-rules' },
+  { name: 'Audit Trail', href: '/audit-trail' },
+  { name: 'System Health', href: '/system-health' },
+  { name: 'Tenant Admin', href: '/tenant-admin' },
   { name: 'Notifications', href: '/notifications' },
   { name: 'Admin', href: '/admin' },
   { name: 'Settings', href: '/settings' },
@@ -54,6 +61,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, activeRole, switchRole, logout, isAuthenticated } = useAuthStore();
+  const { unreadCount } = useNotificationStore();
   const { isDark, toggleTheme } = useTheme();
   const roleBtnRef = useRef<HTMLButtonElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
@@ -152,9 +160,13 @@ export default function DashboardLayout() {
               </button>
             </div>
 
-            <Link to="/notifications" className={`p-2 rounded-xl relative transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}>
+            <Link to="/notifications" className={`p-2 rounded-xl relative transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/[0.06]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`} aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}>
               <FiBell className="w-[18px] h-[18px]" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 notification-dot" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-blue-500 text-white text-[10px] font-bold shadow-lg shadow-blue-500/30 notification-dot">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Link>
 
             {/* User avatar */}
