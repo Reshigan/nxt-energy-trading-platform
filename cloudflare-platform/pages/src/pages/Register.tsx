@@ -5,6 +5,7 @@ import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 
 const ROLES = [

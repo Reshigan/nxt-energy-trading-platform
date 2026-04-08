@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 const TABS = ['API Keys', 'Webhooks', 'Documentation', 'Usage'] as const;
 
@@ -35,6 +37,12 @@ export default function DeveloperPortal() {
   const [usageData, setUsageData] = useState<UsagePoint[]>([]);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [showCreateKey, setShowCreateKey] = useState(false);
+  const [keyName, setKeyName] = useState('');
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [showCreateWebhook, setShowCreateWebhook] = useState(false);
+  const [webhookForm, setWebhookForm] = useState({ url: '', events: 'order.filled' });
+  const [creatingWebhook, setCreatingWebhook] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -52,6 +60,28 @@ export default function DeveloperPortal() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleCreateKey = async () => {
+    if (!keyName.trim()) { toast.error('Key name is required'); return; }
+    setCreatingKey(true);
+    try {
+      const res = await developerAPI.createKey({ name: keyName.trim() });
+      if (res.data?.success || res.data?.data) { toast.success('API key created'); setShowCreateKey(false); setKeyName(''); loadData(); }
+      else toast.error(res.data?.error || 'Failed to create key');
+    } catch { toast.error('Failed to create API key'); }
+    setCreatingKey(false);
+  };
+
+  const handleCreateWebhook = async () => {
+    if (!webhookForm.url.trim()) { toast.error('URL is required'); return; }
+    setCreatingWebhook(true);
+    try {
+      const res = await developerAPI.createWebhook({ url: webhookForm.url.trim(), events: webhookForm.events.split(',').map(e => e.trim()) });
+      if (res.data?.success || res.data?.data) { toast.success('Webhook created'); setShowCreateWebhook(false); setWebhookForm({ url: '', events: 'order.filled' }); loadData(); }
+      else toast.error(res.data?.error || 'Failed to create webhook');
+    } catch { toast.error('Failed to create webhook'); }
+    setCreatingWebhook(false);
+  };
 
   const handleRevokeKey = async (id: string) => {
     setRevoking(id);
@@ -185,6 +215,29 @@ export default function DeveloperPortal() {
           </ResponsiveContainer>
         </div>
       )}
+
+      <Modal isOpen={showCreateKey} onClose={() => setShowCreateKey(false)} title="Create API Key">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Key Name</label>
+            <input value={keyName} onChange={e => setKeyName(e.target.value)} placeholder="e.g. Production Trading Bot" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateKey(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateKey} loading={creatingKey} disabled={!keyName.trim()}>Create Key</Button>
+          </div>
+        </div>
+      </Modal>
+      <Modal isOpen={showCreateWebhook} onClose={() => setShowCreateWebhook(false)} title="Create Webhook">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Webhook URL</label>
+            <input value={webhookForm.url} onChange={e => setWebhookForm(p => ({ ...p, url: e.target.value }))} placeholder="https://your-server.com/webhook" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Events (comma-separated)</label>
+            <input value={webhookForm.events} onChange={e => setWebhookForm(p => ({ ...p, events: e.target.value }))} placeholder="order.filled, trade.settled" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowCreateWebhook(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreateWebhook} loading={creatingWebhook} disabled={!webhookForm.url.trim()}>Create Webhook</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }

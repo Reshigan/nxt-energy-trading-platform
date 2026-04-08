@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -21,6 +23,9 @@ export default function Portfolio() {
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [loading, setLoading] = useState(true);
+  const [showOptimise, setShowOptimise] = useState(false);
+  const [optimiseStrategy, setOptimiseStrategy] = useState('balanced');
+  const [optimising, setOptimising] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -47,6 +52,16 @@ export default function Portfolio() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleOptimise = async () => {
+    setOptimising(true);
+    try {
+      const res = await aiAPI.optimise({ strategy: optimiseStrategy });
+      if (res.data?.success) { toast.success('Portfolio optimised with ' + optimiseStrategy + ' strategy'); setShowOptimise(false); loadData(); }
+      else toast.error(res.data?.error || 'Optimisation failed');
+    } catch { toast.error('Optimisation failed'); }
+    setOptimising(false);
+  };
 
   const send = async () => {
     if (!chatInput.trim()) return;
@@ -195,6 +210,20 @@ export default function Portfolio() {
         </div>
       </div>
       </>)}
+
+      <Modal isOpen={showOptimise} onClose={() => setShowOptimise(false)} title="Optimise Portfolio">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Run AI-powered portfolio optimisation to rebalance your positions.</p>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Strategy</label>
+            <select value={optimiseStrategy} onChange={e => setOptimiseStrategy(e.target.value)} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+              <option value="balanced">Balanced</option><option value="aggressive">Aggressive Growth</option><option value="conservative">Conservative</option><option value="green">Green Focus</option>
+            </select></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowOptimise(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleOptimise} loading={optimising}>Optimise</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }
