@@ -140,4 +140,135 @@ describe('API Routes Integration', () => {
       expect(reqId).toBeTruthy();
     });
   });
+
+  // Phase 2: Rule 8 compliance tests — verify hardened routes never return 500
+  describe('Rule 8: Backend Error Handling', () => {
+    // Trading routes
+    it('GET /api/v1/trading/positions requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/trading/positions');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('GET /api/v1/trading/history requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/trading/history');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Carbon routes
+    it('GET /api/v1/carbon/credits requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/carbon/credits');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('GET /api/v1/carbon/retirements requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/carbon/retirements');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Settlement routes
+    it('GET /api/v1/settlement/invoices requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/settlement/invoices');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('GET /api/v1/settlement/escrows requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/settlement/escrows');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Compliance routes
+    it('GET /api/v1/compliance/checks requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/compliance/checks');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Contract routes
+    it('GET /api/v1/contracts/documents requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/contracts/documents');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Projects routes
+    it('GET /api/v1/projects requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/projects');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Metering routes
+    it('GET /api/v1/metering/readings requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/metering/readings');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // P2P routes
+    it('GET /api/v1/p2p/offers requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/p2p/offers');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Marketplace routes
+    it('GET /api/v1/marketplace/listings requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/marketplace/listings');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Reports routes
+    it('GET /api/v1/reports requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/reports');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // Developer routes
+    it('GET /api/v1/developer/keys requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/developer/keys');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    // AI routes
+    it('GET /api/v1/ai/optimisations requires auth, not 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/ai/optimisations');
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  describe('Rule 8: Error responses include requestId', () => {
+    it('401 response includes requestId in header', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/notifications');
+      expect(res.status).toBe(401);
+      const reqId = res.headers.get('x-request-id');
+      expect(reqId).toBeTruthy();
+      expect(typeof reqId).toBe('string');
+    });
+  });
+
+  describe('Rule 8: Invalid POST bodies handled gracefully', () => {
+    it('POST /api/v1/auth/login with invalid JSON returns < 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not-valid-json{{{',
+      });
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('POST /api/v1/auth/refresh with invalid JSON returns < 500', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid',
+      });
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  describe('Frontend Error Reporting', () => {
+    it('POST /api/v1/errors/frontend accepts error reports', async () => {
+      const res = await SELF.fetch('https://fake/api/v1/errors/frontend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Test error', url: '/test', timestamp: new Date().toISOString() }),
+      });
+      expect(res.status).toBe(200);
+    });
+  });
 });
