@@ -5,6 +5,7 @@ import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const p2p = new Hono<HonoEnv>();
 p2p.use('*', authMiddleware());
@@ -57,6 +58,17 @@ p2p.post('/offers', async (c) => {
         offer_type: body.offer_type,
         expires_at: body.expires_at || '',
       }),
+    }));
+
+    // Fire cascade for P2P offer creation
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'p2p.offer_created',
+      actor_id: user.sub,
+      entity_type: 'p2p_trade',
+      entity_id: id,
+      data: { volume_kwh: body.volume_kwh, price_cents_per_kwh: body.price_cents_per_kwh, zone: body.distribution_zone, offer_type: body.offer_type },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
     }));
 
     return c.json({ success: true, data: { id, total_cents: total } }, 201);
@@ -120,6 +132,17 @@ p2p.post('/offers/:id/accept', async (c) => {
       id,
     ).run();
 
+    // Fire cascade for P2P match
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'p2p.matched',
+      actor_id: user.sub,
+      entity_type: 'p2p_trade',
+      entity_id: id,
+      data: { buyer_id: user.sub, seller_id: offer.seller_id as string, volume_kwh: offer.volume_kwh, total_cents: offer.total_cents, zone: offer.distribution_zone },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({
       success: true,
       data: {
@@ -164,6 +187,17 @@ p2p.post('/offers/:id/settle', authMiddleware({ roles: ['admin', 'grid'] }), asy
       )
     );
     await c.env.DB.batch(notifications);
+
+    // Fire cascade for P2P settlement
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'p2p.settled',
+      actor_id: c.get('user').sub,
+      entity_type: 'p2p_trade',
+      entity_id: id,
+      data: { seller_id: trade.seller_id, buyer_id: trade.buyer_id, volume_kwh: trade.volume_kwh, total_cents: trade.total_cents },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { id, status: 'settled' } });
   } catch (err) {
