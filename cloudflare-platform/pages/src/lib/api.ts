@@ -156,6 +156,8 @@ export const marketplaceAPI = {
 export const participantsAPI = {
   list: (params?: Record<string, string>) => api.get('/participants', { params }),
   get: (id: string) => api.get(`/participants/${id}`),
+  approve: (id: string) => api.post(`/participants/${id}/approve`),
+  reject: (id: string) => api.post(`/participants/${id}/reject`),
 };
 
 // AI Portfolio Optimisation
