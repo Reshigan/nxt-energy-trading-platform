@@ -47,7 +47,7 @@ export default function Notifications() {
       await notificationsAPI.markRead(id);
       setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to mark as read');
     }
   }
 
@@ -56,7 +56,7 @@ export default function Notifications() {
       await notificationsAPI.markAllRead();
       setItems(prev => prev.map(n => ({ ...n, read: true })));
     } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to mark all as read');
     }
   }
 

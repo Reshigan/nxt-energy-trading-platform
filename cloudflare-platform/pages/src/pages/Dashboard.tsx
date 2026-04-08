@@ -60,8 +60,14 @@ export default function Dashboard() {
           }
         }
       } catch {
-      toast.error('Failed to load data');
-    }
+        // Promise.allSettled doesn't reject, but catch handles unexpected errors
+      }
+      // Check for rejected results and show toast
+      if (!cancelled) {
+        if (sumRes.status === 'rejected' && priceRes.status === 'rejected') {
+          toast.error('Failed to load dashboard data');
+        }
+      }
       if (!cancelled) setLoading(false);
     }
     load();
