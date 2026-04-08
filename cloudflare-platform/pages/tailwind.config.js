@@ -12,8 +12,9 @@ module.exports = {
         'energy-accent': '#10b981',
       },
       fontFamily: {
-        sans: ['Inter', 'DM Sans', 'sans-serif'],
-        heading: ['Space Grotesk', 'sans-serif'],
+        sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+        heading: ['Plus Jakarta Sans', 'Space Grotesk', 'sans-serif'],
+        mono: ['SF Mono', 'JetBrains Mono', 'Fira Code', 'monospace'],
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
