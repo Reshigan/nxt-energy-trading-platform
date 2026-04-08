@@ -83,9 +83,9 @@ register.post('/', async (c) => {
     c.req.header('CF-Connecting-IP') || 'unknown'
   ).run();
 
-  // B3: Fire cascade for registration
+  // B3: Fire cascade for registration (participant.registered, NOT kyc.approved)
   c.executionCtx.waitUntil(cascade(c.env, {
-    type: 'kyc.approved',
+    type: 'participant.registered',
     actor_id: id,
     entity_type: 'participant',
     entity_id: id,

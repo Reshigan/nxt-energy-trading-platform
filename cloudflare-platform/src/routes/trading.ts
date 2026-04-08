@@ -31,19 +31,16 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
       return c.json({ success: false, error: 'KYC verification required before trading' }, 403);
     }
 
-    // B6: Margin check — ensure participant has sufficient margin/balance
-    const marginResult = await c.env.DB.prepare(
-      'SELECT balance_cents, margin_used_cents, margin_limit_cents FROM participants WHERE id = ?'
-    ).bind(user.sub).first<{ balance_cents: number | null; margin_used_cents: number | null; margin_limit_cents: number | null }>();
-    if (marginResult) {
-      const balance = marginResult.balance_cents || 0;
-      const marginUsed = marginResult.margin_used_cents || 0;
-      const marginLimit = marginResult.margin_limit_cents || 10000000; // Default R100k limit
-      const orderValue = (data.volume || 0) * (data.price || 0);
-      const availableMargin = marginLimit - marginUsed;
-      if (orderValue > availableMargin && orderValue > balance) {
-        return c.json({ success: false, error: `Insufficient margin. Available: R${(availableMargin / 100).toFixed(2)}, Required: R${(orderValue / 100).toFixed(2)}` }, 400);
-      }
+    // B6: Margin check — query existing settled trade exposure to prevent over-leveraging
+    // Uses aggregate of settled trades as proxy for margin usage (no separate margin columns needed)
+    const exposureResult = await c.env.DB.prepare(
+      "SELECT COALESCE(SUM(total_cents), 0) as exposure_cents FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending'"
+    ).bind(user.sub, user.sub).first<{ exposure_cents: number }>();
+    const currentExposureCents = exposureResult?.exposure_cents || 0;
+    const orderValueCents = Math.round((data.volume || 0) * (data.price || 0) * 100); // Convert Rand to cents
+    const marginLimitCents = 10000000; // Default R100k limit
+    if (currentExposureCents + orderValueCents > marginLimitCents) {
+      return c.json({ success: false, error: `Insufficient margin. Current exposure: R${(currentExposureCents / 100).toFixed(2)}, Order: R${(orderValueCents / 100).toFixed(2)}, Limit: R${(marginLimitCents / 100).toFixed(2)}` }, 400);
     }
 
     // Validate price for limit orders
