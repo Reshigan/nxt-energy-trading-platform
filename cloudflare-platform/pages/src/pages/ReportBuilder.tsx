@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Toolti
 import { useTheme } from '../contexts/ThemeContext';
 import { reportsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
