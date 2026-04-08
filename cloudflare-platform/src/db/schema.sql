@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE TABLE IF NOT EXISTS contract_documents (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
-  document_type TEXT NOT NULL CHECK (document_type IN ('loi','term_sheet','hoa','ppa_wheeling','ppa_btm','carbon_purchase','carbon_option_isda','forward','epc','wheeling_agreement','side_letter','nda')),
+  document_type TEXT NOT NULL CHECK (document_type IN ('loi','term_sheet','hoa','ppa_wheeling','ppa_btm','carbon_purchase','carbon_option_isda','forward','epc','wheeling_agreement','side_letter','nda','solar_ppa','wind_ppa','gas_spot')),
   phase TEXT NOT NULL DEFAULT 'draft' CHECK (phase IN ('draft','loi','term_sheet','hoa','draft_agreement','legal_review','statutory_check','execution','active','amended','terminated')),
   creator_id TEXT NOT NULL REFERENCES participants(id),
   counterparty_id TEXT NOT NULL REFERENCES participants(id),
@@ -389,7 +389,7 @@ CREATE TABLE IF NOT EXISTS marketplace_listings (
 CREATE TABLE IF NOT EXISTS document_templates (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  document_type TEXT NOT NULL CHECK (document_type IN ('loi','term_sheet','hoa','ppa_wheeling','ppa_btm','carbon_purchase','carbon_option_isda','forward','epc','wheeling_agreement','side_letter','nda')),
+  document_type TEXT NOT NULL CHECK (document_type IN ('loi','term_sheet','hoa','ppa_wheeling','ppa_btm','carbon_purchase','carbon_option_isda','forward','epc','wheeling_agreement','side_letter','nda','solar_ppa','wind_ppa','gas_spot')),
   r2_key TEXT,
   version TEXT NOT NULL DEFAULT 'v1.0',
   page_count INTEGER,
