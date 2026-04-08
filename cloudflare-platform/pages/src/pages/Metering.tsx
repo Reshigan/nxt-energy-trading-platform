@@ -1,78 +1,75 @@
-import React, { useState, useEffect } from 'react';
-import { FiActivity, FiUpload, FiCheck, FiClock, FiZap } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiActivity, FiRefreshCw, FiCheck, FiClock, FiZap } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { meteringAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const readingsData = Array.from({ length: 24 }, (_, i) => ({
-  time: `${String(i).padStart(2, '0')}:00`,
-  solar: Math.max(0, 45 + Math.sin((i - 6) * 0.5) * 40),
-  wind: 20 + Math.sin(i * 0.3) * 15,
-  demand: 50 + Math.sin((i - 8) * 0.4) * 30,
-}));
-
-const monthlyData = [
-  { month: 'Jan', generation: 12400, consumption: 10800 },
-  { month: 'Feb', generation: 14200, consumption: 11200 },
-  { month: 'Mar', generation: 15800, consumption: 11600 },
-  { month: 'Apr', generation: 13200, consumption: 12400 },
-  { month: 'May', generation: 11800, consumption: 13200 },
-  { month: 'Jun', generation: 10200, consumption: 14800 },
-];
-
-const meters = [
-  { id: 'MTR-SOL-001', project: 'Limpopo Solar Farm', type: 'Generation', reading: '48.2 MW', status: 'Online', quality: '99.2%', lastReading: '2 min ago' },
-  { id: 'MTR-WND-002', project: 'Eastern Cape Wind', type: 'Generation', reading: '32.8 MW', status: 'Online', quality: '98.8%', lastReading: '5 min ago' },
-  { id: 'MTR-DEM-003', project: 'BevCo Main Meter', type: 'Demand', reading: '24.1 MW', status: 'Online', quality: '99.5%', lastReading: '1 min ago' },
-  { id: 'MTR-SOL-004', project: 'Northern Cape CSP', type: 'Generation', reading: '0 MW', status: 'Offline', quality: '0%', lastReading: '2 days ago' },
-  { id: 'MTR-GRD-005', project: 'Grid Connection Point', type: 'Grid', reading: '156.4 MW', status: 'Online', quality: '99.9%', lastReading: '30 sec ago' },
-];
+interface MeterReading { time: string; solar: number; wind: number; demand: number; }
+interface MonthlyData { month: string; generation: number; consumption: number; }
+interface Meter { id: string; project: string; type: string; reading: string; status: string; quality: string; lastReading: string; }
 
 export default function Metering() {
   const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
-  const [showUpload, setShowUpload] = useState(false);
-  const [meterData, setMeterData] = useState(meters);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [meterData, setMeterData] = useState<Meter[]>([]);
+  const [readingsData, setReadingsData] = useState<MeterReading[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await meteringAPI.getMeters('default');
-        if (res.data?.data?.length) setMeterData(res.data.data);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const [mtrRes, rdRes, moRes] = await Promise.allSettled([
+        meteringAPI.getMeters('default'), meteringAPI.getReadings({ project_id: 'default' }), meteringAPI.getSummary('default'),
+      ]);
+      if (mtrRes.status === 'fulfilled') setMeterData(Array.isArray(mtrRes.value.data?.data) ? mtrRes.value.data.data : []);
+      if (rdRes.status === 'fulfilled') setReadingsData(Array.isArray(rdRes.value.data?.data) ? rdRes.value.data.data : []);
+      if (moRes.status === 'fulfilled') setMonthlyData(Array.isArray(moRes.value.data?.data) ? moRes.value.data.data : []);
+      if (mtrRes.status === 'rejected' && rdRes.status === 'rejected' && moRes.status === 'rejected') setError('Failed to load metering data.');
+    } catch { setError('Failed to load metering data.'); }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const activeCount = meterData.filter(m => m.status === 'Online' || m.status === 'online').length;
+  const totalCount = meterData.length;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Metering & IoT page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Metering & IoT</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Real-time meter readings & generation data</p>
         </div>
-        <button onClick={() => setShowUpload(!showUpload)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-600 transition-all flex items-center gap-2">
-          <FiUpload className="w-4 h-4" /> Upload Readings
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-600 transition-all flex items-center gap-2" aria-label="Refresh metering data">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
         </button>
       </div>
 
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {loading ? (<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}</div>) : (<>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         {[
-          { label: 'Active Meters', value: '4/5', icon: FiActivity, color: 'text-cyan-500' },
-          { label: 'Total Generation', value: '81.0 MW', icon: FiZap, color: 'text-amber-500' },
-          { label: 'Total Demand', value: '24.1 MW', icon: FiActivity, color: 'text-blue-500' },
-          { label: 'Avg Quality', value: '99.1%', icon: FiCheck, color: 'text-emerald-500' },
+          { label: 'Active Meters', value: `${activeCount}/${totalCount}`, icon: FiActivity, color: 'text-cyan-500' },
+          { label: 'Total Meters', value: `${totalCount}`, icon: FiZap, color: 'text-amber-500' },
+          { label: 'Online', value: `${activeCount}`, icon: FiActivity, color: 'text-blue-500' },
+          { label: 'Offline', value: `${totalCount - activeCount}`, icon: FiCheck, color: 'text-emerald-500' },
         ].map((kpi, i) => (
           <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${100 + i * 60}ms both` }}>
-            <kpi.icon className={`w-4 h-4 ${kpi.color} mb-2`} />
+            <kpi.icon className={`w-4 h-4 ${kpi.color} mb-2`} aria-hidden="true" />
             <p className="text-2xl font-bold text-slate-900 dark:text-white mono">{kpi.value}</p>
             <p className="text-xs text-slate-400 mt-0.5">{kpi.label}</p>
           </div>
@@ -144,6 +141,7 @@ export default function Metering() {
           </table>
         </div>
       </div>
+      </>)}
     </motion.div>
   );
 }
