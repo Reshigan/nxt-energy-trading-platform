@@ -11,7 +11,7 @@ describe('API Routes Integration', () => {
     }
     const seeds = SEED_SQL.split(';').filter((s) => s.trim());
     for (const seed of seeds) {
-      await seed.trim() && env.DB.prepare(seed).run();
+      if (seed.trim()) await env.DB.prepare(seed).run();
     }
   });
 

@@ -58,3 +58,26 @@ head_sampling_rate = 1
 [env.development.vars]
 ENVIRONMENT = "development"
 API_BASE_URL = "http://localhost:8787"
+
+# Staging environment (Phase 6.1)
+[env.staging]
+routes = [
+  { pattern = "staging.et.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+]
+[env.staging.vars]
+ENVIRONMENT = "staging"
+JWT_ISSUER = "nxt-energy-platform-staging"
+API_BASE_URL = "https://staging.et.vantax.co.za/api"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "nxt_energy_trading_staging"
+database_id = "staging-db-id-placeholder"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "staging-kv-id-placeholder"
+
+[[env.staging.r2_buckets]]
+binding = "R2"
+bucket_name = "nxt-energy-assets-staging"
