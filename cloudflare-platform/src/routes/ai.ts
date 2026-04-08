@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId } from '../utils/id';
+import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 
 const ai = new Hono<HonoEnv>();
 
@@ -135,211 +136,231 @@ function generateScenarios(
 
 // POST /ai/optimise — Run LP optimisation
 ai.post('/optimise', async (c) => {
-  const start = Date.now();
-  const user = c.get('user');
-  const body = await c.req.json() as {
-    demand_mwh: number;
-    sources: EnergySource[];
-    algorithm?: string;
-    current_mix?: OptimisationResult[];
-  };
+  try {
+    const start = Date.now();
+    const user = c.get('user');
+    const body = await c.req.json() as {
+      demand_mwh: number;
+      sources: EnergySource[];
+      algorithm?: string;
+      current_mix?: OptimisationResult[];
+    };
 
-  const algorithm = body.algorithm || 'balanced';
-  const optimised = simplexOptimise(body.sources, body.demand_mwh, algorithm);
-  const currentMix = body.current_mix || optimised;
-  const scenarios = generateScenarios(body.sources, body.demand_mwh, currentMix);
-  const executionMs = Date.now() - start;
+    const algorithm = body.algorithm || 'balanced';
+    const optimised = simplexOptimise(body.sources, body.demand_mwh, algorithm);
+    const currentMix = body.current_mix || optimised;
+    const scenarios = generateScenarios(body.sources, body.demand_mwh, currentMix);
+    const executionMs = Date.now() - start;
 
-  // Store optimisation
-  const id = generateId();
-  await c.env.DB.prepare(`
-    INSERT INTO ai_optimisations (id, participant_id, algorithm, demand_profile, available_sources, result_mix, result_cost_cents, result_carbon_g, result_reliability_pct, result_saving_cents, scenarios, execution_time_ms)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    id, user.sub, algorithm,
-    JSON.stringify(body.demand_mwh),
-    JSON.stringify(body.sources),
-    JSON.stringify(optimised),
-    optimised.reduce((s, r) => s + r.cost_cents, 0),
-    optimised.reduce((s, r) => s + r.carbon_g, 0),
-    scenarios[1]?.reliability || 0,
-    scenarios[1]?.annual_saving_cents || 0,
-    JSON.stringify(scenarios),
-    executionMs,
-  ).run();
+    // Store optimisation
+    const id = generateId();
+    await c.env.DB.prepare(`
+      INSERT INTO ai_optimisations (id, participant_id, algorithm, demand_profile, available_sources, result_mix, result_cost_cents, result_carbon_g, result_reliability_pct, result_saving_cents, scenarios, execution_time_ms)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, user.sub, algorithm,
+      JSON.stringify(body.demand_mwh),
+      JSON.stringify(body.sources),
+      JSON.stringify(optimised),
+      optimised.reduce((s, r) => s + r.cost_cents, 0),
+      optimised.reduce((s, r) => s + r.carbon_g, 0),
+      scenarios[1]?.reliability || 0,
+      scenarios[1]?.annual_saving_cents || 0,
+      JSON.stringify(scenarios),
+      executionMs,
+    ).run();
 
-  return c.json({
-    success: true,
-    data: {
-      id,
-      optimised_mix: optimised,
-      scenarios,
-      execution_time_ms: executionMs,
-      demand_mwh: body.demand_mwh,
-      algorithm,
-    },
-  });
+    return c.json({
+      success: true,
+      data: {
+        id,
+        optimised_mix: optimised,
+        scenarios,
+        execution_time_ms: executionMs,
+        demand_mwh: body.demand_mwh,
+        algorithm,
+      },
+    });
+  } catch (err) {
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
 });
 
 // GET /ai/history — Past optimisations
 ai.get('/history', async (c) => {
-  const user = c.get('user');
-  const results = await c.env.DB.prepare(
-    'SELECT * FROM ai_optimisations WHERE participant_id = ? ORDER BY created_at DESC LIMIT 20'
-  ).bind(user.sub).all();
-  return c.json({ success: true, data: results.results });
+  try {
+    const user = c.get('user');
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM ai_optimisations WHERE participant_id = ? ORDER BY created_at DESC LIMIT 20'
+    ).bind(user.sub).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
 });
 
 // POST /ai/chat — Workers AI natural language interface
 ai.post('/chat', async (c) => {
-  const user = c.get('user');
-  const { message } = await c.req.json() as { message: string };
-
-  // Gather portfolio context
-  const positions = await c.env.DB.prepare(
-    'SELECT market, SUM(volume) as total_volume, AVG(price_cents) as avg_price FROM orders WHERE participant_id = ? AND status IN (?, ?) GROUP BY market'
-  ).bind(user.sub, 'open', 'partial').all();
-
-  const credits = await c.env.DB.prepare(
-    'SELECT COUNT(*) as count, SUM(quantity) as total_qty FROM carbon_credits WHERE owner_id = ? AND status = ?'
-  ).bind(user.sub, 'active').first<{ count: number; total_qty: number }>();
-
-  const systemPrompt = `You are the NXT Energy Trading Platform AI assistant. You help with portfolio optimisation, energy market analysis, and trading strategy.
-
-Current portfolio context:
-- Positions: ${JSON.stringify(positions.results)}
-- Carbon credits: ${credits?.count || 0} credits, ${credits?.total_qty || 0} tonnes total
-- User role: ${user.role}, Company: ${user.company_name}
-
-Respond concisely with data-driven insights. Use numbers from the portfolio context. If asked about optimisation, explain the trade-offs between cost, carbon, and reliability.`;
-
   try {
-    const response = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message },
-      ],
-      max_tokens: 512,
-    });
+    const user = c.get('user');
+    const { message } = await c.req.json() as { message: string };
 
-    return c.json({
-      success: true,
-      data: {
-        response: (response as { response: string }).response,
-        context: {
-          positions: positions.results.length,
-          carbon_credits: credits?.count || 0,
+    // Gather portfolio context
+    const positions = await c.env.DB.prepare(
+      'SELECT market, SUM(volume) as total_volume, AVG(price_cents) as avg_price FROM orders WHERE participant_id = ? AND status IN (?, ?) GROUP BY market'
+    ).bind(user.sub, 'open', 'partial').all();
+
+    const credits = await c.env.DB.prepare(
+      'SELECT COUNT(*) as count, SUM(quantity) as total_qty FROM carbon_credits WHERE owner_id = ? AND status = ?'
+    ).bind(user.sub, 'active').first<{ count: number; total_qty: number }>();
+
+    const systemPrompt = `You are the NXT Energy Trading Platform AI assistant. You help with portfolio optimisation, energy market analysis, and trading strategy.
+
+  Current portfolio context:
+  - Positions: ${JSON.stringify(positions.results)}
+  - Carbon credits: ${credits?.count || 0} credits, ${credits?.total_qty || 0} tonnes total
+  - User role: ${user.role}, Company: ${user.company_name}
+
+  Respond concisely with data-driven insights. Use numbers from the portfolio context. If asked about optimisation, explain the trade-offs between cost, carbon, and reliability.`;
+
+    try {
+      const response = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message },
+        ],
+        max_tokens: 512,
+      });
+
+      return c.json({
+        success: true,
+        data: {
+          response: (response as { response: string }).response,
+          context: {
+            positions: positions.results.length,
+            carbon_credits: credits?.count || 0,
+          },
         },
-      },
-    });
-  } catch {
-    return c.json({
-      success: true,
-      data: {
-        response: 'AI service is currently unavailable. Please try again later.',
-        context: { positions: positions.results.length, carbon_credits: credits?.count || 0 },
-      },
-    });
+      });
+    } catch {
+      return c.json({
+        success: true,
+        data: {
+          response: 'AI service is currently unavailable. Please try again later.',
+          context: { positions: positions.results.length, carbon_credits: credits?.count || 0 },
+        },
+      });
+    }
+  } catch (err) {
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
 
 // GET /ai/weather/:projectId — Weather-linked generation forecast
 ai.get('/weather/:projectId', async (c) => {
-  const projectId = c.req.param('projectId');
-  const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
-  if (!project) return c.json({ success: false, error: 'Project not found' }, 404);
+  try {
+    const projectId = c.req.param('projectId');
+    const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
+    if (!project) return c.json({ success: false, error: 'Project not found' }, 404);
 
-  // Fetch OpenMeteo forecast (free, no key)
-  const lat = -26.2; // Default Johannesburg if no GPS
-  const lng = 28.0;
-  const resp = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,direct_radiation,cloudcover,windspeed_10m&forecast_days=7&timezone=Africa/Johannesburg`
-  );
-  const weather = await resp.json() as {
-    hourly: {
-      time: string[];
-      temperature_2m: number[];
-      direct_radiation: number[];
-      cloudcover: number[];
-      windspeed_10m: number[];
+    // Fetch OpenMeteo forecast (free, no key)
+    const lat = -26.2; // Default Johannesburg if no GPS
+    const lng = 28.0;
+    const resp = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,direct_radiation,cloudcover,windspeed_10m&forecast_days=7&timezone=Africa/Johannesburg`
+    );
+    const weather = await resp.json() as {
+      hourly: {
+        time: string[];
+        temperature_2m: number[];
+        direct_radiation: number[];
+        cloudcover: number[];
+        windspeed_10m: number[];
+      };
     };
-  };
 
-  // Solar generation model
-  const performanceRatio = 0.82;
-  const capacityMw = project.capacity_mw as number;
-  const forecasts = weather.hourly.time.map((time: string, i: number) => {
-    const irradiance = weather.hourly.direct_radiation[i] || 0;
-    const temp = weather.hourly.temperature_2m[i] || 25;
-    const cloud = weather.hourly.cloudcover[i] || 0;
-    const wind = weather.hourly.windspeed_10m[i] || 0;
+    // Solar generation model
+    const performanceRatio = 0.82;
+    const capacityMw = project.capacity_mw as number;
+    const forecasts = weather.hourly.time.map((time: string, i: number) => {
+      const irradiance = weather.hourly.direct_radiation[i] || 0;
+      const temp = weather.hourly.temperature_2m[i] || 25;
+      const cloud = weather.hourly.cloudcover[i] || 0;
+      const wind = weather.hourly.windspeed_10m[i] || 0;
 
-    // Temperature derating: -0.4%/degree above 25°C
-    const tempDerate = temp > 25 ? 1 - 0.004 * (temp - 25) : 1;
-    const cloudFactor = 1 - (cloud / 100) * 0.7;
+      // Temperature derating: -0.4%/degree above 25°C
+      const tempDerate = temp > 25 ? 1 - 0.004 * (temp - 25) : 1;
+      const cloudFactor = 1 - (cloud / 100) * 0.7;
 
-    let predictedKwh = 0;
-    const tech = project.technology as string;
-    if (tech === 'solar' || tech === 'hybrid') {
-      predictedKwh = capacityMw * 1000 * (irradiance / 1000) * tempDerate * cloudFactor * performanceRatio;
-    } else if (tech === 'wind') {
-      // Simplified wind power curve (cut-in 3m/s, rated 12m/s, cut-out 25m/s)
-      if (wind >= 3 && wind <= 25) {
-        const factor = wind < 12 ? (wind - 3) / 9 : (wind <= 25 ? 1 : 0);
-        predictedKwh = capacityMw * 1000 * factor * performanceRatio;
+      let predictedKwh = 0;
+      const tech = project.technology as string;
+      if (tech === 'solar' || tech === 'hybrid') {
+        predictedKwh = capacityMw * 1000 * (irradiance / 1000) * tempDerate * cloudFactor * performanceRatio;
+      } else if (tech === 'wind') {
+        // Simplified wind power curve (cut-in 3m/s, rated 12m/s, cut-out 25m/s)
+        if (wind >= 3 && wind <= 25) {
+          const factor = wind < 12 ? (wind - 3) / 9 : (wind <= 25 ? 1 : 0);
+          predictedKwh = capacityMw * 1000 * factor * performanceRatio;
+        }
       }
-    }
 
-    return {
-      time,
-      predicted_kwh: Math.round(predictedKwh * 100) / 100,
-      irradiance,
-      temperature: temp,
-      cloud_cover: cloud,
-      wind_speed: wind,
-    };
-  });
+      return {
+        time,
+        predicted_kwh: Math.round(predictedKwh * 100) / 100,
+        irradiance,
+        temperature: temp,
+        cloud_cover: cloud,
+        wind_speed: wind,
+      };
+    });
 
-  return c.json({
-    success: true,
-    data: {
-      project_id: projectId,
-      technology: project.technology,
-      capacity_mw: capacityMw,
-      forecasts,
-      model: { performance_ratio: performanceRatio, temp_derate_pct_per_degree: 0.4 },
-    },
-  });
+    return c.json({
+      success: true,
+      data: {
+        project_id: projectId,
+        technology: project.technology,
+        capacity_mw: capacityMw,
+        forecasts,
+        model: { performance_ratio: performanceRatio, temp_derate_pct_per_degree: 0.4 },
+      },
+    });
+  } catch (err) {
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
 });
 
 // GET /ai/risk/:participantId — Risk metrics from RiskEngineDO
 ai.get('/risk/:participantId', async (c) => {
-  const participantId = c.req.param('participantId');
+  try {
+    const participantId = c.req.param('participantId');
 
-  // Get latest risk metrics from DB
-  const metrics = await c.env.DB.prepare(
-    'SELECT * FROM risk_metrics WHERE participant_id = ? ORDER BY calculated_at DESC LIMIT 1'
-  ).bind(participantId).first();
+    // Get latest risk metrics from DB
+    const metrics = await c.env.DB.prepare(
+      'SELECT * FROM risk_metrics WHERE participant_id = ? ORDER BY calculated_at DESC LIMIT 1'
+    ).bind(participantId).first();
 
-  if (!metrics) {
+    if (!metrics) {
+      return c.json({
+        success: true,
+        data: {
+          var_95: 0, var_99: 0, cvar: 0, sharpe_ratio: 0, max_drawdown: 0,
+          delta: 0, gamma: 0, theta: 0, vega: 0,
+          counterparty_exposure: {}, stress_test_results: [],
+        },
+      });
+    }
+
     return c.json({
       success: true,
       data: {
-        var_95: 0, var_99: 0, cvar: 0, sharpe_ratio: 0, max_drawdown: 0,
-        delta: 0, gamma: 0, theta: 0, vega: 0,
-        counterparty_exposure: {}, stress_test_results: [],
+        ...metrics,
+        counterparty_exposure: metrics.counterparty_exposure ? JSON.parse(metrics.counterparty_exposure as string) : {},
+        stress_test_results: metrics.stress_test_results ? JSON.parse(metrics.stress_test_results as string) : [],
       },
     });
+  } catch (err) {
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
-
-  return c.json({
-    success: true,
-    data: {
-      ...metrics,
-      counterparty_exposure: metrics.counterparty_exposure ? JSON.parse(metrics.counterparty_exposure as string) : {},
-      stress_test_results: metrics.stress_test_results ? JSON.parse(metrics.stress_test_results as string) : [],
-    },
-  });
 });
 
 export default ai;
