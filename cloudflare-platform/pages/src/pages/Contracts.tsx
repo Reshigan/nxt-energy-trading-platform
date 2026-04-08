@@ -114,7 +114,7 @@ export default function Contracts() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      toast.error('Failed to load data');
+      toast.error('No signing certificate available');
     }
   };
 

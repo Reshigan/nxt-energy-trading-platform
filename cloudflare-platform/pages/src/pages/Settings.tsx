@@ -140,15 +140,15 @@ export default function Settings() {
                     By using this platform, you consent to the processing of your personal information in accordance with POPIA. You may withdraw consent at any time.
                   </p>
                   <div className="flex gap-2">
-                    <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); save(); } catch {
-      toast.error('Failed to load data');
-    } }}
+                        <button onClick={async () => { try { await popiaAPI.giveConsent(true, '1.0'); save(); } catch {
+          toast.error('Failed to update consent');
+        } }}
                       className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all">
                       Give Consent
                     </button>
-                    <button onClick={async () => { try { await popiaAPI.giveConsent(false); save(); } catch {
-      toast.error('Failed to load data');
-    } }}
+                        <button onClick={async () => { try { await popiaAPI.giveConsent(false); save(); } catch {
+          toast.error('Failed to withdraw consent');
+        } }}
                       className={`px-4 py-2 rounded-xl text-xs font-medium ${c('bg-white/[0.06] text-slate-300', 'bg-slate-100 text-slate-600')}`}>
                       Withdraw Consent
                     </button>
@@ -174,7 +174,7 @@ export default function Settings() {
                       a.click();
                       URL.revokeObjectURL(url);
                     } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to export data');
     }
                   }}
                     className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all flex items-center gap-1">
@@ -193,7 +193,7 @@ export default function Settings() {
                   <button onClick={async () => {
                     if (confirm('Are you sure you want to request data erasure? This action cannot be undone.')) {
                       try { await popiaAPI.requestErasure(true, 'User requested via settings'); } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to submit erasure request');
     }
                     }
                   }}
