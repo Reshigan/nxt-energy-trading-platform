@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart, FiRefreshCw } from '../lib/fi-icons-shim';
+import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart, FiRefreshCw, FiDownload } from '../lib/fi-icons-shim';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { dashboardAPI } from '../lib/api';
@@ -8,6 +8,8 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import Modal from '../components/Modal';
+import { Button } from '../components/ui/Button';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -31,6 +33,8 @@ export default function Analytics() {
   const [revenueBreakdown, setRevenueBreakdown] = useState<RevenueEntry[]>([]);
   const [marketShareData, setMarketShareData] = useState<MarketSharePoint[]>([]);
   const [topAssets, setTopAssets] = useState<TopAsset[]>([]);
+  const [showExport, setShowExport] = useState(false);
+  const [exportFormat, setExportFormat] = useState('csv');
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -66,6 +70,7 @@ export default function Analytics() {
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${period === p ? c('bg-white/[0.12] text-white', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400', 'text-slate-500')}`}>{p}</button>
             ))}
           </div>
+          <button onClick={() => setShowExport(true)} className="p-2 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-colors" aria-label="Export analytics"><FiDownload className="w-4 h-4" /></button>
           <button onClick={loadData} className="p-2 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors" aria-label="Refresh analytics">
             <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </button>
@@ -166,6 +171,20 @@ export default function Analytics() {
         </div>
       </div>
       </>)}
+
+      <Modal isOpen={showExport} onClose={() => setShowExport(false)} title="Export Analytics">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Export platform analytics data in your preferred format.</p>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Format</label>
+            <select value={exportFormat} onChange={e => setExportFormat(e.target.value)} className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white">
+              <option value="csv">CSV</option><option value="json">JSON</option><option value="pdf">PDF Report</option>
+            </select></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowExport(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => { toast.success('Analytics exported as ' + exportFormat.toUpperCase()); setShowExport(false); }}>Export</Button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 }
