@@ -466,7 +466,8 @@ api.post('/settlement/disputes', authMiddleware(), async (c) => {
     if (!body.type && !body.category) return c.json({ success: false, error: 'Type/category is required' }, 400);
     const id = generateId();
     const category = body.category || body.type || 'other';
-    const respondent = body.respondent_id || body.counterparty_id || '';
+    const respondent = body.respondent_id || body.counterparty_id;
+    if (!respondent) return c.json({ success: false, error: 'respondent_id is required' }, 400);
     await c.env.DB.prepare(
       'INSERT INTO disputes (id, claimant_id, respondent_id, category, description, value_cents, contract_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, user.sub, respondent, category, body.description || body.subject || '', body.value_cents || 0, body.contract_id || null, 'filed', nowISO()).run();
@@ -489,7 +490,7 @@ api.patch('/settlement/disputes/:id', authMiddleware(), async (c) => {
     await c.env.DB.prepare(`UPDATE disputes SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
     return c.json({ success: true });
   } catch {
-    return c.json({ success: true });
+    return c.json({ success: false, error: 'Failed to update dispute' }, 500);
   }
 });
 
@@ -567,7 +568,7 @@ api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
     await c.env.DB.prepare(`UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
     return c.json({ success: true });
   } catch {
-    return c.json({ success: true });
+    return c.json({ success: false, error: 'Failed to update smart rule' }, 500);
   }
 });
 
@@ -577,7 +578,7 @@ api.delete('/smart-rules/:id', authMiddleware(), async (c) => {
     await c.env.DB.prepare('DELETE FROM smart_contract_rules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
   } catch {
-    return c.json({ success: true });
+    return c.json({ success: false, error: 'Failed to delete smart rule' }, 500);
   }
 });
 
@@ -646,7 +647,7 @@ api.delete('/reports/schedule/:id', authMiddleware(), async (c) => {
     await c.env.DB.prepare('DELETE FROM report_schedules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
   } catch {
-    return c.json({ success: true });
+    return c.json({ success: false, error: 'Failed to delete schedule' }, 500);
   }
 });
 

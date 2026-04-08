@@ -72,7 +72,7 @@ popia.post('/consent', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { consent_given: body.consent } });
   } catch (err) {
-    return c.json({ success: true, data: { consent_given: true } });
+    return c.json({ success: false, error: 'Failed to record consent' }, 500);
   }
 });
 
