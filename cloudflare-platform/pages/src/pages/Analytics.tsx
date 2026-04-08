@@ -3,6 +3,8 @@ import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart } from 
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { dashboardAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
@@ -44,6 +46,7 @@ const kpis = [
 ];
 
 export default function Analytics() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const [period, setPeriod] = useState('6M');
   const c = (d: string, l: string) => isDark ? d : l;
@@ -54,12 +57,18 @@ export default function Analytics() {
       try {
         const res = await dashboardAPI.summary();
         if (res.data?.data?.kpis?.length) setKpiData(res.data.data.kpis);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Analytics</h1>
@@ -163,6 +172,6 @@ export default function Analytics() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

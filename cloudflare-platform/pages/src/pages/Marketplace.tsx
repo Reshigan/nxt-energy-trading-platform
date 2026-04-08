@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FiSearch, FiFilter, FiPlus, FiStar } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { marketplaceAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const listings = [
   { id: 'MKT-001', title: 'Solar PPA 50MW Limpopo', type: 'PPA', technology: 'Solar PV', price: 'R580/MWh', volume: '50 MW', seller: 'TerraVolt Energy', listed: '2024-04-01', bids: 3, featured: true },
@@ -17,6 +19,7 @@ const listings = [
 const types = ['All', 'PPA', 'Carbon Credit', 'Forward', 'Option', 'REC'];
 
 export default function Marketplace() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeType, setActiveType] = useState('All');
@@ -28,7 +31,9 @@ export default function Marketplace() {
       try {
         const res = await marketplaceAPI.list();
         if (res.data?.data?.length) setListingData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
@@ -38,13 +43,17 @@ export default function Marketplace() {
   );
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Marketplace</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Browse & list energy assets, PPAs, carbon credits</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Plus">
           <FiPlus className="w-4 h-4" /> Create Listing
         </button>
       </div>
@@ -88,6 +97,6 @@ export default function Marketplace() {
           </div>
         ))}
       </div>
-    </div>
+    </motion.div>
   );
 }

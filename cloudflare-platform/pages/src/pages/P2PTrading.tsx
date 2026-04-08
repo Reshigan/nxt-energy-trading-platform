@@ -3,6 +3,8 @@ import { FiZap, FiPlus, FiCheck, FiX } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { p2pAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const zones = ['All', 'Gauteng', 'Western Cape', 'KwaZulu-Natal', 'Eastern Cape', 'Limpopo'];
 
@@ -24,6 +26,7 @@ const offers = [
 ];
 
 export default function P2PTrading() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeZone, setActiveZone] = useState('All');
@@ -34,20 +37,26 @@ export default function P2PTrading() {
       try {
         const res = await p2pAPI.getOffers();
         if (res.data?.data?.length) setOfferData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   const filtered = activeZone === 'All' ? offerData : offerData.filter(o => o.zone === activeZone);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">P2P Trading</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Peer-to-peer energy trading by zone</p>
         </div>
-        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2">
+        <button className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Plus">
           <FiPlus className="w-4 h-4" /> Create Offer
         </button>
       </div>
@@ -119,6 +128,6 @@ export default function P2PTrading() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

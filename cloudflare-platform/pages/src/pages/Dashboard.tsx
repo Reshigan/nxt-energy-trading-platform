@@ -10,6 +10,8 @@ import { useAuthStore } from '../lib/store';
 import { getRoleConfig, type PlatformRole } from '../config/roles';
 import { useTheme } from '../contexts/ThemeContext';
 import { dashboardAPI, tradingAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 interface DashboardSummary {
   participants: number;
@@ -32,6 +34,7 @@ const aiInsights = [
 ];
 
 export default function Dashboard() {
+  const toast = useToast();
   const { activeRole } = useAuthStore();
   const { isDark } = useTheme();
   const role = (activeRole || 'trader') as PlatformRole;
@@ -56,7 +59,9 @@ export default function Dashboard() {
             setPriceData(priceRes.value.data.data);
           }
         }
-      } catch { /* fallback to defaults */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
       if (!cancelled) setLoading(false);
     }
     load();
@@ -108,7 +113,11 @@ export default function Dashboard() {
   const animKey = useMemo(() => `${role}-${Date.now()}`, [role]);
 
   return (
-    <div key={animKey} className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      key={animKey} className="space-y-6">
       {loading && (
         <div className="flex items-center gap-2 text-sm text-slate-400">
           <FiLoader className="w-4 h-4 animate-spin" /> Loading dashboard data...
@@ -244,6 +253,6 @@ export default function Dashboard() {
           <SpendingOverview />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

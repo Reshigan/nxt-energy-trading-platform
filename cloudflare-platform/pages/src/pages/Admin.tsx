@@ -3,6 +3,8 @@ import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity } from 'react-ico
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { participantsAPI, complianceAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const tabs = ['Participants', 'System Stats', 'Audit Log'];
 
@@ -37,6 +39,7 @@ const apiCallsData = [
 ];
 
 export default function Admin() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [activeTab, setActiveTab] = useState('Participants');
@@ -53,7 +56,9 @@ export default function Admin() {
         ]);
         if (pRes.data?.data?.length) setParticipantData(pRes.data.data);
         if (aRes.data?.data?.length) setAuditData(aRes.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
@@ -62,7 +67,11 @@ export default function Admin() {
   );
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Admin</h1>
@@ -110,8 +119,8 @@ export default function Admin() {
                     <td className="py-3.5 px-5 text-center">
                       {p.kyc === 'Pending' && (
                         <div className="flex justify-center gap-1.5">
-                          <button className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"><FiCheck className="w-3.5 h-3.5" /></button>
-                          <button className="p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"><FiX className="w-3.5 h-3.5" /></button>
+                          <button className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors" aria-label="Check"><FiCheck className="w-3.5 h-3.5" /></button>
+                          <button className="p-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors" aria-label="X"><FiX className="w-3.5 h-3.5" /></button>
                         </div>
                       )}
                     </td>
@@ -172,6 +181,6 @@ export default function Admin() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

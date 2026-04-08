@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiZap } from 'react-icons/fi';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
+import { motion } from 'framer-motion';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -35,7 +36,11 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#EEF1F6] dark:bg-[#0B1221] px-4">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="min-h-screen flex items-center justify-center bg-[#EEF1F6] dark:bg-[#0B1221] px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8" style={{ animation: 'cardFadeUp 500ms ease both' }}>
           <div className="inline-flex items-center gap-2 mb-4">
@@ -104,6 +109,6 @@ export default function Login() {
           NXT Open Market Energy Trading Platform &middot; GONXT Technology (Pty) Ltd
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }

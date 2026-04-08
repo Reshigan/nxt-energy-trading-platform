@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const tabs = ['All', 'Draft', 'Active', 'Pending', 'Completed', 'Smart Rules', 'Templates'];
 
@@ -54,6 +56,7 @@ const JURISDICTION_OPTIONS = [
 ];
 
 export default function Contracts() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState('All');
   const [documents, setDocuments] = useState<ContractDoc[]>([]);
@@ -110,7 +113,9 @@ export default function Contracts() {
       a.download = `signing-certificate-${docId}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { /* no certificate available */ }
+    } catch {
+      toast.error('Failed to load data');
+    }
   };
 
   const phaseToStatus = (phase: string) => {
@@ -134,14 +139,18 @@ export default function Contracts() {
   const inputClass = `w-full px-3 py-2 rounded-lg text-sm ${isDark ? 'bg-white/[0.06] border border-white/[0.08] text-white' : 'bg-slate-50 border border-slate-200 text-slate-900'}`;
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Contracts</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">PPAs, forwards, options & smart rules — ECT Act compliant</p>
         </div>
         <div className="flex gap-2">
-          <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`}>
+          <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Download">
             <FiDownload className="w-4 h-4" /> Export
           </button>
           <button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-600 transition-all flex items-center gap-2">
@@ -321,7 +330,7 @@ export default function Contracts() {
                             <FiAward className="w-3.5 h-3.5" />
                           </button>
                           <button title="Download PDF"
-                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label="Download">
                             <FiDownload className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -388,6 +397,6 @@ export default function Contracts() {
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

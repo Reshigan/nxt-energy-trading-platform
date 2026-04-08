@@ -2,11 +2,16 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiArrowLeft } from 'react-icons/fi';
 import { useThemeClasses } from '../hooks/useThemeClasses';
+import { motion } from 'framer-motion';
 
 export default function AMLPolicyPage() {
   const tc = useThemeClasses();
   return (
-    <div className={`min-h-screen ${tc.pageBg}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`min-h-screen ${tc.pageBg}`}>
       <div className="max-w-3xl mx-auto px-4 py-12">
         <Link to="/landing" className={`inline-flex items-center gap-1.5 text-sm font-medium mb-8 ${tc.isDark ? 'text-blue-400' : 'text-blue-600'} hover:underline`}>
           <FiArrowLeft className="w-3.5 h-3.5" /> Back to Home
@@ -65,6 +70,6 @@ export default function AMLPolicyPage() {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
