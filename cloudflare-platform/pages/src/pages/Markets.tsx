@@ -64,7 +64,7 @@ export default function Markets() {
       const raw = res.data?.data;
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
         // Backend returns { solar_ppa: { price, change_24h, volume_24h }, ... }
-        const names: Record<string, string> = { solar_ppa: 'Solar PPA Spot', wind_ppa: 'Wind Forward H2', gas_spot: 'Gas Spot', carbon: 'Carbon Credit', battery: 'Battery Storage', hydro: 'Hydro Peak' };
+        const names: Record<string, string> = { solar: 'Solar PPA Spot', wind: 'Wind Forward H2', gas: 'Gas Spot', carbon: 'Carbon Credit', battery: 'Battery Storage', hydro: 'Hydro Peak', solar_ppa: 'Solar PPA Spot', wind_ppa: 'Wind Forward H2', gas_spot: 'Gas Spot' };
         const rows: MarketRow[] = Object.entries(raw).map(([key, val]: [string, unknown]) => {
           const v = val as { price?: number; change_24h?: number; volume_24h?: number };
           const priceCents = v?.price || 0;

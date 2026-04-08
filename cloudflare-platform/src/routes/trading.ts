@@ -343,7 +343,7 @@ trading.get('/orderbook/:market', optionalAuth(), async (c) => {
 // GET /markets/indices — All market indices
 trading.get('/markets/indices', optionalAuth(), async (c) => {
   try {
-    const markets = ['solar_ppa', 'wind_ppa', 'gas_spot', 'carbon', 'battery', 'hydro'];
+    const markets = ['solar', 'wind', 'gas', 'carbon', 'battery', 'hydro'];
     const indices: Record<string, unknown> = {};
 
     for (const market of markets) {
