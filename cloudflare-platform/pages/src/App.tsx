@@ -55,6 +55,7 @@ const AuditTrail = lazy(() => import('./pages/AuditTrail'));
 const SystemHealth = lazy(() => import('./pages/SystemHealth'));
 const Invoices = lazy(() => import('./pages/Invoices'));
 const SmartRules = lazy(() => import('./pages/SmartRules'));
+const ContractDeep = lazy(() => import('./pages/ContractDeep'));
 const Landing = lazy(() => import('./pages/Landing'));
 const TermsPage = lazy(() => import('./pages/Terms'));
 const PrivacyPage = lazy(() => import('./pages/Privacy'));
@@ -114,6 +115,7 @@ function App() {
         <Route path="/system-health" element={<SystemHealth />} />
         <Route path="/invoices" element={<Invoices />} />
         <Route path="/smart-rules" element={<SmartRules />} />
+        <Route path="/contracts/:id" element={<ContractDeep />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

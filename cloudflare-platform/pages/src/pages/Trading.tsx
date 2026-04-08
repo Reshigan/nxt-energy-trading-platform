@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiTrendingUp, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiTrendingUp, FiRefreshCw, FiLoader, FiDownload } from 'react-icons/fi';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';
@@ -66,6 +66,29 @@ export default function Trading() {
   };
 
   const midPrice = obData.asks?.[0]?.price && obData.bids?.[0]?.price ? (obData.asks[0].price + obData.bids[0].price) / 2 : priceData.length > 0 ? priceData[priceData.length - 1].price : 0;
+
+  // F3: Trade/Position export to CSV
+  const handleExportCSV = () => {
+    if (positions.length === 0) { toast.error('No positions to export'); return; }
+    const headers = ['Market', 'Direction', 'Volume (MWh)', 'Avg Entry (ZAR)', 'Current (ZAR)', 'Unrealised P&L (ZAR)'];
+    const rows = positions.map(p => [
+      p.market.replace(/_/g, ' '),
+      p.direction,
+      p.net_volume,
+      (p.avg_entry_price / 100).toFixed(2),
+      (p.current_price / 100).toFixed(2),
+      (p.unrealised_pnl / 100).toFixed(2),
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `positions-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Positions exported to CSV');
+  };
 
   return (
     <motion.div
@@ -200,7 +223,10 @@ export default function Trading() {
       <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 400ms both' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Open Positions</h3>
-          <button onClick={loadData} className="text-xs font-medium text-blue-500 hover:text-blue-600 flex items-center gap-1" aria-label="Refresh positions"><FiRefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleExportCSV} disabled={positions.length === 0} className="text-xs font-medium text-emerald-500 hover:text-emerald-600 flex items-center gap-1 disabled:opacity-40" aria-label="Export positions to CSV"><FiDownload className="w-3 h-3" /> Export</button>
+            <button onClick={loadData} className="text-xs font-medium text-blue-500 hover:text-blue-600 flex items-center gap-1" aria-label="Refresh positions"><FiRefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>
+          </div>
         </div>
         {loading ? (<div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-12" />)}</div>) : positions.length > 0 ? (
         <div className="overflow-x-auto -mx-5 px-5">

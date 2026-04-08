@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader, FiDollarSign } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
-import { participantsAPI, complianceAPI } from '../lib/api';
+import { participantsAPI, complianceAPI, adminAPI } from '../lib/api';
+import { formatZAR } from '../lib/format';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-const TABS = ['Participants', 'System Stats', 'Audit Log'] as const;
+const TABS = ['Participants', 'Revenue', 'System Stats', 'Audit Log'] as const;
 
 interface Participant { id: string; name: string; email: string; role: string; kyc: string; status: string; joined: string; }
 interface AuditEntry { time: string; user: string; action: string; target: string; ip: string; }
@@ -29,6 +30,9 @@ export default function Admin() {
   const [systemStats, setSystemStats] = useState<SystemStat[]>([]);
   const [apiCallsData, setApiCallsData] = useState<ApiCallPoint[]>([]);
   const [approving, setApproving] = useState<string | null>(null);
+  // F10: Revenue dashboard
+  const [revenueData, setRevenueData] = useState<{ total: number; monthly: number; fees: number; subscriptions: number; monthly_trend: Array<{ month: string; revenue: number }> } | null>(null);
+  const [revenueLoading, setRevenueLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -84,6 +88,7 @@ export default function Admin() {
           <button key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all whitespace-nowrap ${activeTab === tab ? c('bg-white/[0.12] text-white shadow-sm', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>
             {tab === 'Participants' && <FiUsers className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
+            {tab === 'Revenue' && <FiDollarSign className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
             {tab === 'System Stats' && <FiActivity className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
             {tab === 'Audit Log' && <FiShield className="w-3.5 h-3.5 inline mr-1.5" aria-hidden="true" />}
             {tab}
@@ -130,6 +135,57 @@ export default function Admin() {
             </div>
           </div>
         </>
+      )}
+
+      {/* F10: Revenue Dashboard Tab */}
+      {activeTab === 'Revenue' && (
+        <div className="space-y-6" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          {revenueData ? (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Revenue', value: formatZAR(revenueData.total / 100), color: 'text-emerald-500' },
+                  { label: 'This Month', value: formatZAR(revenueData.monthly / 100), color: 'text-blue-500' },
+                  { label: 'Trading Fees', value: formatZAR(revenueData.fees / 100), color: 'text-amber-500' },
+                  { label: 'Subscriptions', value: formatZAR(revenueData.subscriptions / 100), color: 'text-purple-500' },
+                ].map((kpi, i) => (
+                  <div key={kpi.label} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${200 + i * 60}ms both` }}>
+                    <p className={`text-2xl font-bold text-slate-900 dark:text-white mono`}>{kpi.value}</p>
+                    <p className="text-xs text-slate-400 mt-1">{kpi.label}</p>
+                  </div>
+                ))}
+              </div>
+              {revenueData.monthly_trend?.length > 0 && (
+                <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+                  <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Monthly Revenue Trend</h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={revenueData.monthly_trend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={c('#1e293b', '#f1f5f9')} />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} width={60} tickFormatter={v => formatZAR(v / 100)} />
+                      <Tooltip contentStyle={{ background: c('#151F32', '#fff'), border: c('1px solid rgba(255,255,255,0.08)', '1px solid rgba(0,0,0,0.06)'), borderRadius: 12, fontSize: 12 }} formatter={(v: number) => formatZAR(v / 100)} />
+                      <Bar dataKey="revenue" fill="#10B981" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <button onClick={async () => {
+                setRevenueLoading(true);
+                try {
+                  const res = await adminAPI.getRevenue();
+                  if (res.data?.data) setRevenueData(res.data.data);
+                  else setRevenueData({ total: 0, monthly: 0, fees: 0, subscriptions: 0, monthly_trend: [] });
+                } catch { toast.error('Failed to load revenue data'); setRevenueData({ total: 0, monthly: 0, fees: 0, subscriptions: 0, monthly_trend: [] }); }
+                setRevenueLoading(false);
+              }} disabled={revenueLoading} className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center gap-2 mx-auto" aria-label="Load revenue data">
+                {revenueLoading ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiDollarSign className="w-4 h-4" />} Load Revenue Data
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'System Stats' && (
