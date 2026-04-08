@@ -4,6 +4,7 @@ import { generateId, nowISO } from '../utils/id';
 import { authMiddleware, optionalAuth } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const marketplace = new Hono<HonoEnv>();
 
@@ -28,6 +29,7 @@ marketplace.get('/listings', optionalAuth(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -55,6 +57,7 @@ marketplace.post('/listings', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { id } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -73,6 +76,7 @@ marketplace.get('/listings/:id', optionalAuth(), async (c) => {
 
     return c.json({ success: true, data: { ...listing, seller } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -115,6 +119,7 @@ marketplace.post('/listings/:id/bid', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Bid placed' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -157,6 +162,7 @@ marketplace.patch('/listings/:id', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Listing updated' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -189,6 +195,7 @@ marketplace.get('/notifications', authMiddleware(), async (c) => {
       meta: { unread_count: unreadCount?.count || 0 },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -205,6 +212,7 @@ marketplace.post('/notifications/:id/read', authMiddleware(), async (c) => {
 
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -218,6 +226,7 @@ marketplace.post('/notifications/read-all', authMiddleware(), async (c) => {
     ).bind(user.sub).run();
     return c.json({ success: true });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

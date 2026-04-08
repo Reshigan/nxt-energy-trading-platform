@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth/middleware';
 import { DisputeFileSchema } from '../utils/validation';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const settlement = new Hono<HonoEnv>();
 
@@ -103,6 +104,7 @@ settlement.post('/settlements/:tradeId/confirm', authMiddleware(), async (c) => 
 
     return c.json({ success: true, data: { settled: true, checks } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -148,6 +150,7 @@ settlement.post('/escrows', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { id: escrowId } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -180,6 +183,7 @@ settlement.get('/escrows', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -252,6 +256,7 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
       },
     }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -284,6 +289,7 @@ settlement.get('/invoices', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -306,6 +312,7 @@ settlement.post('/invoices/:id/pay', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Invoice marked as paid' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -358,6 +365,7 @@ settlement.post('/disputes', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { id: disputeId } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -390,6 +398,7 @@ settlement.get('/disputes', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -431,6 +440,7 @@ settlement.patch('/disputes/:id/status', authMiddleware({ roles: ['admin'] }), a
 
     return c.json({ success: true, message: 'Dispute status updated' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

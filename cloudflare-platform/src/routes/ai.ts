@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const ai = new Hono<HonoEnv>();
 
@@ -182,6 +183,7 @@ ai.post('/optimise', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -195,6 +197,7 @@ ai.get('/history', async (c) => {
     ).bind(user.sub).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -252,6 +255,7 @@ ai.post('/chat', async (c) => {
       });
     }
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -325,6 +329,7 @@ ai.get('/weather/:projectId', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -359,6 +364,7 @@ ai.get('/risk/:participantId', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

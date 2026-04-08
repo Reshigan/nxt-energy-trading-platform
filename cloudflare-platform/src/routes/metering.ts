@@ -3,6 +3,7 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
+import { captureException } from '../utils/sentry';
 
 const metering = new Hono<HonoEnv>();
 
@@ -93,6 +94,7 @@ metering.post('/ingest', async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -120,6 +122,7 @@ metering.get('/readings', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -160,6 +163,7 @@ metering.get('/summary', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -182,6 +186,7 @@ metering.get('/meters', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: meters.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -199,6 +204,7 @@ metering.post('/validate', authMiddleware({ roles: ['admin', 'grid'] }), async (
 
     return c.json({ success: true, data: { validated: body.reading_ids.length } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

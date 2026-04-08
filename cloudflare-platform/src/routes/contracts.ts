@@ -8,6 +8,7 @@ import { generateSigningCertificate, computeIntegritySeal, computeChainHash } fr
 import { getTemplate, MANDATORY_CLAUSES } from '../templates/contract-templates';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const contracts = new Hono<HonoEnv>();
 
@@ -87,6 +88,7 @@ contracts.post('/documents', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { id, phase: 'draft' } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -123,6 +125,7 @@ contracts.get('/documents', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -160,6 +163,7 @@ contracts.get('/documents/:id', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -245,6 +249,7 @@ contracts.patch('/documents/:id/phase', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { phase: target_phase } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -380,6 +385,7 @@ contracts.post('/documents/:id/sign', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -393,6 +399,7 @@ contracts.get('/documents/:id/signatures', authMiddleware(), async (c) => {
     ).bind(id).all();
     return c.json({ success: true, data: sigs.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -455,6 +462,7 @@ contracts.post('/documents/:id/amend', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { id: newId, version: newVersion } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -497,6 +505,7 @@ contracts.get('/documents/:id/versions', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: versions });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -559,6 +568,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -572,6 +582,7 @@ contracts.get('/documents/:id/audit-trail', authMiddleware(), async (c) => {
     ).bind(id).all();
     return c.json({ success: true, data: logs.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -662,6 +673,7 @@ contracts.get('/documents/:id/verify', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -687,6 +699,7 @@ contracts.get('/documents/:id/certificate/:participantId', authMiddleware(), asy
     const cert = await obj.text();
     return c.json({ success: true, data: JSON.parse(cert) });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -706,6 +719,7 @@ contracts.get('/templates', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -728,6 +742,7 @@ contracts.get('/templates/:type', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -801,6 +816,7 @@ contracts.post('/documents/:id/cooling-off', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -846,6 +862,7 @@ contracts.post('/documents/:id/request-2fa', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -885,6 +902,7 @@ contracts.post('/documents/:id/verify-2fa', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: { verified: true, valid_for_minutes: 15 } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

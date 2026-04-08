@@ -4,6 +4,7 @@ import { generateId, nowISO } from '../utils/id';
 import { authMiddleware } from '../auth/middleware';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const projects = new Hono<HonoEnv>();
 
@@ -65,6 +66,7 @@ projects.get('/', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -119,6 +121,7 @@ projects.post('/', authMiddleware({ roles: ['admin', 'ipp'] }), async (c) => {
 
     return c.json({ success: true, data: { id } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -153,6 +156,7 @@ projects.get('/:id', authMiddleware(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -202,6 +206,7 @@ projects.patch('/:id/phase', authMiddleware({ roles: ['admin', 'ipp'] }), async 
 
     return c.json({ success: true, data: { phase: body.target_phase } });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -224,6 +229,7 @@ projects.post('/:id/milestones/:milestoneId/complete', authMiddleware(), async (
 
     return c.json({ success: true, message: 'Milestone completed' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -246,6 +252,7 @@ projects.post('/:id/cps/:cpId/satisfy', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'CP satisfied' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -265,6 +272,7 @@ projects.post('/:id/cps/:cpId/waive', authMiddleware({ roles: ['admin', 'lender'
 
     return c.json({ success: true, message: 'CP waived' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -286,6 +294,7 @@ projects.post('/:id/disbursements', authMiddleware({ roles: ['admin', 'ipp'] }),
 
     return c.json({ success: true, data: { id: disbursementId } }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -302,6 +311,7 @@ projects.post('/:id/disbursements/:disbursementId/certify', authMiddleware(), as
 
     return c.json({ success: true, message: 'Disbursement certified by IE' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -322,6 +332,7 @@ projects.post('/:id/disbursements/:disbursementId/approve', authMiddleware({ rol
 
     return c.json({ success: true, message: 'Disbursement approved' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });

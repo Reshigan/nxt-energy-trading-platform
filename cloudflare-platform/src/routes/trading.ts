@@ -5,6 +5,7 @@ import { authMiddleware, optionalAuth } from '../auth/middleware';
 import { OrderSchema } from '../utils/validation';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
+import { captureException } from '../utils/sentry';
 
 const trading = new Hono<HonoEnv>();
 
@@ -119,6 +120,7 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
       },
     }, 201);
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -156,6 +158,7 @@ trading.delete('/orders/:id', authMiddleware(), async (c) => {
 
     return c.json({ success: true, message: 'Order cancelled' });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -179,6 +182,7 @@ trading.get('/orders', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -199,6 +203,7 @@ trading.get('/orders/history', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: results.results });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -242,6 +247,7 @@ trading.get('/positions', authMiddleware(), async (c) => {
 
     return c.json({ success: true, data: positions });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -262,6 +268,7 @@ trading.get('/orderbook/:market', optionalAuth(), async (c) => {
 
     return c.json({ success: true, data: snapshot });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -284,6 +291,7 @@ trading.get('/markets/indices', optionalAuth(), async (c) => {
 
     return c.json({ success: true, data: indices });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
@@ -317,6 +325,7 @@ trading.get('/markets/prices/:market', optionalAuth(), async (c) => {
       },
     });
   } catch (err) {
+    captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
   }
 });
