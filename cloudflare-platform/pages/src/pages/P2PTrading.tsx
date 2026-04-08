@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiZap, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiZap, FiRefreshCw, FiLoader, FiMapPin } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { p2pAPI } from '../lib/api';
@@ -25,6 +25,8 @@ export default function P2PTrading() {
   const [offerData, setOfferData] = useState<P2POffer[]>([]);
   const [zoneStats, setZoneStats] = useState<ZoneStat[]>([]);
   const [accepting, setAccepting] = useState<string | null>(null);
+  // F8: Zone map view
+  const [showMap, setShowMap] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -64,12 +66,41 @@ export default function P2PTrading() {
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">P2P Trading</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Peer-to-peer energy trading by zone</p>
         </div>
-        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh P2P trading data">
-          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowMap(!showMap)} className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 ${showMap ? 'bg-slate-200 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300' : 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600'}`} aria-label="Toggle zone map">
+            <FiMapPin className="w-4 h-4" /> Zone Map
+          </button>
+          <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh P2P trading data">
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {/* F8: Zone Map */}
+      {showMap && (
+        <div className={`cp-card !p-6 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 300ms ease both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2"><FiMapPin className="w-4 h-4 text-blue-500" /> South Africa Energy Trading Zones</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {ZONES.filter(z => z !== 'All').map(zone => {
+              const stat = zoneStats.find(s => s.zone === zone);
+              const offerCount = stat?.offers || offerData.filter(o => o.zone === zone).length;
+              const avgPrice = stat?.avg || 0;
+              return (
+                <button key={zone} onClick={() => { setActiveZone(zone); setShowMap(false); }}
+                  className={`p-4 rounded-xl text-center transition-all border ${activeZone === zone ? 'border-blue-500 bg-blue-50 dark:bg-blue-500/10' : c('border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04]', 'border-black/[0.06] bg-white hover:bg-slate-50')}`}
+                  aria-label={`View ${zone} zone`}>
+                  <FiMapPin className={`w-5 h-5 mx-auto mb-2 ${offerCount > 0 ? 'text-emerald-500' : 'text-slate-400'}`} />
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{zone}</p>
+                  <p className="text-xs text-slate-400 mt-1">{offerCount} offers</p>
+                  {avgPrice > 0 && <p className="text-[10px] text-slate-400">Avg {formatZAR(avgPrice / 100)}/MWh</p>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className={`flex flex-wrap items-center rounded-full p-1 w-fit overflow-x-auto ${c('bg-white/[0.04]', 'bg-slate-100')}`} role="tablist" aria-label="Filter by zone" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
         {ZONES.map(z => (

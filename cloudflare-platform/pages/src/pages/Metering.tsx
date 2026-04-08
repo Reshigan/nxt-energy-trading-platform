@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiActivity, FiRefreshCw, FiCheck, FiClock, FiZap } from 'react-icons/fi';
+import { FiActivity, FiRefreshCw, FiCheck, FiClock, FiZap, FiUpload, FiLoader } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { meteringAPI } from '../lib/api';
@@ -22,6 +22,9 @@ export default function Metering() {
   const [meterData, setMeterData] = useState<Meter[]>([]);
   const [readingsData, setReadingsData] = useState<MeterReading[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  // F5: CSV upload state
+  const [uploading, setUploading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -39,6 +42,30 @@ export default function Metering() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // F5: CSV upload handler
+  const handleCSVUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const text = await file.text();
+      const lines = text.trim().split('\n');
+      if (lines.length < 2) { toast.error('CSV must have a header row and at least one data row'); setUploading(false); return; }
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const meterIdx = headers.indexOf('meter_id');
+      const valueIdx = headers.indexOf('value');
+      const tsIdx = headers.indexOf('timestamp');
+      if (meterIdx === -1 || valueIdx === -1) { toast.error('CSV must have meter_id and value columns'); setUploading(false); return; }
+      const readings = lines.slice(1).map(line => {
+        const cols = line.split(',').map(c => c.trim());
+        return { meter_id: cols[meterIdx], value: parseFloat(cols[valueIdx]), timestamp: tsIdx !== -1 ? cols[tsIdx] : new Date().toISOString() };
+      }).filter(r => r.meter_id && !isNaN(r.value));
+      if (readings.length === 0) { toast.error('No valid readings found in CSV'); setUploading(false); return; }
+      const res = await meteringAPI.ingest({ readings, source: 'csv_upload' });
+      if (res.data?.success) { toast.success(`${readings.length} readings uploaded successfully`); setShowUpload(false); loadData(); }
+      else toast.error(res.data?.error || 'Failed to upload readings');
+    } catch { toast.error('Failed to parse CSV file'); }
+    setUploading(false);
+  };
+
   const activeCount = meterData.filter(m => m.status === 'Online' || m.status === 'online').length;
   const totalCount = meterData.length;
 
@@ -53,12 +80,38 @@ export default function Metering() {
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Metering & IoT</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Real-time meter readings & generation data</p>
         </div>
-        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-600 transition-all flex items-center gap-2" aria-label="Refresh metering data">
-          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowUpload(!showUpload)} className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 ${showUpload ? 'bg-slate-200 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300' : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600'}`} aria-label="Upload CSV readings">
+            <FiUpload className="w-4 h-4" aria-hidden="true" /> Upload CSV
+          </button>
+          <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-cyan-500 text-white shadow-lg shadow-cyan-500/25 hover:bg-cyan-600 transition-all flex items-center gap-2" aria-label="Refresh metering data">
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {/* F5: CSV Upload Panel */}
+      {showUpload && (
+        <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 300ms ease both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Upload Meter Readings (CSV)</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">CSV format: <code className="bg-slate-100 dark:bg-white/[0.06] px-1.5 py-0.5 rounded text-[10px]">meter_id,value,timestamp</code></p>
+          <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${c('border-white/[0.08] hover:border-white/[0.15]', 'border-black/[0.08] hover:border-black/[0.15]')}`}>
+            {uploading ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-slate-500"><FiLoader className="w-4 h-4 animate-spin" /> Processing...</div>
+            ) : (
+              <label className="cursor-pointer">
+                <input type="file" accept=".csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleCSVUpload(f); e.target.value = ''; }} aria-label="Select CSV file" />
+                <div className="text-sm text-slate-500 dark:text-slate-400">
+                  <FiUpload className="w-6 h-6 mx-auto mb-2 text-slate-400" />
+                  <span className="text-blue-500 font-medium">Click to select</span> or drag & drop a CSV file
+                </div>
+              </label>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading ? (<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />)}</div>) : (<>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>

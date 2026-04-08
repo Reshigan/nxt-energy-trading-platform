@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter, FiRefreshCw } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter, FiRefreshCw, FiStar } from 'react-icons/fi';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';
@@ -43,6 +43,19 @@ export default function Markets() {
   const [marketData, setMarketData] = useState<MarketRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // F9: Watchlist
+  const [watchlist, setWatchlist] = useState<Set<string>>(() => {
+    try { const saved = localStorage.getItem('nxt_watchlist'); return saved ? new Set(JSON.parse(saved)) : new Set<string>(); } catch { return new Set<string>(); }
+  });
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  const toggleWatchlist = (name: string) => {
+    setWatchlist(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem('nxt_watchlist', JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -63,7 +76,8 @@ export default function Markets() {
   const filtered = marketData.filter(m => {
     const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filterPositive === null || m.positive === filterPositive;
-    return matchesSearch && matchesFilter;
+    const matchesWatchlist = !showWatchlistOnly || watchlist.has(m.name);
+    return matchesSearch && matchesFilter && matchesWatchlist;
   });
 
   return (
@@ -90,6 +104,9 @@ export default function Markets() {
           <FiSearch className="w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search markets..." aria-label="Search markets" className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400" />
         </div>
+        <button onClick={() => setShowWatchlistOnly(!showWatchlistOnly)} className={`px-3 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-1.5 transition-all ${showWatchlistOnly ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25' : isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Show watchlist only" aria-pressed={showWatchlistOnly}>
+          <FiStar className={`w-3.5 h-3.5 ${showWatchlistOnly ? 'fill-current' : ''}`} /> Watchlist ({watchlist.size})
+        </button>
         <div className="flex gap-1" role="group" aria-label="Market filter">
           {[{ label: 'All', val: null }, { label: 'Gainers', val: true }, { label: 'Losers', val: false }].map(f => (
             <button key={f.label} onClick={() => setFilterPositive(f.val as boolean | null)}
@@ -125,7 +142,12 @@ export default function Markets() {
                 <tr key={m.name} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer`}
                   style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}>
                   <td className="py-3.5 px-5">
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); toggleWatchlist(m.name); }} className={`transition-colors ${watchlist.has(m.name) ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'}`} aria-label={watchlist.has(m.name) ? `Remove ${m.name} from watchlist` : `Add ${m.name} to watchlist`}>
+                        <FiStar className={`w-3.5 h-3.5 ${watchlist.has(m.name) ? 'fill-current' : ''}`} />
+                      </button>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{m.price_cents ? formatZAR(m.price_cents) : m.price}</td>
                   <td className="py-3.5 px-4 text-right">

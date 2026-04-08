@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiDownload, FiCalendar, FiFilter, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiCalendar, FiFilter, FiRefreshCw, FiLoader, FiClock, FiTrash2 } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { reportsAPI } from '../lib/api';
@@ -32,6 +32,12 @@ export default function ReportBuilder() {
   const [reportData, setReportData] = useState<ReportEntry[]>([]);
   const [volumeByType, setVolumeByType] = useState<VolumeByType[]>([]);
   const [generating, setGenerating] = useState(false);
+  // F12: Scheduled reports
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleFreq, setScheduleFreq] = useState('weekly');
+  const [scheduleEmail, setScheduleEmail] = useState('');
+  const [scheduledReports, setScheduledReports] = useState<Array<{ id: string; type: string; frequency: string; email: string; next_run: string }>>([]);
+  const [savingSchedule, setSavingSchedule] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -45,6 +51,29 @@ export default function ReportBuilder() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  const handleSchedule = async () => {
+    if (!selectedType) { toast.error('Select a report type first'); return; }
+    if (!scheduleEmail) { toast.error('Enter an email address'); return; }
+    setSavingSchedule(true);
+    try {
+      const res = await reportsAPI.schedule({ type: selectedType, frequency: scheduleFreq, email: scheduleEmail });
+      if (res.data?.success) {
+        toast.success('Report scheduled successfully');
+        setShowSchedule(false);
+        setScheduledReports(prev => [...prev, { id: res.data?.data?.id || crypto.randomUUID(), type: selectedType, frequency: scheduleFreq, email: scheduleEmail, next_run: res.data?.data?.next_run || 'Pending' }]);
+      } else toast.error(res.data?.error || 'Failed to schedule report');
+    } catch { toast.error('Failed to schedule report'); }
+    setSavingSchedule(false);
+  };
+
+  const handleDeleteSchedule = async (id: string) => {
+    try {
+      await reportsAPI.deleteSchedule(id);
+      setScheduledReports(prev => prev.filter(s => s.id !== id));
+      toast.success('Schedule removed');
+    } catch { toast.error('Failed to remove schedule'); }
+  };
 
   const handleGenerate = async () => {
     if (!selectedType) { toast.error('Select a report type first'); return; }
@@ -69,6 +98,9 @@ export default function ReportBuilder() {
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Generate, schedule & download platform reports</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowSchedule(!showSchedule)} className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 ${showSchedule ? 'bg-slate-200 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/25 hover:bg-amber-600'}`} aria-label="Schedule reports">
+            <FiClock className="w-4 h-4" /> Schedule
+          </button>
           <button onClick={handleGenerate} disabled={generating || !selectedType} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2 disabled:opacity-50" aria-label="Generate report">
             {generating ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiFileText className="w-4 h-4" />} Generate
           </button>
@@ -142,6 +174,62 @@ export default function ReportBuilder() {
           </div>
         </div>
       </div>
+      {/* F12: Schedule Panel */}
+      {showSchedule && (
+        <div className={`cp-card !p-6 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 300ms ease both' }}>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-4 flex items-center gap-2"><FiClock className="w-5 h-5 text-blue-500" /> Schedule Report</h3>
+          <div className="space-y-4 max-w-lg">
+            <div>
+              <label htmlFor="sched-type" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Report Type</label>
+              <select id="sched-type" value={selectedType || ''} onChange={e => setSelectedType(e.target.value)} aria-label="Report type"
+                className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white', 'bg-slate-50 border-black/[0.06] text-slate-800')}`}>
+                <option value="">Select type...</option>
+                {REPORT_TYPES.map(rt => <option key={rt.id} value={rt.id}>{rt.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="sched-freq" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Frequency</label>
+              <select id="sched-freq" value={scheduleFreq} onChange={e => setScheduleFreq(e.target.value)} aria-label="Schedule frequency"
+                className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white', 'bg-slate-50 border-black/[0.06] text-slate-800')}`}>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="sched-email" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Deliver to email</label>
+              <input id="sched-email" type="email" value={scheduleEmail} onChange={e => setScheduleEmail(e.target.value)} placeholder="you@company.co.za" aria-label="Delivery email"
+                className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400')}`} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleSchedule} disabled={savingSchedule || !selectedType || !scheduleEmail}
+                className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2">
+                {savingSchedule ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiClock className="w-4 h-4" />} Save Schedule
+              </button>
+              <button onClick={() => setShowSchedule(false)} className={`px-4 py-2.5 rounded-2xl text-sm font-medium ${c('text-slate-400 hover:text-slate-200', 'text-slate-500 hover:text-slate-700')}`}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scheduled Reports List */}
+      {scheduledReports.length > 0 && (
+        <div className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 300ms ease both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2"><FiClock className="w-4 h-4 text-amber-500" /> Scheduled Reports ({scheduledReports.length})</h3>
+          <div className="space-y-2">
+            {scheduledReports.map(s => (
+              <div key={s.id} className={`flex items-center justify-between p-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
+                <div>
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{REPORT_TYPES.find(rt => rt.id === s.type)?.name || s.type}</p>
+                  <p className="text-xs text-slate-400">{s.frequency} &middot; {s.email} &middot; Next: {s.next_run}</p>
+                </div>
+                <button onClick={() => handleDeleteSchedule(s.id)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors" aria-label={`Delete schedule ${s.type}`}><FiTrash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       </>)}
     </motion.div>
   );

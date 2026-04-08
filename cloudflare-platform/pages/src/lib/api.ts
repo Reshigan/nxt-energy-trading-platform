@@ -196,6 +196,9 @@ export const reportsAPI = {
   create: (data: Record<string, unknown>) => api.post('/reports', data),
   generate: (id: string) => api.post(`/reports/${id}/generate`),
   delete: (id: string) => api.delete(`/reports/${id}`),
+  schedule: (data: Record<string, unknown>) => api.post('/reports/schedule', data),
+  deleteSchedule: (id: string) => api.delete(`/reports/schedule/${id}`),
+  getSchedules: () => api.get('/reports/schedules'),
 };
 
 // Tenants
