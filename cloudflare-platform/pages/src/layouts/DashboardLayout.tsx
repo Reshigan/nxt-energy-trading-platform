@@ -11,6 +11,8 @@ import {
   IconCompliance, IconReports, IconDeveloper, IconSettings, IconDemand,
   IconOfftakerCost, IconDisputes, IconInvoices, IconSmartRules, IconAuditTrail,
   IconSystemHealth, IconTenant, IconAdmin,
+  IconVault, IconLender, IconSurveillance, IconTradeJournal,
+  IconCarbonDeep, IconIPPDeep, IconOfftakerDeep, IconReportingEngine,
 } from '../components/icons';
 import AIChatWidget from '../components/AIChatWidget';
 import GuidedTour from '../components/GuidedTour';
@@ -51,6 +53,14 @@ const ALL_MORE_LINKS = [
   { name: 'Notifications', href: '/notifications', icon: IconNotifications },
   { name: 'Admin', href: '/admin', icon: IconAdmin },
   { name: 'Settings', href: '/settings', icon: IconSettings },
+  { name: 'Document Vault', href: '/vault', icon: IconVault },
+  { name: 'Lender Dashboard', href: '/lender', icon: IconLender },
+  { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+  { name: 'Trade Journal', href: '/trade-journal', icon: IconTradeJournal },
+  { name: 'Carbon Deep', href: '/carbon-deep', icon: IconCarbonDeep },
+  { name: 'IPP Deep', href: '/ipp-deep', icon: IconIPPDeep },
+  { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
+  { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
 ];
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin'] as const;

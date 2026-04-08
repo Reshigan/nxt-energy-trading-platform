@@ -91,7 +91,7 @@ export default function Admin() {
     if (!suspendTarget) return;
     setSuspendLoading(true);
     try {
-      const res = await participantsAPI.reject(suspendTarget.id);
+      const res = await participantsAPI.suspend(suspendTarget.id, { reason: 'Administrative suspension' });
       if (res.data?.success) { toast.success(`${suspendTarget.name} suspended`); setSuspendTarget(null); loadData(); }
       else toast.error(res.data?.error || 'Failed to suspend participant');
     } catch { toast.error('Failed to suspend participant'); }
@@ -102,8 +102,8 @@ export default function Admin() {
     if (!editTarget) return;
     setEditLoading(true);
     try {
-      const res = await participantsAPI.get(editTarget.id);
-      if (res.data) { toast.success('Participant updated'); setEditTarget(null); loadData(); }
+      const res = await participantsAPI.update(editTarget.id, { company_name: editName, role: editRole });
+      if (res.data?.success) { toast.success('Participant updated'); setEditTarget(null); loadData(); }
       else toast.error('Failed to update participant');
     } catch { toast.error('Failed to update participant'); }
     setEditLoading(false);

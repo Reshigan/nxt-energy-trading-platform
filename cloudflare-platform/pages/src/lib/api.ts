@@ -178,8 +178,10 @@ export const marketplaceAPI = {
 export const participantsAPI = {
   list: (params?: Record<string, string>) => api.get('/participants', { params }),
   get: (id: string) => api.get(`/participants/${id}`),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/participants/${id}`, data),
   approve: (id: string) => api.post(`/participants/${id}/approve`),
   reject: (id: string) => api.post(`/participants/${id}/reject`),
+  suspend: (id: string, data: { reason: string }) => api.post(`/participants/${id}/suspend`, data),
 };
 
 // AI Portfolio Optimisation
