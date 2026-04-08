@@ -227,6 +227,53 @@ export const TEMPLATE_LIBRARY: ContractTemplate[] = [
     ],
     fields: ['confidentiality_period_years', 'permitted_recipients', 'purpose_of_disclosure'],
   },
+  {
+    document_type: 'solar_ppa',
+    name: 'Solar Power Purchase Agreement',
+    mandatory_clauses: MANDATORY_CLAUSES,
+    type_specific_clauses: [
+      'Solar resource assessment: independent solar irradiance study required prior to COD.',
+      'Performance Ratio guarantee: minimum PR of 80% measured annually.',
+      'Degradation factor: 0.5% per annum linear degradation applied from Year 2.',
+      'Deemed energy provisions: generator compensated for curtailment caused by offtaker or grid operator.',
+      'Tariff escalation: CPI + 1% per annum, adjusted on each anniversary.',
+      'NERSA licence compliance: generator must hold valid NERSA generation licence at all times.',
+      'Metering: revenue-grade bi-directional meters per NRS 049, calibrated annually.',
+      'Section 12B accelerated depreciation: tax benefits allocated per agreement between parties.',
+    ],
+    fields: ['capacity_mw', 'delivery_point', 'tariff_c_per_kwh', 'escalation_formula', 'cod_date', 'ppa_term_years', 'guaranteed_pr_pct'],
+  },
+  {
+    document_type: 'wind_ppa',
+    name: 'Wind Power Purchase Agreement',
+    mandatory_clauses: MANDATORY_CLAUSES,
+    type_specific_clauses: [
+      'Wind resource assessment: minimum 12-month on-site measurement campaign at hub height.',
+      'P50/P90 energy yield: contracted volume based on independent P50 estimate; floor at P90.',
+      'Curtailment compensation: generator paid at contracted rate for grid-curtailed energy up to 150 hours/annum.',
+      'Noise compliance: turbines must comply with SANS 10103 noise regulations at all times.',
+      'Environmental authorisation: valid EA per NEMA required prior to construction.',
+      'Tariff escalation: CPI per annum, adjusted on each anniversary.',
+      'Grid code compliance: wind farm must comply with SA Grid Code (Version 10) renewable energy requirements.',
+      'Decommissioning bond: generator to provide decommissioning security equal to 10% of EPC value.',
+    ],
+    fields: ['capacity_mw', 'num_turbines', 'hub_height_m', 'delivery_point', 'tariff_c_per_kwh', 'escalation_formula', 'cod_date', 'ppa_term_years'],
+  },
+  {
+    document_type: 'gas_spot',
+    name: 'Gas Spot Purchase Agreement',
+    mandatory_clauses: MANDATORY_CLAUSES,
+    type_specific_clauses: [
+      'Spot pricing: price determined at time of nomination based on prevailing market index.',
+      'Nomination process: buyer to nominate volume by 10:00 SAST on D-1; seller to confirm by 14:00 SAST.',
+      'Delivery point: gas delivered at the specified virtual trading point or physical offtake point.',
+      'Quality specifications: gas must meet SABS 1741 pipeline-quality specifications.',
+      'Imbalance charges: imbalance between nominated and actual offtake settled per the applicable system operator tariff.',
+      'Credit support: buyer to provide letter of credit or bank guarantee equal to 2 months estimated gas cost.',
+      'Title transfer: title passes to buyer at the delivery point upon measurement by the custody transfer meter.',
+    ],
+    fields: ['max_daily_volume_gj', 'delivery_point', 'index_reference', 'credit_support_type', 'nomination_deadline'],
+  },
 ];
 
 /** Get template by document type */
