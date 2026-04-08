@@ -26,9 +26,10 @@ export default function Login() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Invalid credentials');
-      login(data.token, data.participant || { email, role: 'trader' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Invalid credentials');
+      const payload = json.data || json;
+      login(payload.token, payload.participant || { email, role: 'trader' });
       toast.success('Welcome back!');
       navigate('/dashboard');
     } catch (err: unknown) {
