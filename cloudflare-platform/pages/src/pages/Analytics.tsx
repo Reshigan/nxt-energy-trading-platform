@@ -1,89 +1,82 @@
-import React, { useState, useEffect } from 'react';
-import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart } from 'react-icons/fi';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiTrendingUp, FiBarChart2, FiDollarSign, FiActivity, FiPieChart, FiRefreshCw } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { dashboardAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 
-const volumeData = [
-  { month: 'Jan', solar: 4200, wind: 3100, gas: 2800, carbon: 1500 },
-  { month: 'Feb', solar: 4800, wind: 3400, gas: 2600, carbon: 1800 },
-  { month: 'Mar', solar: 5200, wind: 3800, gas: 2900, carbon: 2200 },
-  { month: 'Apr', solar: 5800, wind: 4200, gas: 2700, carbon: 2600 },
-  { month: 'May', solar: 6100, wind: 4500, gas: 3100, carbon: 2400 },
-  { month: 'Jun', solar: 5400, wind: 4800, gas: 3300, carbon: 2900 },
-];
-
-const revenueBreakdown = [
-  { name: 'Solar PPAs', value: 8400 }, { name: 'Wind Contracts', value: 6200 },
-  { name: 'Carbon Trading', value: 4100 }, { name: 'Gas Forwards', value: 3800 }, { name: 'RECs', value: 2300 },
-];
-
-const marketShareData = [
-  { month: 'Jan', share: 12.4 }, { month: 'Feb', share: 13.1 }, { month: 'Mar', share: 14.2 },
-  { month: 'Apr', share: 15.8 }, { month: 'May', share: 16.4 }, { month: 'Jun', share: 17.2 },
-];
-
-const topAssets = [
-  { name: 'Solar PPA Spot', volume: '24.8K MWh', revenue: 'R12.4M', growth: '+18%', positive: true },
-  { name: 'Wind Forward H2', volume: '18.2K MWh', revenue: 'R8.7M', growth: '+12%', positive: true },
-  { name: 'Carbon Credit VCS', volume: '32.1K t', revenue: 'R4.1M', growth: '+24%', positive: true },
-  { name: 'Gas Spot', volume: '15.6K MWh', revenue: 'R6.2M', growth: '-3%', positive: false },
-  { name: 'REC Certificate', volume: '28.6K', revenue: 'R1.9M', growth: '+8%', positive: true },
-];
+interface VolumePoint { month: string; solar: number; wind: number; gas: number; carbon: number; }
+interface RevenueEntry { name: string; value: number; }
+interface MarketSharePoint { month: string; share: number; }
+interface TopAsset { name: string; volume: string; revenue: string; growth: string; positive: boolean; }
+interface KPI { label: string; value: string; change: string; positive: boolean; icon: string; }
 
 const iconMap: Record<string, React.FC<{className?: string}>> = { FiBarChart2, FiDollarSign, FiActivity, FiPieChart, FiTrendingUp };
-
-const kpis = [
-  { label: 'Total Volume', value: '142.8K MWh', change: '+14.2%', positive: true, icon: 'FiBarChart2' },
-  { label: 'Revenue MTD', value: 'R24.8M', change: '+8.6%', positive: true, icon: 'FiDollarSign' },
-  { label: 'Active Trades', value: '1,847', change: '+23%', positive: true, icon: 'FiActivity' },
-  { label: 'Market Share', value: '17.2%', change: '+2.8%', positive: true, icon: 'FiPieChart' },
-  { label: 'Avg Price', value: 'R682/MWh', change: '+5.4%', positive: true, icon: 'FiTrendingUp' },
-];
 
 export default function Analytics() {
   const toast = useToast();
   const { isDark } = useTheme();
   const [period, setPeriod] = useState('6M');
   const c = (d: string, l: string) => isDark ? d : l;
-  const [kpiData, setKpiData] = useState(kpis);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [kpiData, setKpiData] = useState<KPI[]>([]);
+  const [volumeData, setVolumeData] = useState<VolumePoint[]>([]);
+  const [revenueBreakdown, setRevenueBreakdown] = useState<RevenueEntry[]>([]);
+  const [marketShareData, setMarketShareData] = useState<MarketSharePoint[]>([]);
+  const [topAssets, setTopAssets] = useState<TopAsset[]>([]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await dashboardAPI.summary();
-        if (res.data?.data?.kpis?.length) setKpiData(res.data.data.kpis);
-      } catch {
-      toast.error('Failed to load data');
-    }
-    })();
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await dashboardAPI.summary();
+      const d = res.data?.data;
+      if (d?.kpis) setKpiData(d.kpis);
+      if (d?.volume) setVolumeData(d.volume);
+      if (d?.revenue_breakdown) setRevenueBreakdown(d.revenue_breakdown);
+      if (d?.market_share) setMarketShareData(d.market_share);
+      if (d?.top_assets) setTopAssets(d.top_assets);
+    } catch { setError('Failed to load analytics data.'); }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      className="space-y-6">
-      <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
+      className="space-y-6" role="main" aria-label="Analytics page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Analytics</h1>
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Platform performance & market insights</p>
         </div>
-        <div className={`flex items-center rounded-full p-1 ${c('bg-white/[0.04]', 'bg-slate-100')}`}>
-          {['1M','3M','6M','1Y','ALL'].map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${period === p ? c('bg-white/[0.12] text-white', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400', 'text-slate-500')}`}>{p}</button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center rounded-full p-1 ${c('bg-white/[0.04]', 'bg-slate-100')}`} role="tablist" aria-label="Time period">
+            {['1M','3M','6M','1Y','ALL'].map(p => (
+              <button key={p} role="tab" aria-selected={period === p} onClick={() => setPeriod(p)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${period === p ? c('bg-white/[0.12] text-white', 'bg-white text-slate-900 shadow-sm') : c('text-slate-400', 'text-slate-500')}`}>{p}</button>
+            ))}
+          </div>
+          <button onClick={loadData} className="p-2 rounded-xl bg-blue-500 text-white hover:bg-blue-600 transition-colors" aria-label="Refresh analytics">
+            <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {loading ? (<div className="space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />)}</div>) : (<>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
-        {kpiData.map((kpi, i) => {
+        {kpiData.length === 0 ? <div className="col-span-full"><EmptyState title="No analytics data" description="Analytics will populate as trading activity occurs." /></div> : kpiData.map((kpi, i) => {
           const Icon = iconMap[kpi.icon] || FiTrendingUp;
           return (
             <div key={kpi.label} className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 500ms ease ${100 + i * 60}ms both` }}>
@@ -172,6 +165,7 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+      </>)}
     </motion.div>
   );
 }
