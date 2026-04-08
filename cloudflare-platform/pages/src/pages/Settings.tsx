@@ -3,7 +3,11 @@ import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, F
 import { useTheme } from '../contexts/ThemeContext';
 import { popiaAPI, authAPI, subscriptionsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
+import Modal from '../components/Modal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Button } from '../components/ui/Button';
 
 const SECTIONS = ['Profile', 'Notifications', 'Appearance', 'Security', '2FA', 'Billing', 'API Keys', 'Privacy (POPIA)', 'Language'] as const;
 
@@ -25,6 +29,11 @@ export default function Settings() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<{ plan_name?: string; status?: string; billing_cycle?: string; next_billing?: string } | null>(null);
   const [plans, setPlans] = useState<Array<{ id: string; name: string; price: number; features: string[] }>>([]);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [pwForm, setPwForm] = useState({ current: '', newPw: '', confirm: '' });
+  const [changingPw, setChangingPw] = useState(false);
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const saveProfile = useCallback(async () => {
     if (!profileForm.name.trim() || !profileForm.email.trim()) { toast.error('Name and email are required'); return; }
@@ -36,6 +45,29 @@ export default function Settings() {
     } catch { toast.error('Failed to save profile'); }
     setSaving(false);
   }, [profileForm, toast]);
+
+  const handleChangePassword = async () => {
+    if (!pwForm.current || !pwForm.newPw || !pwForm.confirm) { toast.error('All fields required'); return; }
+    if (pwForm.newPw !== pwForm.confirm) { toast.error('Passwords do not match'); return; }
+    if (pwForm.newPw.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    setChangingPw(true);
+    try {
+      const res = await authAPI.changePassword({ current_password: pwForm.current, new_password: pwForm.newPw });
+      if (res.data?.success) { toast.success('Password changed'); setShowChangePassword(false); setPwForm({ current: '', newPw: '', confirm: '' }); }
+      else toast.error(res.data?.error || 'Failed to change password');
+    } catch { toast.error('Failed to change password'); }
+    setChangingPw(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const res = await authAPI.updateProfile({ status: 'deleted' });
+      if (res.data?.success) { toast.success('Account deleted'); window.location.href = '/'; }
+      else toast.error(res.data?.error || 'Failed to delete account');
+    } catch { toast.error('Failed to delete account'); }
+    setDeleting(false);
+  };
 
   const changePassword = useCallback(async () => {
     if (!passwordForm.current || !passwordForm.newPw) { toast.error('Both fields are required'); return; }
@@ -377,6 +409,22 @@ export default function Settings() {
           )}
         </div>
       </div>
+
+      <Modal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} title="Change Password">
+        <div className="space-y-4">
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Current Password</label>
+            <input type="password" value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} placeholder="Enter current password" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">New Password</label>
+            <input type="password" value={pwForm.newPw} onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))} placeholder="At least 8 characters" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div><label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Confirm Password</label>
+            <input type="password" value={pwForm.confirm} onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))} placeholder="Re-enter new password" className="w-full px-3 py-2 rounded-xl text-sm border bg-slate-50 border-black/[0.06] text-slate-900 placeholder-slate-400 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder-slate-500" /></div>
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowChangePassword(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleChangePassword} loading={changingPw}>Change Password</Button>
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog isOpen={showDeleteAccount} onClose={() => setShowDeleteAccount(false)} onConfirm={handleDeleteAccount} title="Delete Account" description="This will permanently delete your account and all associated data. This action cannot be undone." confirmLabel="Delete Account" variant="danger" loading={deleting} />
     </motion.div>
   );
 }

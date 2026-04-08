@@ -9,6 +9,7 @@ import { formatZAR } from '../lib/format';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; avg_entry_price_cents?: number; current_price_cents?: number; unrealised_pnl_cents?: number; }
 interface OrderBookEntry { price: number; size: number; total: number; }
@@ -32,6 +33,8 @@ export default function Trading() {
   const [orderPrice, setOrderPrice] = useState('');
   const [orderVolume, setOrderVolume] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -72,6 +75,18 @@ export default function Trading() {
   const midPrice = obData.asks?.[0]?.price && obData.bids?.[0]?.price ? (obData.asks[0].price + obData.bids[0].price) / 2 : priceData.length > 0 ? priceData[priceData.length - 1].price : 0;
 
   // F3: Trade/Position export to CSV
+  const handleCancelOrder = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const res = await tradingAPI.cancelOrder(cancelTarget);
+      if (res.data?.success) { toast.success('Order cancelled'); loadData(); }
+      else toast.error(res.data?.error || 'Failed to cancel order');
+    } catch { toast.error('Failed to cancel order'); }
+    setCancelling(false);
+    setCancelTarget(null);
+  };
+
   const handleExportCSV = () => {
     if (positions.length === 0) { toast.error('No positions to export'); return; }
     const headers = ['Market', 'Direction', 'Volume (MWh)', 'Avg Entry (ZAR)', 'Current (ZAR)', 'Unrealised P&L (ZAR)'];
@@ -259,6 +274,16 @@ export default function Trading() {
         </div>
         ) : <EmptyState title="No open positions" description="Place your first order to see positions here." />}
       </div>
+      <ConfirmDialog
+        isOpen={!!cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onConfirm={handleCancelOrder}
+        title="Cancel Order"
+        description="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmLabel="Cancel Order"
+        variant="danger"
+        loading={cancelling}
+      />
     </motion.div>
   );
 }
