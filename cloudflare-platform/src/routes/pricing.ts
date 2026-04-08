@@ -142,21 +142,22 @@ pricing.get('/offtaker/:id', async (c) => {
   try {
     const { id } = c.req.param();
     const user = c.get('user');
+    const participantId = id === 'me' ? user.sub : id;
 
-    // Look up participant for cost data
+    // Look up participant — use SELECT * to avoid column-not-found errors on deployed D1
     const participant = await c.env.DB.prepare(
-      'SELECT id, company_name, bee_level FROM participants WHERE id = ?'
-    ).bind(id === 'me' ? user.sub : id).first<{ id: string; company_name: string; bee_level: number }>();
+      'SELECT * FROM participants WHERE id = ?'
+    ).bind(participantId).first<Record<string, unknown>>();
 
     // Get trades for this participant to calculate actual costs
     const trades = await c.env.DB.prepare(
-      "SELECT SUM(total_cents) as total_cost_cents, SUM(volume) as total_volume, COUNT(*) as trade_count FROM trades WHERE buyer_id = ? AND status IN ('pending', 'settled')"
-    ).bind(id === 'me' ? user.sub : id).first<{ total_cost_cents: number; total_volume: number; trade_count: number }>();
+      "SELECT COALESCE(SUM(total_cents), 0) as total_cost_cents, COALESCE(SUM(volume), 0) as total_volume, COUNT(*) as trade_count FROM trades WHERE buyer_id = ? AND status IN ('pending', 'settled')"
+    ).bind(participantId).first<{ total_cost_cents: number; total_volume: number; trade_count: number }>();
 
     // Get active contracts
     const contracts = await c.env.DB.prepare(
       "SELECT COUNT(*) as active_contracts FROM contracts WHERE participant_id = ? AND status = 'active'"
-    ).bind(id === 'me' ? user.sub : id).first<{ active_contracts: number }>();
+    ).bind(participantId).first<{ active_contracts: number }>();
 
     const totalCostCents = trades?.total_cost_cents || 0;
     const totalVolume = trades?.total_volume || 0;
@@ -165,9 +166,9 @@ pricing.get('/offtaker/:id', async (c) => {
     return c.json({
       success: true,
       data: {
-        participant_id: id === 'me' ? user.sub : id,
-        company_name: participant?.company_name || 'Unknown',
-        bee_level: participant?.bee_level || 0,
+        participant_id: participantId,
+        company_name: (participant?.company_name as string) || 'Unknown',
+        bee_level: (participant?.bee_level as number) || 0,
         total_cost_cents: totalCostCents,
         total_volume_mwh: totalVolume,
         avg_rate_cents_kwh: avgRateCents,
