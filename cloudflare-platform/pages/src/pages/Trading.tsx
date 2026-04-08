@@ -10,7 +10,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; }
+interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; avg_entry_price_cents?: number; current_price_cents?: number; unrealised_pnl_cents?: number; }
 interface OrderBookEntry { price: number; size: number; total: number; }
 interface PricePoint { time: string; price: number; volume: number; }
 
@@ -79,9 +79,9 @@ export default function Trading() {
       p.market.replace(/_/g, ' '),
       p.direction,
       p.net_volume,
-      (p.avg_entry_price / 100).toFixed(2),
-      (p.current_price / 100).toFixed(2),
-      (p.unrealised_pnl / 100).toFixed(2),
+      ((p.avg_entry_price_cents || p.avg_entry_price || 0) / 100).toFixed(2),
+      ((p.current_price_cents || p.current_price || 0) / 100).toFixed(2),
+      ((p.unrealised_pnl_cents || p.unrealised_pnl || 0) / 100).toFixed(2),
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -120,7 +120,7 @@ export default function Trading() {
             <div>
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 capitalize">{selectedMarket.replace(/_/g, ' ')} Spot</h3>
               <div className="flex items-center gap-2 mt-1">
-                {loading ? <Skeleton className="w-32 h-8" /> : midPrice > 0 ? (<><span className="text-2xl font-bold text-slate-900 dark:text-white mono">{formatZAR(midPrice / 100)}</span><span className="text-sm font-semibold text-emerald-500 flex items-center gap-0.5"><FiTrendingUp className="w-3.5 h-3.5" aria-hidden="true" /> Live</span></>) : <span className="text-sm text-slate-400">No price data available</span>}
+                {loading ? <Skeleton className="w-32 h-8" /> : midPrice > 0 ? (<><span className="text-2xl font-bold text-slate-900 dark:text-white mono">{formatZAR(midPrice)}</span><span className="text-sm font-semibold text-emerald-500 flex items-center gap-0.5"><FiTrendingUp className="w-3.5 h-3.5" aria-hidden="true" /> Live</span></>) : <span className="text-sm text-slate-400">No price data available</span>}
               </div>
             </div>
             <div className="flex gap-1" role="tablist" aria-label="Timeframe selector">
@@ -141,8 +141,7 @@ export default function Trading() {
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#f1f5f9'} />
               <XAxis dataKey="time" tick={{ fontSize: 10, fill: isDark ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: isDark ? '#64748b' : '#94a3b8' }} axisLine={false} tickLine={false} width={50} domain={['auto', 'auto']} />
-              <Tooltip contentStyle={{ background: isDark ? '#151F32' : '#fff', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }} />
-              <Tooltip contentStyle={{ background: isDark ? '#151F32' : '#fff', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }} formatter={(value: number) => [formatZAR(value / 100), 'Price']} />
+              <Tooltip contentStyle={{ background: isDark ? '#151F32' : '#fff', border: isDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(0,0,0,0.06)', borderRadius: 12, fontSize: 12 }} formatter={(value: number) => [formatZAR(value), 'Price']} />
               <Area type="monotone" dataKey="price" stroke="#3B82F6" strokeWidth={2} fill="url(#priceGrad)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -170,16 +169,16 @@ export default function Trading() {
               {(obData.asks || []).slice(0, 5).reverse().map((a, i) => (
                 <div key={`ask-${i}`} className="flex justify-between px-1 py-0.5 rounded relative overflow-hidden" role="row">
                   <div className="absolute inset-y-0 right-0 bg-red-500/5" style={{ width: `${Math.min(100, (a.total / Math.max(1, obData.asks[obData.asks.length - 1]?.total || 1)) * 100)}%` }} />
-                  <span className="text-red-500 mono relative z-10" role="cell">{formatZAR(a.price / 100)}</span>
+                  <span className="text-red-500 mono relative z-10" role="cell">{formatZAR(a.price)}</span>
                   <span className="text-slate-600 dark:text-slate-400 mono relative z-10" role="cell">{a.size.toLocaleString()}</span>
                   <span className="text-slate-400 mono relative z-10" role="cell">{a.total.toLocaleString()}</span>
                 </div>
               ))}
-              {midPrice > 0 && <div className={`text-center py-1.5 text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'} mono`}>{formatZAR(midPrice / 100)}</div>}
+              {midPrice > 0 && <div className={`text-center py-1.5 text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'} mono`}>{formatZAR(midPrice)}</div>}
               {(obData.bids || []).slice(0, 5).map((b, i) => (
                 <div key={`bid-${i}`} className="flex justify-between px-1 py-0.5 rounded relative overflow-hidden" role="row">
                   <div className="absolute inset-y-0 right-0 bg-emerald-500/5" style={{ width: `${Math.min(100, (b.total / Math.max(1, obData.bids[obData.bids.length - 1]?.total || 1)) * 100)}%` }} />
-                  <span className="text-emerald-500 mono relative z-10" role="cell">{formatZAR(b.price / 100)}</span>
+                  <span className="text-emerald-500 mono relative z-10" role="cell">{formatZAR(b.price)}</span>
                   <span className="text-slate-600 dark:text-slate-400 mono relative z-10" role="cell">{b.size.toLocaleString()}</span>
                   <span className="text-slate-400 mono relative z-10" role="cell">{b.total.toLocaleString()}</span>
                 </div>
@@ -251,9 +250,9 @@ export default function Trading() {
                   <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize">{(p.market || '').replace(/_/g, ' ')}</td>
                   <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${p.direction === 'buy' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{p.direction === 'buy' ? 'Long' : 'Short'}</span></td>
                   <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{p.net_volume?.toLocaleString()} MWh</td>
-                  <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(p.avg_entry_price / 100)}</td>
-                  <td className="py-3 text-right font-medium text-slate-800 dark:text-slate-200 mono">{formatZAR(p.current_price / 100)}</td>
-                  <td className="py-3 text-right"><span className={`font-bold mono ${pnlPositive ? 'text-emerald-500' : 'text-red-500'}`}>{pnlPositive ? '+' : ''}{formatZAR(p.unrealised_pnl / 100)}</span></td>
+                  <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(p.avg_entry_price_cents || p.avg_entry_price || 0)}</td>
+                  <td className="py-3 text-right font-medium text-slate-800 dark:text-slate-200 mono">{formatZAR(p.current_price_cents || p.current_price || 0)}</td>
+                  <td className="py-3 text-right"><span className={`font-bold mono ${pnlPositive ? 'text-emerald-500' : 'text-red-500'}`}>{pnlPositive ? '+' : ''}{formatZAR(p.unrealised_pnl_cents || p.unrealised_pnl || 0)}</span></td>
                 </tr>); })}
             </tbody>
           </table>
