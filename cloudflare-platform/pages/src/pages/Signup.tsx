@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FiZap, FiArrowRight, FiArrowLeft, FiCheck, FiMail } from 'react-icons/fi';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuthStore } from '../lib/store';
+import { motion } from 'framer-motion';
 
 type Step = 1 | 2 | 3;
 
@@ -77,7 +78,11 @@ export default function Signup() {
   const provinces = ['Eastern Cape','Free State','Gauteng','KwaZulu-Natal','Limpopo','Mpumalanga','North West','Northern Cape','Western Cape'];
 
   return (
-    <div className={`min-h-screen ${bg} flex items-center justify-center p-4`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`min-h-screen ${bg} flex items-center justify-center p-4`}>
       <div className={`w-full max-w-md rounded-2xl border ${cardBg} p-8`}>
         <div className="flex items-center gap-2.5 mb-8">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
@@ -182,6 +187,6 @@ export default function Signup() {
           Already have an account? <Link to="/login" className="text-blue-500 hover:underline">Sign in</Link>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

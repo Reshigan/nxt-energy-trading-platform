@@ -4,6 +4,7 @@ import { FiZap } from 'react-icons/fi';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
+import { motion } from 'framer-motion';
 
 const ROLES = [
   { value: 'trader', label: 'Energy Trader' },
@@ -62,7 +63,11 @@ export default function Register() {
   const inputClass = `w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${isDark ? 'bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500' : 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500'}`;
 
   return (
-    <div className={`min-h-screen flex items-center justify-center px-4 py-8 ${isDark ? 'bg-[#0B1221]' : 'bg-[#EEF1F6]'}`}>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className={`min-h-screen flex items-center justify-center px-4 py-8 ${isDark ? 'bg-[#0B1221]' : 'bg-[#EEF1F6]'}`}>
       <div className="w-full max-w-2xl" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div className="flex items-center justify-center mb-6">
           <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-blue-500/25">
@@ -189,6 +194,6 @@ export default function Register() {
           Already have an account? <Link to="/login" className="text-blue-500 hover:text-blue-600 font-semibold">Sign In</Link>
         </p>
       </div>
-    </div>
+    </motion.div>
   );
 }

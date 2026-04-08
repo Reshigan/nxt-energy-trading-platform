@@ -3,6 +3,8 @@ import { FiActivity, FiUpload, FiCheck, FiClock, FiZap } from 'react-icons/fi';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { meteringAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
+import { motion } from 'framer-motion';
 
 const readingsData = Array.from({ length: 24 }, (_, i) => ({
   time: `${String(i).padStart(2, '0')}:00`,
@@ -29,6 +31,7 @@ const meters = [
 ];
 
 export default function Metering() {
+  const toast = useToast();
   const { isDark } = useTheme();
   const c = (d: string, l: string) => isDark ? d : l;
   const [showUpload, setShowUpload] = useState(false);
@@ -39,12 +42,18 @@ export default function Metering() {
       try {
         const res = await meteringAPI.getMeters('default');
         if (res.data?.data?.length) setMeterData(res.data.data);
-      } catch { /* use demo data */ }
+      } catch {
+      toast.error('Failed to load data');
+    }
     })();
   }, []);
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      className="space-y-6">
       <div className="flex items-start justify-between" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Metering & IoT</h1>
@@ -135,6 +144,6 @@ export default function Metering() {
           </table>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
