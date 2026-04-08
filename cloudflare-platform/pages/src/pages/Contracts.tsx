@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw } from 'react-icons/fi';
+import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw, FiPaperclip, FiEye } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
@@ -63,6 +64,24 @@ export default function Contracts() {
   const [governingLaw, setGoverningLaw] = useState('South Africa');
   const [jurisdiction, setJurisdiction] = useState('Gauteng Division, High Court of South Africa');
   const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
+  // F4: Attachments
+  const [showAttachModal, setShowAttachModal] = useState<string | null>(null);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const handleAttachUpload = async () => {
+    if (!showAttachModal || !attachFile) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', attachFile);
+      formData.append('contract_id', showAttachModal);
+      const res = await contractsAPI.uploadAttachment(showAttachModal, formData);
+      if (res.data?.success) { toast.success('Attachment uploaded'); setShowAttachModal(null); setAttachFile(null); }
+      else toast.error(res.data?.error || 'Failed to upload attachment');
+    } catch { toast.error('Failed to upload attachment'); }
+    setUploading(false);
+  };
 
   const loadDocuments = useCallback(async () => {
     setLoading(true); setError(null);
@@ -298,6 +317,14 @@ export default function Contracts() {
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
                             <FiAward className="w-3.5 h-3.5" />
                           </button>
+                          <button onClick={() => setShowAttachModal(d.id)} title="Attach file" aria-label={`Attach file to ${d.title}`}
+                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                            <FiPaperclip className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => navigate(`/contracts/${d.id}`)} title="View details" aria-label={`View details for ${d.title}`}
+                            className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                            <FiEye className="w-3.5 h-3.5" />
+                          </button>
                           <button title="Download PDF"
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label="Download">
                             <FiDownload className="w-3.5 h-3.5" />
@@ -368,6 +395,32 @@ export default function Contracts() {
                   setCreating(false);
                 }} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
                   {creating && <FiLoader className="w-4 h-4 animate-spin" />} Create Contract
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* F4: Attachment Upload Modal */}
+      {showAttachModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowAttachModal(null); setAttachFile(null); }}>
+          <div className={`${cardClass} p-6 w-full max-w-md mx-4`} onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2"><FiPaperclip className="w-5 h-5 text-indigo-500" /> Attach File</h3>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="attach-file" className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Select file to attach</label>
+                <input id="attach-file" type="file" onChange={(e) => setAttachFile(e.target.files?.[0] || null)} aria-label="Select file"
+                  className={`w-full text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg" />
+              </div>
+              {attachFile && (
+                <p className="text-xs text-slate-400">{attachFile.name} ({(attachFile.size / 1024).toFixed(1)} KB)</p>
+              )}
+              <div className="flex gap-2">
+                <button onClick={() => { setShowAttachModal(null); setAttachFile(null); }} className={`flex-1 py-2.5 rounded-xl text-sm font-medium ${isDark ? 'bg-white/[0.06] text-slate-300' : 'bg-slate-100 text-slate-600'}`}>Cancel</button>
+                <button onClick={handleAttachUpload} disabled={!attachFile || uploading}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-indigo-500 text-white hover:bg-indigo-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                  {uploading && <FiLoader className="w-4 h-4 animate-spin" />} Upload
                 </button>
               </div>
             </div>

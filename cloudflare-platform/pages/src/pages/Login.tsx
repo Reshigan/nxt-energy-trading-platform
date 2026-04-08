@@ -14,6 +14,10 @@ export default function Login() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // F14: Email OTP enforcement
+  const [needs2FA, setNeeds2FA] = useState(false);
+  const [otpToken, setOtpToken] = useState('');
+  const [otpCode, setOtpCode] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +25,21 @@ export default function Login() {
     setLoading(true);
     try {
       const base = import.meta.env.VITE_API_URL || '/api/v1';
+      // F14: If 2FA step, call 2FA endpoint
+      if (needs2FA && otpToken) {
+        const res2fa = await fetch(`${base}/register/auth/login/2fa`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, token: otpToken, otp: otpCode }),
+        });
+        const json2fa = await res2fa.json();
+        if (!res2fa.ok) throw new Error(json2fa.error || '2FA verification failed');
+        const p2 = json2fa.data || json2fa;
+        login(p2.token, p2.participant || { email, role: 'trader' });
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+        return;
+      }
       const res = await fetch(`${base}/register/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -29,6 +48,17 @@ export default function Login() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Invalid credentials');
       const payload = json.data || json;
+      // F14: Check if email verification or 2FA is required
+      if (payload.requires_email_verification) {
+        toast.info('Please verify your email first');
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
+      if (payload.requires_2fa) {
+        setNeeds2FA(true);
+        setOtpToken(payload.token || '');
+        return;
+      }
       login(payload.token, payload.participant || { email, role: 'trader' });
       toast.success('Welcome back!');
       navigate('/dashboard');
@@ -96,12 +126,21 @@ export default function Login() {
                 <input type="checkbox" className="rounded border-slate-300 dark:border-slate-600 text-blue-500 focus:ring-blue-500" />
                 Remember me
               </label>
-<button type="button" onClick={() => toast.info('Password reset email sent — check your inbox.')} className="text-blue-500 hover:text-blue-600 font-semibold">Forgot password?</button>
+<Link to="/forgot-password" className="text-blue-500 hover:text-blue-600 font-semibold">Forgot password?</Link>
             </div>
 
-            <button type="submit" disabled={loading}
+            {needs2FA && (
+              <div>
+                <label htmlFor="login-otp" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Two-Factor Code</label>
+                <input id="login-otp" type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  aria-label="2FA code" placeholder="Enter 6-digit code"
+                  className="w-full px-4 py-2.5 rounded-xl text-sm text-center tracking-[0.3em] font-mono outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
+              </div>
+            )}
+
+            <button type="submit" disabled={loading || (needs2FA && otpCode.length !== 6)}
               className="w-full py-3 rounded-2xl text-sm font-bold bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 transition-all shadow-lg shadow-blue-500/25">
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Signing in...' : needs2FA ? 'Verify & Sign In' : 'Sign In'}
             </button>
           </div>
 
