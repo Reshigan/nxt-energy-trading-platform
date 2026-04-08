@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiDownload, FiRefreshCw, FiEye, FiSend, FiCheck, FiClock, FiAlertCircle } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiRefreshCw, FiEye, FiSend, FiCheck, FiClock, FiAlertCircle } from '../lib/fi-icons-shim';
 import { motion } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FiChevronUp, FiChevronDown, FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
+import { FiChevronUp, FiChevronDown, FiChevronLeft, FiChevronRight, FiSearch } from '../../lib/fi-icons-shim';
 import { TableSkeleton } from './Skeleton';
 import { EmptyState } from './EmptyState';
 import { ErrorBanner } from './ErrorBanner';

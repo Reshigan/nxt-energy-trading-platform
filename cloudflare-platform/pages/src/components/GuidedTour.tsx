@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
-import { FiX, FiArrowRight, FiArrowLeft } from 'react-icons/fi';
+import { FiX, FiArrowRight, FiArrowLeft } from '../lib/fi-icons-shim';
 
 const TOUR_STEPS = [
   { target: '[data-tour="dashboard"]', title: 'Welcome to NXT', content: 'This is your Dashboard — it shows your financial overview, market trends, and AI-powered insights.', position: 'bottom' as const },

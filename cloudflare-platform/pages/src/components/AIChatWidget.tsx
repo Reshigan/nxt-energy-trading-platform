@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiMessageSquare, FiX, FiSend, FiLoader } from 'react-icons/fi';
+import { FiMessageSquare, FiX, FiSend, FiLoader } from '../lib/fi-icons-shim';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
 const AIChatWidget = () => {

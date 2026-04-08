@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX } from 'react-icons/fi';
+import { FiX } from '../../lib/fi-icons-shim';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'full';
 

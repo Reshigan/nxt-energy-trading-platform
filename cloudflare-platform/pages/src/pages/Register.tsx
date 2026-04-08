@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { FiZap } from 'react-icons/fi';
+import { FiZap } from '../lib/fi-icons-shim';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';

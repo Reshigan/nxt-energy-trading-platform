@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiUser, FiFileText, FiShield, FiCheck, FiArrowRight, FiArrowLeft, FiLoader, FiUploadCloud } from 'react-icons/fi';
+import { FiUser, FiFileText, FiShield, FiCheck, FiArrowRight, FiArrowLeft, FiLoader, FiUploadCloud } from '../lib/fi-icons-shim';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiActivity, FiServer, FiDatabase, FiWifi, FiRefreshCw, FiCheckCircle, FiAlertTriangle, FiXCircle, FiCpu, FiHardDrive } from 'react-icons/fi';
+import { FiActivity, FiServer, FiDatabase, FiWifi, FiRefreshCw, FiCheckCircle, FiAlertTriangle, FiXCircle, FiCpu, FiHardDrive } from '../lib/fi-icons-shim';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { motion } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';

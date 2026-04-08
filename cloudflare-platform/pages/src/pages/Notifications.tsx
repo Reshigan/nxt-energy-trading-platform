@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiBell, FiCheck, FiCheckCircle } from 'react-icons/fi';
+import { FiBell, FiCheck, FiCheckCircle } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { notificationsAPI } from '../lib/api';
 import { useNotificationStore } from '../lib/store';

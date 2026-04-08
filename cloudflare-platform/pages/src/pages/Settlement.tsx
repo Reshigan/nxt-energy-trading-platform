@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiShield, FiAlertTriangle, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiFileText, FiShield, FiAlertTriangle, FiRefreshCw, FiLoader } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { settlementAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';

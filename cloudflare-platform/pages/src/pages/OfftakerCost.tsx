@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiDollarSign, FiTrendingDown, FiZap, FiRefreshCw, FiLoader } from 'react-icons/fi';
+import { FiDollarSign, FiTrendingDown, FiZap, FiRefreshCw, FiLoader } from '../lib/fi-icons-shim';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { motion } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';

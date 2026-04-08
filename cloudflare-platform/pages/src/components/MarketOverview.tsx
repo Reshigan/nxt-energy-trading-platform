@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiBarChart2, FiTrendingUp, FiDollarSign } from 'react-icons/fi';
+import { FiBarChart2, FiTrendingUp, FiDollarSign } from '../lib/fi-icons-shim';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function MarketOverview() {

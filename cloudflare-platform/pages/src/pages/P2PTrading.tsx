@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiZap, FiRefreshCw, FiLoader, FiMapPin } from 'react-icons/fi';
+import { FiZap, FiRefreshCw, FiLoader, FiMapPin } from '../lib/fi-icons-shim';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { p2pAPI } from '../lib/api';

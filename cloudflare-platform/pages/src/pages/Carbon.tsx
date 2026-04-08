@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus, FiLoader, FiFileText, FiUpload, FiDownload } from 'react-icons/fi';
+import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus, FiLoader, FiFileText, FiUpload, FiDownload } from '../lib/fi-icons-shim';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, AreaChart, Area } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { carbonAPI } from '../lib/api';
