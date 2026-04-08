@@ -4,6 +4,7 @@ import { FiUser, FiFileText, FiShield, FiCheck, FiArrowRight, FiArrowLeft, FiLoa
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { authAPI, popiaAPI } from '../lib/api';
 import { Button, Input, Select } from '../components/ui';
 
