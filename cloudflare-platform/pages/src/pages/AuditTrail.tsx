@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
 import { adminAPI } from '../lib/api';
-import { formatDate } from '../lib/format';
+import { formatDate, formatZAR } from '../lib/format';
 import { DataTable, Button, Select, Tabs } from '../components/ui';
 import type { Column } from '../components/ui';
 

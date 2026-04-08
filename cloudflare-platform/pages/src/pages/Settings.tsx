@@ -3,6 +3,7 @@ import { FiUser, FiBell, FiMoon, FiKey, FiLock, FiGlobe, FiShield, FiDownload, F
 import { useTheme } from '../contexts/ThemeContext';
 import { popiaAPI, authAPI, subscriptionsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
