@@ -4,6 +4,7 @@ import { FiZap } from 'react-icons/fi';
 import { authAPI } from '../lib/api';
 import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
+import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
 
 const ROLES = [
@@ -19,6 +20,7 @@ export default function Register() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const toast = useToast();
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,6 +53,7 @@ export default function Register() {
         company_name: form.company_name,
         kyc_status: 'pending',
       });
+      toast.success('Account created successfully!');
       navigate('/');
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } };
@@ -93,30 +96,30 @@ export default function Register() {
               <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Company Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Company Name *</label>
-                  <input className={inputClass} value={form.company_name} onChange={(e) => updateField('company_name', e.target.value)} required />
+                  <label htmlFor="reg-company" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Company Name *</label>
+                  <input id="reg-company" className={inputClass} value={form.company_name} onChange={(e) => updateField('company_name', e.target.value)} required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">CIPC Registration Number *</label>
-                  <input className={inputClass} value={form.registration_number} onChange={(e) => updateField('registration_number', e.target.value)} placeholder="e.g. 2024/123456/07" required />
+                  <label htmlFor="reg-cipc" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">CIPC Registration Number *</label>
+                  <input id="reg-cipc" className={inputClass} value={form.registration_number} onChange={(e) => updateField('registration_number', e.target.value)} placeholder="e.g. 2024/123456/07" required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">SARS Tax Number *</label>
-                  <input className={inputClass} value={form.tax_number} onChange={(e) => updateField('tax_number', e.target.value)} placeholder="10 digits" required />
+                  <label htmlFor="reg-tax" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">SARS Tax Number *</label>
+                  <input id="reg-tax" className={inputClass} value={form.tax_number} onChange={(e) => updateField('tax_number', e.target.value)} placeholder="10 digits" required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">VAT Number</label>
-                  <input className={inputClass} value={form.vat_number} onChange={(e) => updateField('vat_number', e.target.value)} placeholder="Optional" />
+                  <label htmlFor="reg-vat" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">VAT Number</label>
+                  <input id="reg-vat" className={inputClass} value={form.vat_number} onChange={(e) => updateField('vat_number', e.target.value)} placeholder="Optional" />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Role *</label>
-                  <select className={inputClass} value={form.role} onChange={(e) => updateField('role', e.target.value)}>
+                  <label htmlFor="reg-role" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Role *</label>
+                  <select id="reg-role" className={inputClass} value={form.role} onChange={(e) => updateField('role', e.target.value)}>
                     {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">BBBEE Level</label>
-                  <select className={inputClass} value={form.bbbee_level} onChange={(e) => updateField('bbbee_level', e.target.value)}>
+                  <label htmlFor="reg-bbbee" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">BBBEE Level</label>
+                  <select id="reg-bbbee" className={inputClass} value={form.bbbee_level} onChange={(e) => updateField('bbbee_level', e.target.value)}>
                     <option value="">Select level</option>
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((l) => <option key={l} value={l}>Level {l}</option>)}
                   </select>
@@ -133,25 +136,25 @@ export default function Register() {
               <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Contact & Address</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Contact Person *</label>
-                  <input className={inputClass} value={form.contact_person} onChange={(e) => updateField('contact_person', e.target.value)} required />
+                  <label htmlFor="reg-contact" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Contact Person *</label>
+                  <input id="reg-contact" className={inputClass} value={form.contact_person} onChange={(e) => updateField('contact_person', e.target.value)} required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Email *</label>
-                  <input type="email" className={inputClass} value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
+                  <label htmlFor="reg-email" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Email *</label>
+                  <input id="reg-email" type="email" className={inputClass} value={form.email} onChange={(e) => updateField('email', e.target.value)} required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Phone *</label>
-                  <input className={inputClass} value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="+27..." required />
+                  <label htmlFor="reg-phone" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Phone *</label>
+                  <input id="reg-phone" className={inputClass} value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="+27..." required />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Password *</label>
-                  <input type="password" className={inputClass} value={form.password} onChange={(e) => updateField('password', e.target.value)} placeholder="Min 8 characters" required />
+                  <label htmlFor="reg-password" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Password *</label>
+                  <input id="reg-password" type="password" className={inputClass} value={form.password} onChange={(e) => updateField('password', e.target.value)} placeholder="Min 8 characters" required />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Physical Address *</label>
-                <textarea className={inputClass} rows={2} value={form.physical_address} onChange={(e) => updateField('physical_address', e.target.value)} required />
+                <label htmlFor="reg-address" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Physical Address *</label>
+                <textarea id="reg-address" className={inputClass} rows={2} value={form.physical_address} onChange={(e) => updateField('physical_address', e.target.value)} required />
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setStep(1)} className={`flex-1 py-3 rounded-2xl font-semibold transition-colors ${isDark ? 'bg-white/[0.06] text-white hover:bg-white/[0.1]' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>Back</button>
@@ -165,16 +168,16 @@ export default function Register() {
               <h3 className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>Regulatory Information (Optional)</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">SA ID Number</label>
-                  <input className={inputClass} value={form.sa_id_number} onChange={(e) => updateField('sa_id_number', e.target.value)} placeholder="13 digits" />
+                  <label htmlFor="reg-said" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">SA ID Number</label>
+                  <input id="reg-said" className={inputClass} value={form.sa_id_number} onChange={(e) => updateField('sa_id_number', e.target.value)} placeholder="13 digits" />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">NERSA Licence</label>
-                  <input className={inputClass} value={form.nersa_licence} onChange={(e) => updateField('nersa_licence', e.target.value)} />
+                  <label htmlFor="reg-nersa" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">NERSA Licence</label>
+                  <input id="reg-nersa" className={inputClass} value={form.nersa_licence} onChange={(e) => updateField('nersa_licence', e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">FSCA Licence</label>
-                  <input className={inputClass} value={form.fsca_licence} onChange={(e) => updateField('fsca_licence', e.target.value)} />
+                  <label htmlFor="reg-fsca" className="block text-xs text-slate-500 dark:text-slate-400 mb-1">FSCA Licence</label>
+                  <input id="reg-fsca" className={inputClass} value={form.fsca_licence} onChange={(e) => updateField('fsca_licence', e.target.value)} />
                 </div>
               </div>
               <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 dark:text-blue-400 text-xs border border-blue-500/10">
