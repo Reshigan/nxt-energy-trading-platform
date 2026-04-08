@@ -6,6 +6,7 @@ import { DisputeFileSchema } from '../utils/validation';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const settlement = new Hono<HonoEnv>();
 
@@ -101,6 +102,17 @@ settlement.post('/settlements/:tradeId/confirm', authMiddleware(), async (c) => 
       JSON.stringify({ checks }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for trade settlement
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'invoice.paid',
+      actor_id: user.sub,
+      entity_type: 'trade',
+      entity_id: tradeId,
+      data: { buyer_id: trade.buyer_id, seller_id: trade.seller_id, total_cents: trade.total_cents, escrow_id: escrow?.status === 'held' ? tradeId : undefined },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { settled: true, checks } });
   } catch (err) {
@@ -244,6 +256,17 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // Fire cascade for invoice generation
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'invoice.generated',
+      actor_id: user.sub,
+      entity_type: 'invoice',
+      entity_id: invoiceId,
+      data: { buyer_id: trade.buyer_id, seller_id: trade.seller_id, invoice_number: invoiceNumber, total_cents: totalCents, due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({
       success: true,
       data: {
@@ -310,6 +333,17 @@ settlement.post('/invoices/:id/pay', authMiddleware(), async (c) => {
       'UPDATE invoices SET status = \'paid\', paid_at = ? WHERE id = ?'
     ).bind(nowISO(), id).run();
 
+    // Fire cascade for invoice payment
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'invoice.paid',
+      actor_id: user.sub,
+      entity_type: 'invoice',
+      entity_id: id,
+      data: { seller_id: invoice.from_participant_id, invoice_number: invoice.invoice_number, total_cents: invoice.total_cents },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({ success: true, message: 'Invoice marked as paid' });
   } catch (err) {
     captureException(c, err);
@@ -362,6 +396,17 @@ settlement.post('/disputes', authMiddleware(), async (c) => {
       JSON.stringify({ category: data.category, value_cents: data.value_cents }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for dispute filed
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'dispute.filed',
+      actor_id: user.sub,
+      entity_type: 'dispute',
+      entity_id: disputeId,
+      data: { respondent_id: data.respondent_id, reason: data.description, category: data.category, value_cents: data.value_cents },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { id: disputeId } }, 201);
   } catch (err) {

@@ -6,6 +6,7 @@ import { CreditRetireSchema, CreditTransferSchema, OptionCreateSchema } from '..
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const carbon = new Hono<HonoEnv>();
 
@@ -88,6 +89,17 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
 
+    // Fire cascade for credit retirement
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'credit.retired',
+      actor_id: user.sub,
+      entity_type: 'carbon_credit',
+      entity_id: id,
+      data: { owner_id: user.sub, tonnes: quantity, standard: credit.registry, value_cents: quantity * ((credit.price_cents as number) || 0) },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
     return c.json({ success: true, data: { retired_quantity: quantity, remaining: newAvailable } });
   } catch (err) {
     captureException(c, err);
@@ -155,6 +167,17 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
       JSON.stringify({ quantity, to: to_participant_id }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for credit transfer
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'credit.transferred',
+      actor_id: user.sub,
+      entity_type: 'carbon_credit',
+      entity_id: id,
+      data: { from_id: user.sub, to_id: to_participant_id, tonnes: quantity },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { transferred_quantity: quantity, to: to_participant_id } });
   } catch (err) {
@@ -353,6 +376,17 @@ carbon.post('/options/:id/exercise', authMiddleware(), async (c) => {
       JSON.stringify({ intrinsic_value: intrinsicValue, market_price: marketPrice }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for option exercise
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'option.exercised',
+      actor_id: user.sub,
+      entity_type: 'carbon_option',
+      entity_id: id,
+      data: { writer_id: option.writer_id, holder_id: user.sub, option_type: option.type, intrinsic_value: intrinsicValue },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({
       success: true,

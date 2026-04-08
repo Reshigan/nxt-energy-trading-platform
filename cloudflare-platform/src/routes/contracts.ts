@@ -9,6 +9,7 @@ import { getTemplate, MANDATORY_CLAUSES } from '../templates/contract-templates'
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
+import { cascade } from '../utils/cascade';
 
 const contracts = new Hono<HonoEnv>();
 
@@ -246,6 +247,17 @@ contracts.patch('/documents/:id/phase', authMiddleware(), async (c) => {
       JSON.stringify({ from: doc.phase, to: target_phase, notes }),
       c.req.header('CF-Connecting-IP') || 'unknown'
     ).run();
+
+    // Fire cascade for phase change
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'contract.phase_changed',
+      actor_id: user.sub,
+      entity_type: 'contract_document',
+      entity_id: id,
+      data: { parties: [doc.creator_id, doc.counterparty_id], title: doc.title, new_phase: target_phase, old_phase: doc.phase },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
 
     return c.json({ success: true, data: { phase: target_phase } });
   } catch (err) {

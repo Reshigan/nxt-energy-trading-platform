@@ -25,6 +25,7 @@ import metering from './routes/metering';
 import p2p from './routes/p2p';
 import healthRoute from './routes/health';
 import popia from './routes/popia';
+import demand from './routes/demand';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -199,6 +200,7 @@ api.route('/developer', developer);
 api.route('/metering', metering);
 api.route('/p2p', p2p);
 api.route('/popia', popia);
+api.route('/demand', demand);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
