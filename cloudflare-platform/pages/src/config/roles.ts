@@ -1,4 +1,4 @@
-export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin';
+export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender';
 
 export interface RoleConfig {
   label: string;
@@ -124,6 +124,25 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
       { label: 'System Health', icon: 'heart' },
       { label: 'Generate Reports', icon: 'file-text' },
       { label: 'Review API Usage', icon: 'code' },
+    ],
+  },
+  lender: {
+    label: 'Lender',
+    accent: 'text-teal-600',
+    accentBg: 'bg-teal-500',
+    accentHex: '#0D9488',
+    allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/settlement', '/reports', '/notifications', '/settings', '/invoices'],
+    kpis: [
+      { label: 'Lending Portfolio', value: 'R1.2B', change: '+4.2%', positive: true },
+      { label: 'Active Facilities', value: '18', change: '+2', positive: true },
+      { label: 'Disbursed YTD', value: 'R340M', change: '+R45M', positive: true },
+      { label: 'NPL Ratio', value: '1.8%', change: '-0.3%', positive: true },
+    ],
+    actions: [
+      { label: 'Review Disbursements', icon: 'dollar-sign' },
+      { label: 'Check CP Status', icon: 'check-circle' },
+      { label: 'Portfolio Analytics', icon: 'bar-chart' },
+      { label: 'Generate Reports', icon: 'file-text' },
     ],
   },
 };
