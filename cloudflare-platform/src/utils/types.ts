@@ -19,9 +19,9 @@ export interface AppBindings extends Record<string, unknown> {
 export type HonoEnv = { Bindings: AppBindings; Variables: { user: JwtPayload } };
 
 // User roles
-export type Role = 'admin' | 'ipp' | 'trader' | 'carbon_fund' | 'offtaker' | 'lender' | 'grid';
+export type Role = 'admin' | 'ipp' | 'trader' | 'carbon_fund' | 'offtaker' | 'lender' | 'grid' | 'regulator';
 
-export const ROLES: Role[] = ['admin', 'ipp', 'trader', 'carbon_fund', 'offtaker', 'lender', 'grid'];
+export const ROLES: Role[] = ['admin', 'ipp', 'trader', 'carbon_fund', 'offtaker', 'lender', 'grid', 'regulator'];
 
 // KYC status
 export type KycStatus = 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended';
