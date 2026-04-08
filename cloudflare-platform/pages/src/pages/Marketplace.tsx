@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiSearch, FiRefreshCw, FiPlus, FiStar, FiLoader } from 'react-icons/fi';
+import { FiSearch, FiRefreshCw, FiPlus, FiStar, FiLoader } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { marketplaceAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader, FiDollarSign } from 'react-icons/fi';
+import { FiUsers, FiShield, FiCheck, FiX, FiSearch, FiActivity, FiRefreshCw, FiLoader, FiDollarSign } from '../lib/fi-icons-shim';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { participantsAPI, complianceAPI, adminAPI } from '../lib/api';

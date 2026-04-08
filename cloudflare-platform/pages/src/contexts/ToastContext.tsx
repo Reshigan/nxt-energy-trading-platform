@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiCheckCircle, FiAlertCircle, FiInfo, FiX } from 'react-icons/fi';
+import { FiCheckCircle, FiAlertCircle, FiInfo, FiX } from '../lib/fi-icons-shim';
 
 type ToastType = 'success' | 'error' | 'info';
 

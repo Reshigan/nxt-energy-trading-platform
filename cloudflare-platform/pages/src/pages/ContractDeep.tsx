@@ -1,7 +1,7 @@
 // N11: Contract Deep Features — detail view, amendments, signatures, versions, audit trail
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiFileText, FiEdit3, FiCheckCircle, FiClock, FiDownload, FiArrowLeft, FiShield, FiRefreshCw, FiLoader, FiAlertTriangle, FiLayers, FiUsers, FiList } from 'react-icons/fi';
+import { FiFileText, FiEdit3, FiCheckCircle, FiClock, FiDownload, FiArrowLeft, FiShield, FiRefreshCw, FiLoader, FiAlertTriangle, FiLayers, FiUsers, FiList } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';

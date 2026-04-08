@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { FiBarChart2, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
+import { FiBarChart2, FiAlertTriangle, FiCheckCircle } from '../lib/fi-icons-shim';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
 export default function AIPoweredInsights() {

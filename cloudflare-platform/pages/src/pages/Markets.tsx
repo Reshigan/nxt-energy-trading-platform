@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter, FiRefreshCw, FiStar } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter, FiRefreshCw, FiStar } from '../lib/fi-icons-shim';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';

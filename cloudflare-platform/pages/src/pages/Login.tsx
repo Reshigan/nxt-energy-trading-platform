@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { FiMail, FiLock, FiEye, FiEyeOff, FiZap } from 'react-icons/fi';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
+import NXTLogo from '../components/NXTLogo';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -78,10 +78,8 @@ export default function Login() {
       className="min-h-screen flex items-center justify-center bg-[#EEF1F6] dark:bg-[#0B1221] px-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8" style={{ animation: 'cardFadeUp 500ms ease both' }}>
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <FiZap className="w-5 h-5 text-white" />
-            </div>
+          <div className="inline-flex items-center gap-2.5 mb-4">
+            <NXTLogo size={44} animated />
             <span className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">NXT Energy</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
@@ -101,7 +99,7 @@ export default function Login() {
             <div>
               <label htmlFor="login-email" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
               <div className="relative">
-                <FiMail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
                   aria-label="Email address" placeholder="admin@et.vantax.co.za"
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
@@ -111,12 +109,15 @@ export default function Login() {
             <div>
               <label htmlFor="login-password" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Password</label>
               <div className="relative">
-                <FiLock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 <input id="login-password" type={showPass ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
                   aria-label="Password" placeholder="Enter your password"
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl text-sm outline-none transition-all border bg-slate-50 dark:bg-white/[0.04] border-black/[0.06] dark:border-white/[0.06] text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:border-blue-500 dark:focus:border-blue-500/50" />
                 <button type="button" onClick={() => setShowPass(!showPass)} aria-label={showPass ? 'Hide password' : 'Show password'} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                  {showPass ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                  {showPass
+                    ? <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  }
                 </button>
               </div>
             </div>

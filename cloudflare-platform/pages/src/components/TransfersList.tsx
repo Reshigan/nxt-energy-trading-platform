@@ -1,5 +1,5 @@
 import React from 'react';
-import { FiArrowUpRight, FiArrowDownLeft } from 'react-icons/fi';
+import { FiArrowUpRight, FiArrowDownLeft } from '../lib/fi-icons-shim';
 
 interface Transfer {
   id: string;

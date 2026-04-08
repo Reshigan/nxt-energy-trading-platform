@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText, FiRefreshCw } from 'react-icons/fi';
+import { FiShield, FiCheck, FiAlertCircle, FiClock, FiUpload, FiFileText, FiRefreshCw } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { complianceAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';

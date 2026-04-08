@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiMessageSquare, FiLoader } from 'react-icons/fi';
+import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiMessageSquare, FiLoader } from '../lib/fi-icons-shim';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 import SemiGauge from '../components/SemiGauge';
 import PortfolioPills from '../components/PortfolioPills';

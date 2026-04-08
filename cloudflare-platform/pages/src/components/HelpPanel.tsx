@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FiX, FiSearch, FiBook, FiMail, FiChevronRight, FiArrowLeft } from 'react-icons/fi';
+import { FiX, FiSearch, FiBook, FiMail, FiChevronRight, FiArrowLeft } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 
 const KB_CATEGORIES = [

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FiHome, FiArrowLeft } from 'react-icons/fi';
+import { FiHome, FiArrowLeft } from '../lib/fi-icons-shim';
 import { motion } from 'framer-motion';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 

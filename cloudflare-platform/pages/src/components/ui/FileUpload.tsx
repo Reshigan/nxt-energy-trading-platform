@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback } from 'react';
-import { FiUploadCloud, FiX, FiFile } from 'react-icons/fi';
+import { FiUploadCloud, FiX, FiFile } from '../../lib/fi-icons-shim';
 
 interface FileUploadProps {
   onUpload: (file: File) => void;

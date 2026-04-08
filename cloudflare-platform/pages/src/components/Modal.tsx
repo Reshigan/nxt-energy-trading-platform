@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiX } from 'react-icons/fi';
+import { FiX } from '../lib/fi-icons-shim';
 import { useThemeClasses } from '../hooks/useThemeClasses';
 
 interface ModalProps {

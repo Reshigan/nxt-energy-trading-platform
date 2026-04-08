@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw, FiPaperclip, FiEye } from 'react-icons/fi';
+import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw, FiPaperclip, FiEye } from '../lib/fi-icons-shim';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
