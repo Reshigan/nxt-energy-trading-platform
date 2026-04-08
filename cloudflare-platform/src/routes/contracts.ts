@@ -52,19 +52,23 @@ contracts.post('/documents', authMiddleware(), async (c) => {
 
     const data = parsed.data;
     const id = generateId();
+    const counterpartyId = data.counterparty_id || user.sub;
 
     await c.env.DB.prepare(`
       INSERT INTO contract_documents (id, title, document_type, phase, creator_id, counterparty_id,
-        commercial_terms, template_id, version)
-      VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, 'v1.0')
+        governing_law, jurisdiction, commercial_terms, template_id, version)
+      VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, 'v1.0')
     `).bind(
-      id, data.title, data.document_type, user.sub, data.counterparty_id,
+      id, data.title, data.document_type, user.sub, counterpartyId,
+      data.governing_law || 'South Africa',
+      data.jurisdiction || 'Gauteng Division, High Court of South Africa',
       data.commercial_terms ? JSON.stringify(data.commercial_terms) : null,
       data.template_id || null
     ).run();
 
-    // Add default signatories (creator and counterparty)
-    for (const participantId of [user.sub, data.counterparty_id]) {
+    // Add default signatories (creator, and counterparty if different)
+    const signatoryIds = data.counterparty_id ? [user.sub, data.counterparty_id] : [user.sub];
+    for (const participantId of signatoryIds) {
       const participant = await c.env.DB.prepare(
         'SELECT contact_person, role FROM participants WHERE id = ?'
       ).bind(participantId).first<{ contact_person: string; role: string }>();

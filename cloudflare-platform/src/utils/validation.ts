@@ -98,7 +98,9 @@ export const CreateDocumentSchema = z.object({
     'carbon_purchase', 'carbon_option_isda', 'forward', 'epc',
     'wheeling_agreement', 'side_letter', 'nda',
   ]),
-  counterparty_id: z.string().min(1),
+  counterparty_id: z.string().min(1).optional(),
+  governing_law: z.string().optional(),
+  jurisdiction: z.string().optional(),
   commercial_terms: z.record(z.unknown()).optional(),
   template_id: z.string().optional(),
 });
