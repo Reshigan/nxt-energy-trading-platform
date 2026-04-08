@@ -24,6 +24,7 @@ export default function Markets() {
   const toast = useToast();
   const { isDark } = useTheme();
   const [search, setSearch] = useState('');
+  const [filterPositive, setFilterPositive] = useState<boolean | null>(null);
   const [marketData, setMarketData] = useState(markets);
 
   useEffect(() => {
@@ -37,7 +38,11 @@ export default function Markets() {
     })();
   }, []);
 
-  const filtered = marketData.filter(m => m.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = marketData.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = filterPositive === null || m.positive === filterPositive;
+    return matchesSearch && matchesFilter;
+  });
 
   return (
     <motion.div
@@ -56,9 +61,15 @@ export default function Markets() {
           <FiSearch className="w-4 h-4 text-slate-400" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search markets..." className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400" />
         </div>
-        <button className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Filter">
-          <FiFilter className="w-4 h-4" /> Filter
-        </button>
+        <div className="flex gap-1">
+          {[{ label: 'All', val: null }, { label: 'Gainers', val: true }, { label: 'Losers', val: false }].map(f => (
+            <button key={f.label} onClick={() => setFilterPositive(f.val as boolean | null)}
+              className={`px-3 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-1.5 transition-all ${filterPositive === f.val ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' : isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`}
+              aria-label={`Filter ${f.label}`} aria-pressed={filterPositive === f.val}>
+              {f.val === null && <FiFilter className="w-3.5 h-3.5" />}{f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Markets Table */}
