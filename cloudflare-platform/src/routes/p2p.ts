@@ -134,7 +134,7 @@ p2p.post('/offers/:id/accept', async (c) => {
 
     // Fire cascade for P2P match
     c.executionCtx.waitUntil(cascade(c.env, {
-      type: 'p2p.matched',
+      type: 'p2p.accepted',
       actor_id: user.sub,
       entity_type: 'p2p_trade',
       entity_id: id,
