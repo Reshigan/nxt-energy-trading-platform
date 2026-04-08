@@ -37,11 +37,23 @@ api.interceptors.response.use(
 export const authAPI = {
   register: (data: Record<string, unknown>) => api.post('/register', data),
   login: (data: { email: string; password: string }) => api.post('/register/auth/login', data),
+  login2FA: (data: { email: string; token: string; otp: string }) => api.post('/register/auth/login/2fa', data),
   me: () => api.get('/register/me'),
   refresh: (refreshToken: string) => api.post('/auth/refresh', { refreshToken }),
   logout: () => api.post('/auth/logout'),
   updateProfile: (data: Record<string, unknown>) => api.patch('/register/me', data),
   changePassword: (data: { current_password: string; new_password: string }) => api.post('/register/me/password', data),
+  updatePreferences: (data: Record<string, unknown>) => api.post('/register/me/preferences', data),
+  getOnboardingStatus: () => api.get('/register/me/onboarding-status'),
+  completeOnboarding: () => api.post('/register/me/complete-onboarding'),
+  uploadDocument: (participantId: string, data: FormData) => api.post(`/register/${participantId}/documents`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  forgotPassword: (email: string) => api.post('/register/auth/forgot-password', { email }),
+  resetPassword: (data: { email: string; otp: string; new_password: string }) => api.post('/register/auth/reset-password', data),
+  sendVerification: (email: string) => api.post('/register/auth/send-verification', { email }),
+  verifyEmail: (data: { email: string; otp: string }) => api.post('/register/auth/verify-email', data),
+  enable2FA: () => api.post('/register/me/2fa/enable'),
+  verify2FA: (code: string) => api.post('/register/me/2fa/verify', { code }),
+  disable2FA: (password: string) => api.post('/register/me/2fa/disable', { password }),
 };
 
 // Dashboard
@@ -119,10 +131,13 @@ export const projectsAPI = {
     api.patch(`/projects/${projectId}/milestones/${milestoneId}`, data),
   updateCondition: (projectId: string, conditionId: string, data: Record<string, unknown>) =>
     api.patch(`/projects/${projectId}/conditions/${conditionId}`, data),
+  getDisbursements: (projectId: string) => api.get(`/projects/${projectId}/disbursements`),
+  requestDisbursement: (projectId: string, data: Record<string, unknown>) => api.post(`/projects/${projectId}/disbursements`, data),
 };
 
 // Settlement
 export const settlementAPI = {
+  getSettlements: (params?: Record<string, string>) => api.get('/settlement/settlements', { params }),
   confirmSettlement: (tradeId: string) => api.post(`/settlement/settlements/${tradeId}/confirm`),
   getEscrows: (params?: Record<string, string>) => api.get('/settlement/escrows', { params }),
   createEscrow: (data: Record<string, unknown>) => api.post('/settlement/escrows', data),
@@ -132,13 +147,15 @@ export const settlementAPI = {
   getDisputes: (params?: Record<string, string>) => api.get('/settlement/disputes', { params }),
   fileDispute: (data: Record<string, unknown>) => api.post('/settlement/disputes', data),
   updateDisputeStatus: (id: string, data: Record<string, unknown>) => api.patch(`/settlement/disputes/${id}/status`, data),
-  getNetting: (data: { period_start: string; period_end: string; execute?: boolean }) => api.post('/settlement/netting', data),
+  getNetting: (params: { counterparty_id?: string; from?: string; to?: string }) => api.get('/settlement/netting', { params }),
+  generateNetInvoice: (data: Record<string, unknown>) => api.post('/settlement/netting/generate', data),
 };
 
 // Compliance
 export const complianceAPI = {
   getKYC: (params?: Record<string, string>) => api.get('/compliance/kyc', { params }),
   verifyKYC: (id: string) => api.post(`/compliance/kyc/${id}/verify`),
+  rejectKYC: (id: string, data: { reason: string }) => api.post(`/compliance/kyc/${id}/reject`, data),
   getLicences: (params?: Record<string, string>) => api.get('/compliance/licences', { params }),
   getStatutory: (params?: Record<string, string>) => api.get('/compliance/statutory', { params }),
   overrideStatutory: (id: string, data: { reason: string }) => api.post(`/compliance/statutory/${id}/override`, data),
@@ -199,6 +216,7 @@ export const developerAPI = {
   createWebhook: (data: Record<string, unknown>) => api.post('/developer/webhooks', data),
   deleteWebhook: (id: string) => api.delete(`/developer/webhooks/${id}`),
   toggleWebhook: (id: string, active: boolean) => api.patch(`/developer/webhooks/${id}`, { active }),
+  testWebhook: (id: string) => api.post(`/developer/webhooks/${id}/test`),
   getUsage: () => api.get('/developer/usage'),
   getDocs: () => api.get('/developer/docs'),
 };
@@ -255,6 +273,49 @@ export const pricingAPI = {
   getTiers: () => api.get('/pricing/tiers'),
   getQuote: (data: Record<string, unknown>) => api.post('/pricing/quote', data),
   getMarketRates: () => api.get('/pricing/market-rates'),
+  getOfftakerCost: (offtakerId: string) => api.get(`/pricing/offtaker/${offtakerId}`),
+};
+
+// Health
+export const healthAPI = {
+  basic: () => api.get('/health'),
+  detailed: () => api.get('/health/detailed'),
+  getStatus: () => api.get('/health/status'),
+  getMetrics: () => api.get('/health/metrics'),
+};
+
+// Fees
+export const feesAdminAPI = {
+  getSchedule: () => api.get('/fees'),
+  updateSchedule: (id: string, data: Record<string, unknown>) => api.patch(`/fees/${id}`, data),
+  getRevenue: (params?: Record<string, string>) => api.get('/fees/revenue', { params }),
+};
+
+// Contract Rules
+export const contractRulesAPI = {
+  list: (contractId: string) => api.get(`/contracts/${contractId}/rules`),
+  create: (contractId: string, data: Record<string, unknown>) => api.post(`/contracts/${contractId}/rules`, data),
+  update: (contractId: string, ruleId: string, data: Record<string, unknown>) => api.patch(`/contracts/${contractId}/rules/${ruleId}`, data),
+  remove: (contractId: string, ruleId: string) => api.delete(`/contracts/${contractId}/rules/${ruleId}`),
+  pause: (contractId: string, ruleId: string) => api.post(`/contracts/${contractId}/rules/${ruleId}/pause`),
+  getRules: () => api.get('/smart-rules'),
+  createRule: (data: Record<string, unknown>) => api.post('/smart-rules', data),
+  updateRule: (id: string, data: Record<string, unknown>) => api.patch(`/smart-rules/${id}`, data),
+  deleteRule: (id: string) => api.delete(`/smart-rules/${id}`),
+};
+
+// Admin
+export const adminAPI = {
+  getParticipants: (params?: Record<string, string>) => api.get('/admin/participants', { params }),
+  getUsers: (params?: Record<string, string>) => api.get('/admin/users', { params }),
+  getUser: (id: string) => api.get(`/admin/users/${id}`),
+  updateUser: (id: string, data: Record<string, unknown>) => api.patch(`/admin/users/${id}`, data),
+  deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
+  createTenant: (data: Record<string, unknown>) => api.post('/admin/tenants', data),
+  deleteTenant: (id: string) => api.delete(`/admin/tenants/${id}`),
+  getAuditLog: (params?: Record<string, string>) => api.get('/admin/audit-log', { params }),
+  getSystemStats: () => api.get('/admin/stats'),
+  getRevenue: (params?: Record<string, string>) => api.get('/admin/revenue', { params }),
 };
 
 export default api;
