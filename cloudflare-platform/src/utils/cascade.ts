@@ -56,7 +56,7 @@ async function computeFee(
   entityId: string,
 ): Promise<number> {
   const schedule = await db.prepare(
-    "SELECT rate_bps, min_cents, max_cents FROM fee_schedule WHERE fee_type = ? AND active = 1"
+    "SELECT rate as rate_bps, minimum_cents as min_cents, maximum_cents as max_cents FROM fee_schedule WHERE fee_type = ? AND active = 1"
   ).bind(feeType).first<{ rate_bps: number; min_cents: number | null; max_cents: number | null }>();
 
   if (!schedule) return 0;
@@ -631,6 +631,15 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
 
   // ── P2P ──────────────────────────────────────────────────────────────────
 
+  'p2p.offer_created': [
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'p2p.offer_created', event.data);
+      },
+    },
+  ],
+
   'p2p.accepted': [
     {
       type: 'notify',
@@ -749,7 +758,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'db_update',
       execute: async (env, event) => {
         await env.DB.prepare(
-          `INSERT INTO audit_log (id, participant_id, action, entity_type, entity_id, details, ip_address, created_at)
+          `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
            VALUES (?, ?, 'popia_consent_changed', 'participant', ?, ?, ?, datetime('now'))`
         ).bind(crypto.randomUUID(), event.actor_id, event.actor_id, JSON.stringify(event.data), event.ip).run();
       },
@@ -761,7 +770,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'db_update',
       execute: async (env, event) => {
         await env.DB.prepare(
-          `INSERT INTO audit_log (id, participant_id, action, entity_type, entity_id, details, ip_address, created_at)
+          `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
            VALUES (?, ?, 'popia_data_export', 'participant', ?, ?, ?, datetime('now'))`
         ).bind(crypto.randomUUID(), event.actor_id, event.actor_id, JSON.stringify(event.data), event.ip).run();
       },
@@ -773,7 +782,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'db_update',
       execute: async (env, event) => {
         await env.DB.prepare(
-          `INSERT INTO audit_log (id, participant_id, action, entity_type, entity_id, details, ip_address, created_at)
+          `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
            VALUES (?, ?, 'popia_erasure_request', 'participant', ?, ?, ?, datetime('now'))`
         ).bind(crypto.randomUUID(), event.actor_id, event.actor_id, JSON.stringify(event.data), event.ip).run();
       },
@@ -793,7 +802,7 @@ export async function cascade(env: AppBindings, event: CascadeEvent): Promise<vo
   // Always write audit log for every cascade event
   try {
     await env.DB.prepare(
-      `INSERT INTO audit_log (id, participant_id, action, entity_type, entity_id, details, ip_address, created_at)
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
     ).bind(
       crypto.randomUUID(),

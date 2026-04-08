@@ -29,8 +29,7 @@ const sc: Record<string, { bg: string; text: string }> = {
 };
 
 function Badge({ status }: { status: string }) {
-  const key = status.toLowerCase().replace(/\s+/g, '_');
-  const s = sc[key] || sc.draft;
+  const s = sc[status] || sc['Draft'];
   return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${s.bg} ${s.text}`}>{status}</span>;
 }
 
