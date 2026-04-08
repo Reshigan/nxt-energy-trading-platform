@@ -23,6 +23,29 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
 
     const data = parsed.data;
 
+    // B1: KYC gates trading — reject unverified users
+    const participant = await c.env.DB.prepare(
+      'SELECT kyc_status, trading_enabled FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{ kyc_status: string; trading_enabled: number }>();
+    if (!participant || participant.kyc_status !== 'verified' || participant.trading_enabled !== 1) {
+      return c.json({ success: false, error: 'KYC verification required before trading' }, 403);
+    }
+
+    // B6: Margin check — ensure participant has sufficient margin/balance
+    const marginResult = await c.env.DB.prepare(
+      'SELECT balance_cents, margin_used_cents, margin_limit_cents FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{ balance_cents: number | null; margin_used_cents: number | null; margin_limit_cents: number | null }>();
+    if (marginResult) {
+      const balance = marginResult.balance_cents || 0;
+      const marginUsed = marginResult.margin_used_cents || 0;
+      const marginLimit = marginResult.margin_limit_cents || 10000000; // Default R100k limit
+      const orderValue = (data.volume || 0) * (data.price || 0);
+      const availableMargin = marginLimit - marginUsed;
+      if (orderValue > availableMargin && orderValue > balance) {
+        return c.json({ success: false, error: `Insufficient margin. Available: R${(availableMargin / 100).toFixed(2)}, Required: R${(orderValue / 100).toFixed(2)}` }, 400);
+      }
+    }
+
     // Validate price for limit orders
     if (data.order_type === 'limit' && !data.price) {
       return c.json({ success: false, error: 'Price required for limit orders' }, 400);
@@ -78,8 +101,17 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
     if (doResult.matches && doResult.matches.length > 0) {
       let totalFilled = 0;
       for (const match of doResult.matches) {
-        const feeCents = Math.round(match.volume * match.price * 0.0015); // 0.15% platform fee
+        // B2: Fee from fee_schedule (not hardcoded)
+        const feeRow = await c.env.DB.prepare(
+          "SELECT rate, minimum_cents, maximum_cents FROM fee_schedule WHERE fee_type = 'trading' AND active = 1"
+        ).first<{ rate: number; minimum_cents: number; maximum_cents: number }>();
+        const feeRate = feeRow?.rate || 0.0015;
         const totalCents = Math.round(match.volume * match.price);
+        const rawFee = Math.round(totalCents * feeRate);
+        const feeCents = Math.max(
+          feeRow?.minimum_cents || 100,
+          Math.min(rawFee, feeRow?.maximum_cents || 1000000)
+        );
 
         await c.env.DB.prepare(`
           INSERT INTO trades (id, buyer_id, seller_id, market, volume, price_cents, total_cents, fee_cents, order_id, status)

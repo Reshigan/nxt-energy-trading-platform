@@ -5,11 +5,14 @@ import { hashPassword, verifyPassword } from '../utils/hash';
 import { RegisterSchema, LoginSchema } from '../utils/validation';
 import { signJwt, signRefreshToken } from '../auth/jwt';
 import { authMiddleware } from '../auth/middleware';
+import { cascade } from '../utils/cascade';
+import { captureException } from '../utils/sentry';
 
 const register = new Hono<HonoEnv>();
 
 // POST /register — Self-registration
 register.post('/', async (c) => {
+  try {
   const body = await c.req.json();
   const parsed = RegisterSchema.safeParse(body);
   if (!parsed.success) {
@@ -80,6 +83,17 @@ register.post('/', async (c) => {
     c.req.header('CF-Connecting-IP') || 'unknown'
   ).run();
 
+  // B3: Fire cascade for registration
+  c.executionCtx.waitUntil(cascade(c.env, {
+    type: 'kyc.approved',
+    actor_id: id,
+    entity_type: 'participant',
+    entity_id: id,
+    data: { participant_id: id, company_name: data.company_name, role: data.role },
+    ip: c.req.header('CF-Connecting-IP') || 'unknown',
+    request_id: c.get('requestId'),
+  }));
+
   return c.json({
     success: true,
     data: {
@@ -90,10 +104,15 @@ register.post('/', async (c) => {
       message: 'Registration successful. Auto-validation pipeline triggered.',
     },
   }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // GET /register/status/:id — Check registration status
 register.get('/status/:id', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
   const { id } = c.req.param();
   const user = c.get('user');
 
@@ -124,10 +143,15 @@ register.get('/status/:id', authMiddleware({ requireKyc: false }), async (c) => 
       statutory_checks: checks.results,
     },
   });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // POST /register/:id/documents — Upload KYC documents
 register.post('/:id/documents', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
   const { id } = c.req.param();
   const user = c.get('user');
 
@@ -172,10 +196,15 @@ register.post('/:id/documents', authMiddleware({ requireKyc: false }), async (c)
     success: true,
     data: { id: docId, document_type: documentType, file_name: file.name },
   }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // POST /register/:id/validate — Manually trigger re-validation
 register.post('/:id/validate', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
   const { id } = c.req.param();
 
   const participant = await c.env.DB.prepare('SELECT * FROM participants WHERE id = ?').bind(id).first();
@@ -192,10 +221,15 @@ register.post('/:id/validate', authMiddleware({ roles: ['admin'] }), async (c) =
   await runAutoValidations(id, participant as any, c.env.DB);
 
   return c.json({ success: true, message: 'Re-validation triggered' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // POST /register/:id/approve — Admin approve
 register.post('/:id/approve', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
   const { id } = c.req.param();
   const user = c.get('user');
   const body = await c.req.json().catch(() => ({})) as { override_notes?: string };
@@ -220,11 +254,27 @@ register.post('/:id/approve', authMiddleware({ roles: ['admin'] }), async (c) =>
     VALUES (?, ?, 'Registration Approved', 'Your registration has been approved. Trading is now enabled.', 'success', 'participant', ?)
   `).bind(generateId(), id, id).run();
 
+  // B3: Fire cascade for KYC approval
+  c.executionCtx.waitUntil(cascade(c.env, {
+    type: 'kyc.approved',
+    actor_id: user.sub,
+    entity_type: 'participant',
+    entity_id: id,
+    data: { participant_id: id },
+    ip: c.req.header('CF-Connecting-IP') || 'unknown',
+    request_id: c.get('requestId'),
+  }));
+
   return c.json({ success: true, message: 'Participant approved' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // POST /register/:id/reject — Admin reject
 register.post('/:id/reject', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
   const { id } = c.req.param();
   const user = c.get('user');
   const body = await c.req.json() as { reason: string };
@@ -252,13 +302,29 @@ register.post('/:id/reject', authMiddleware({ roles: ['admin'] }), async (c) => 
     VALUES (?, ?, 'Registration Rejected', ?, 'danger', 'participant', ?)
   `).bind(generateId(), id, `Your registration was rejected: ${body.reason}`, id).run();
 
+  // B3: Fire cascade for KYC rejection
+  c.executionCtx.waitUntil(cascade(c.env, {
+    type: 'kyc.rejected',
+    actor_id: user.sub,
+    entity_type: 'participant',
+    entity_id: id,
+    data: { participant_id: id, reason: body.reason },
+    ip: c.req.header('CF-Connecting-IP') || 'unknown',
+    request_id: c.get('requestId'),
+  }));
+
   return c.json({ success: true, message: 'Participant rejected' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // ---- Auth endpoints ----
 
 // POST /auth/login
 register.post('/auth/login', async (c) => {
+  try {
   const body = await c.req.json();
   const parsed = LoginSchema.safeParse(body);
   if (!parsed.success) {
@@ -317,6 +383,10 @@ register.post('/auth/login', async (c) => {
       },
     },
   });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
 });
 
 // ---- Helper functions ----
