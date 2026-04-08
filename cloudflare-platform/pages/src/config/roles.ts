@@ -17,7 +17,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-green-600',
     accentBg: 'bg-green-500',
     accentHex: '#16A34A',
-        allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering', '/ipp', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/smart-rules'],
+        allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering', '/ipp', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/smart-rules', '/vault', '/trade-journal', '/carbon-deep', '/ipp-deep', '/reporting-engine'],
         kpis: [
           { label: 'Generation Today', value: '847 MWh', change: '+12.3%', positive: true },
       { label: 'Active PPAs', value: '14', change: '+2', positive: true },
@@ -36,7 +36,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-indigo-600',
     accentBg: 'bg-indigo-500',
     accentHex: '#4F46E5',
-    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/p2p', '/marketplace', '/settlement', '/reports', '/notifications', '/settings', '/smart-rules', '/invoices'],
+    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/p2p', '/marketplace', '/settlement', '/reports', '/notifications', '/settings', '/smart-rules', '/invoices', '/vault', '/trade-journal', '/carbon-deep', '/reporting-engine'],
     kpis: [
       { label: 'Portfolio Value', value: 'R24.8M', change: '+12.4%', positive: true },
       { label: "Today's P&L", value: 'R1.24M', change: '+8.2%', positive: true },
@@ -55,7 +55,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-purple-600',
     accentBg: 'bg-purple-500',
     accentHex: '#7C3AED',
-    allowedPaths: ['/', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/marketplace', '/p2p', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/offtaker-cost', '/invoices', '/disputes'],
+    allowedPaths: ['/', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/marketplace', '/p2p', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/offtaker-cost', '/invoices', '/disputes', '/vault', '/trade-journal', '/offtaker-deep', '/reporting-engine'],
     kpis: [
       { label: 'Energy Consumed', value: '1.2 GWh', change: '+5.4%', positive: true },
       { label: 'Blended Cost', value: 'R0.89/kWh', change: '-2.1%', positive: true },
@@ -74,9 +74,9 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-amber-600',
     accentBg: 'bg-amber-500',
     accentHex: '#D97706',
-    allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/metering', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices'],
-    kpis: [
-      { label: 'Projects Active', value: '6', change: '+1', positive: true },
+        allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/metering', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/vault', '/ipp-deep', '/reporting-engine'],
+        kpis: [
+          { label: 'Projects Active', value: '6', change: '+1', positive: true },
       { label: 'Total Capacity', value: '450 MW', change: '+75 MW', positive: true },
       { label: 'Disbursed Amount', value: 'R180M', change: '+R25M', positive: true },
       { label: 'CPs Completed', value: '34/42', change: '+5', positive: true },
@@ -93,7 +93,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-red-600',
     accentBg: 'bg-red-500',
     accentHex: '#DC2626',
-    allowedPaths: ['/', '/analytics', '/compliance', '/admin', '/reports', '/notifications', '/settings', '/metering', '/audit-trail'],
+    allowedPaths: ['/', '/analytics', '/compliance', '/admin', '/reports', '/notifications', '/settings', '/metering', '/audit-trail', '/surveillance', '/reporting-engine'],
     kpis: [
       { label: 'Participants', value: '142', change: '+8', positive: true },
       { label: 'Trades Today', value: '1,847', change: '+23%', positive: true },
@@ -112,7 +112,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-slate-600',
     accentBg: 'bg-slate-500',
     accentHex: '#525252',
-    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin'],
+    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin', '/vault', '/lender', '/surveillance', '/trade-journal', '/carbon-deep', '/ipp-deep', '/offtaker-deep', '/reporting-engine'],
     kpis: [
       { label: 'Platform Users', value: '142', change: '+12', positive: true },
       { label: 'API Calls Today', value: '48.2K', change: '+18%', positive: true },
@@ -131,7 +131,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-teal-600',
     accentBg: 'bg-teal-500',
     accentHex: '#0D9488',
-    allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/settlement', '/reports', '/notifications', '/settings', '/invoices'],
+    allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/settlement', '/reports', '/notifications', '/settings', '/invoices', '/lender', '/vault', '/reporting-engine'],
     kpis: [
       { label: 'Lending Portfolio', value: 'R1.2B', change: '+4.2%', positive: true },
       { label: 'Active Facilities', value: '18', change: '+2', positive: true },
