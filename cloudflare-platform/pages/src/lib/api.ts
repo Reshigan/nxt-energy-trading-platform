@@ -240,4 +240,21 @@ export const feesAPI = {
   getSchedule: () => api.get('/fees'),
 };
 
+// Subscriptions (B8)
+export const subscriptionsAPI = {
+  getPlans: () => api.get('/subscriptions/plans'),
+  getCurrent: () => api.get('/subscriptions/current'),
+  subscribe: (data: { plan_id: string; billing_cycle?: string }) => api.post('/subscriptions', data),
+  cancel: () => api.delete('/subscriptions'),
+  getUsage: () => api.get('/subscriptions/usage'),
+  getAll: () => api.get('/subscriptions/all'),
+};
+
+// Pricing (B9)
+export const pricingAPI = {
+  getTiers: () => api.get('/pricing/tiers'),
+  getQuote: (data: Record<string, unknown>) => api.post('/pricing/quote', data),
+  getMarketRates: () => api.get('/pricing/market-rates'),
+};
+
 export default api;
