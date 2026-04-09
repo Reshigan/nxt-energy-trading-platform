@@ -2,7 +2,7 @@
 -- Phase 6.3: 5 demo participants, 3 projects, 10 contracts, 20 orders, 15 carbon credits, 5 invoices
 
 -- Additional participants (beyond existing seed)
-INSERT OR IGNORE INTO participants (id, company_name, registration_number, participant_type, contact_name, contact_email, phone, province, bbbee_level, kyc_status)
+INSERT OR IGNORE INTO participants (id, company_name, registration_number, role, contact_name, contact_email, phone, province, bbbee_level, kyc_status)
 VALUES
   ('P-UAT-IPP2', 'WindPower SA', '2021/200001/07', 'generator', 'Linda Nkosi', 'linda@windpower.co.za', '+27115550101', 'Eastern Cape', 2, 'verified'),
   ('P-UAT-TRD2', 'GreenTraders Pty', '2021/200002/07', 'trader', 'Johan van Wyk', 'johan@greentraders.co.za', '+27115550102', 'Gauteng', 1, 'verified'),
