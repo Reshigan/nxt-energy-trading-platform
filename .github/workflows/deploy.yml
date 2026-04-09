@@ -23,6 +23,7 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install -g wrangler
+          cd cloudflare-platform
           npm install
 
       - name: Deploy Backend and Durable Objects
