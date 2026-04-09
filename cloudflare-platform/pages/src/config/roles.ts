@@ -1,4 +1,4 @@
-export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender';
+export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender' | 'carbon_fund';
 
 export interface RoleConfig {
   label: string;
@@ -145,7 +145,27 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
       { label: 'Generate Reports', icon: 'file-text' },
     ],
   },
+  carbon_fund: {
+    label: 'Carbon Fund',
+    accent: 'text-emerald-600',
+    accentBg: 'bg-emerald-500',
+    accentHex: '#10B981',
+    allowedPaths: ['/', '/trading', '/carbon', '/carbon-deep', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/settlement', '/reports', '/notifications', '/settings', '/vault', '/trade-journal', '/reporting-engine'],
+    kpis: [
+      { label: 'ESG Assets', value: 'R2.4B', change: '+15.2%', positive: true },
+      { label: 'Carbon Offset', value: '1.2M t', change: '+120K', positive: true },
+      { label: 'Avg Yield', value: '6.4%', change: '+0.2%', positive: true },
+      { label: 'Impact Score', value: '94/100', change: '+2', positive: true },
+    ],
+    actions: [
+      { label: 'Allocate Fund', icon: 'dollar-sign' },
+      { label: 'Buy Carbon Credits', icon: 'globe' },
+      { label: 'View ESG Impact', icon: 'leaf' },
+      { label: 'Manage Portfolio', icon: 'layers' },
+    ],
+  },
 };
+
 
 export function getRoleConfig(role: string): RoleConfig {
   const key = role?.toLowerCase().replace(/\s+/g, '_') as PlatformRole;

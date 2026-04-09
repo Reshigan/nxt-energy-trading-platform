@@ -151,7 +151,28 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         }));
       },
     },
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { buyer_id, seller_id, market, volume, price_cents } = event.data;
+        const totalCents = Math.round(volume * Number(price_cents));
+        
+        // Auto-issue carbon credits for renewable energy trades (solar, wind, hydro)
+        const renewableMarkets = ['solar', 'wind', 'hydro'];
+        if (renewableMarkets.includes(market as string)) {
+          const carbonTonnage = (Number(volume) * 0.4) / 1000; // Proxy: 0.4t CO2 offset per MWh
+          const creditId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO carbon_credits (id, owner_id, amount_tonnes, standard, status, created_at)
+             VALUES (?, ?, ?, 'NXT-GOLD', 'issued', datetime('now'))`
+          ).bind(creditId, seller_id as string, carbonTonnage).run();
+          
+          await notifyParticipant(env.DB, seller_id as string, 'Carbon Credits Issued', `You received ${carbonTonnage.toFixed(2)}t carbon credits for your ${market} trade.`, 'carbon', 'credit', creditId);
+        }
+      },
+    },
   ],
+
 
   'order.placed': [
     {

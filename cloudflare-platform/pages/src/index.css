@@ -25,13 +25,13 @@
 }
 
 .dark {
-  --bg: #0B1120;
-  --surface: #151F32;
-  --surface-alt: #1A2640;
-  --border: rgba(255,255,255,0.08);
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
+  --bg: #020617;
+  --surface: #0f172a;
+  --surface-alt: #1e293b;
+  --border: rgba(255,255,255,0.06);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
 }
 
 body {
