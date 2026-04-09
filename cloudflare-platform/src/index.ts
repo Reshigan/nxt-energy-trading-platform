@@ -8,8 +8,13 @@ import { blacklistToken, isTokenBlacklisted, signJwt, signRefreshToken, verifyJw
 import { log } from './utils/logger';
 
 // Route imports
+import iot from './routes/iot';
+import algo from './routes/algo';
+import esgReporting from './routes/esg_reporting';
+import ippTools from './routes/ipp_tools';
+import surveillanceTools from './routes/surveillance_tools';
+import lifecycle from './routes/lifecycle';
 import register from './routes/register';
-import participants from './routes/participants';
 import contracts from './routes/contracts';
 import trading from './routes/trading';
 import carbon from './routes/carbon';
@@ -211,6 +216,16 @@ api.route('/pricing', pricing);
 api.route('/vault', vault);
 api.route('/lender', lender);
 api.route('/surveillance', surveillance);
+
+api.route('/iot', iot);
+api.route('/algo', algo);
+api.route('/esg-reporting', esgReporting);
+api.route('/ipp-tools', ippTools);
+api.route('/surveillance-tools', surveillanceTools);
+
+
+
+api.route('/lifecycle', lifecycle);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
