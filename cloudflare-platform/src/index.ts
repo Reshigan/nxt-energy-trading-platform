@@ -15,6 +15,8 @@ import ippTools from './routes/ipp_tools';
 import surveillanceTools from './routes/surveillance_tools';
 import lifecycle from './routes/lifecycle';
 import register from './routes/register';
+import participants from './routes/participants';
+
 import contracts from './routes/contracts';
 import trading from './routes/trading';
 import carbon from './routes/carbon';
