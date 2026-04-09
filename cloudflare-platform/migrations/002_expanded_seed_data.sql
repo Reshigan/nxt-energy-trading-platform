@@ -18,18 +18,18 @@ VALUES
   ('PRJ-UAT-003', 'Vaal Hydro Station', 'P-UAT-IPP2', 'hydro', 30.0, 'Free State', 'development');
 
 -- Additional contract documents
-INSERT OR IGNORE INTO contract_documents (id, title, document_type, phase, version_major, version_minor, parties, created_by, sha256_hash)
+INSERT OR IGNORE INTO contract_documents (id, title, document_type, phase, version, parties, created_by, sha256_hash)
 VALUES
-  ('DOC-UAT-001', 'Karoo PPA 25-year', 'ppa', 'active', 1, 0, '["P-UAT-IPP2","P-UAT-OFF2"]', 'P-UAT-IPP2', 'uat001hash'),
-  ('DOC-UAT-002', 'Wind Farm Term Sheet', 'term_sheet', 'active', 1, 0, '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-IPP2', 'uat002hash'),
-  ('DOC-UAT-003', 'Carbon Offtake Agreement', 'ppa', 'pending_signature', 1, 0, '["P-UAT-IPP2","P-UAT-TRD2"]', 'P-UAT-TRD2', 'uat003hash'),
-  ('DOC-UAT-004', 'Grid Connection Agreement', 'ppa', 'active', 2, 1, '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat004hash'),
-  ('DOC-UAT-005', 'Loan Facility Agreement', 'term_sheet', 'active', 1, 0, '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-LND2', 'uat005hash'),
-  ('DOC-UAT-006', 'EPC Contract Karoo', 'ppa', 'active', 1, 2, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat006hash'),
-  ('DOC-UAT-007', 'Vaal Feasibility Study', 'term_sheet', 'draft', 0, 1, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat007hash'),
-  ('DOC-UAT-008', 'Insurance Policy Wind', 'ppa', 'active', 1, 0, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat008hash'),
-  ('DOC-UAT-009', 'Interconnection Agreement', 'ppa', 'active', 1, 0, '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat009hash'),
-  ('DOC-UAT-010', 'O&M Contract Wind', 'ppa', 'active', 1, 0, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat010hash');
+  ('DOC-UAT-001', 'Karoo PPA 25-year', 'ppa', 'active', 'v1.0', '["P-UAT-IPP2","P-UAT-OFF2"]', 'P-UAT-IPP2', 'uat001hash'),
+  ('DOC-UAT-002', 'Wind Farm Term Sheet', 'term_sheet', 'active', 'v1.0', '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-IPP2', 'uat002hash'),
+  ('DOC-UAT-003', 'Carbon Offtake Agreement', 'ppa', 'pending_signature', 'v1.0', '["P-UAT-IPP2","P-UAT-TRD2"]', 'P-UAT-TRD2', 'uat003hash'),
+  ('DOC-UAT-004', 'Grid Connection Agreement', 'ppa', 'active', 'v2.1', '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat004hash'),
+  ('DOC-UAT-005', 'Loan Facility Agreement', 'term_sheet', 'active', 'v1.0', '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-LND2', 'uat005hash'),
+  ('DOC-UAT-006', 'EPC Contract Karoo', 'ppa', 'active', 'v1.2', '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat006hash'),
+  ('DOC-UAT-007', 'Vaal Feasibility Study', 'term_sheet', 'draft', 'v0.1', '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat007hash'),
+  ('DOC-UAT-008', 'Insurance Policy Wind', 'ppa', 'active', 'v1.0', '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat008hash'),
+  ('DOC-UAT-009', 'Interconnection Agreement', 'ppa', 'active', 'v1.0', '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat009hash'),
+  ('DOC-UAT-010', 'O&M Contract Wind', 'ppa', 'active', 'v1.0', '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat010hash');
 
 -- Additional orders (20 orders across markets)
 INSERT OR IGNORE INTO orders (id, participant_id, direction, market, volume, price_cents, order_type, validity, status)
