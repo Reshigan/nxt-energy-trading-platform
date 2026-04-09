@@ -34,7 +34,7 @@ jobs:
       - name: Run Database Migrations
         run: |
           cd cloudflare-platform
-          npx wrangler d1 migrations apply --remote
+          npx wrangler d1 migrations apply DB --remote
 
       - name: Build and Deploy Frontend
         run: |
