@@ -11,7 +11,7 @@ VALUES
   ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 2, 'verified');
 
 -- Additional projects
-INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, status, completion_pct, grid_connection_status)
+INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, phase, completion_pct, grid_connection_status)
 VALUES
   ('PRJ-UAT-001', 'Karoo Solar Array', 'P-UAT-IPP2', 'solar', 75.0, 'Northern Cape', 'construction', 80, 'approved'),
   ('PRJ-UAT-002', 'Jeffreys Bay Wind', 'P-UAT-IPP2', 'wind', 120.0, 'Eastern Cape', 'operational', 100, 'connected'),
