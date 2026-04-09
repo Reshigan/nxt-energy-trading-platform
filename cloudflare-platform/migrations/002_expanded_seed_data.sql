@@ -11,11 +11,11 @@ VALUES
   ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 2, 'verified');
 
 -- Additional projects
-INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, phase, grid_connection_status)
+INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, phase)
 VALUES
-  ('PRJ-UAT-001', 'Karoo Solar Array', 'P-UAT-IPP2', 'solar', 75.0, 'Northern Cape', 'construction', 'approved'),
-  ('PRJ-UAT-002', 'Jeffreys Bay Wind', 'P-UAT-IPP2', 'wind', 120.0, 'Eastern Cape', 'operational', 'connected'),
-  ('PRJ-UAT-003', 'Vaal Hydro Station', 'P-UAT-IPP2', 'hydro', 30.0, 'Free State', 'development', 'not_applied');
+  ('PRJ-UAT-001', 'Karoo Solar Array', 'P-UAT-IPP2', 'solar', 75.0, 'Northern Cape', 'construction'),
+  ('PRJ-UAT-002', 'Jeffreys Bay Wind', 'P-UAT-IPP2', 'wind', 120.0, 'Eastern Cape', 'operational'),
+  ('PRJ-UAT-003', 'Vaal Hydro Station', 'P-UAT-IPP2', 'hydro', 30.0, 'Free State', 'development');
 
 -- Additional contract documents
 INSERT OR IGNORE INTO contract_documents (id, title, document_type, status, phase, version_major, version_minor, parties, created_by, sha256_hash)
