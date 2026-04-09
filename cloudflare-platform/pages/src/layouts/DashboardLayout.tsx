@@ -63,7 +63,7 @@ const ALL_MORE_LINKS = [
   { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
 ];
 
-const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin'] as const;
+const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender'] as const;
 
 const marketTicker = [
   { name: 'Solar', price: '847.20', change: '+8%', positive: true },
