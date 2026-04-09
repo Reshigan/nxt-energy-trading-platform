@@ -1,28 +1,53 @@
 name = "nxt-energy-trading-api"
 main = "src/index.ts"
-compatibility_date = "2023-10-01"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
 
-# Production environment
-[env.production]
-route = "et.vantax.co.za/api/*"
+# Route configuration for custom domain
+routes = [
+  { pattern = "et.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+]
 
 [vars]
 ENVIRONMENT = "production"
+JWT_ISSUER = "nxt-energy-platform"
 API_BASE_URL = "https://et.vantax.co.za/api"
-
-[[kv_namespaces]]
-binding = "KV"
-id = "0fd4da205bb54e8db8340c51c8865787"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "nxt_energy_trading"
 database_id = "caa3ae48-3bdc-473b-b197-62c59288d9a9"
 
+[[kv_namespaces]]
+binding = "KV"
+id = "0fd4da205bb54e8db8340c51c8865787"
+
 [[r2_buckets]]
-binding = "BUCKET"
+binding = "R2"
 bucket_name = "nxt-energy-assets"
-preview_bucket_name = "nxt-energy-assets-preview"
+
+[ai]
+binding = "AI"
+
+[durable_objects]
+bindings = [
+  { name = "ORDER_BOOK", class_name = "OrderBookDO" },
+  { name = "ESCROW_MGR", class_name = "EscrowManagerDO" },
+  { name = "P2P_MATCHER", class_name = "P2PMatcherDO" },
+  { name = "SMART_CONTRACT", class_name = "SmartContractDO" },
+  { name = "RISK_ENGINE", class_name = "RiskEngineDO" },
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["OrderBookDO", "EscrowManagerDO"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["P2PMatcherDO", "SmartContractDO", "RiskEngineDO"]
+
+[triggers]
+crons = ["0 6 * * *"]
 
 [observability]
 enabled = true
@@ -33,3 +58,26 @@ head_sampling_rate = 1
 [env.development.vars]
 ENVIRONMENT = "development"
 API_BASE_URL = "http://localhost:8787"
+
+# Staging environment (Phase 6.1)
+[env.staging]
+routes = [
+  { pattern = "staging.et.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+]
+[env.staging.vars]
+ENVIRONMENT = "staging"
+JWT_ISSUER = "nxt-energy-platform-staging"
+API_BASE_URL = "https://staging.et.vantax.co.za/api"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "nxt_energy_trading_staging"
+database_id = "staging-db-id-placeholder"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "staging-kv-id-placeholder"
+
+[[env.staging.r2_buckets]]
+binding = "R2"
+bucket_name = "nxt-energy-assets-staging"

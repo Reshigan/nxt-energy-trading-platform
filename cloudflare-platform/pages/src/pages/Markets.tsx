@@ -1,271 +1,210 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiTrendingUp, FiTrendingDown, FiSearch, FiFilter, FiRefreshCw, FiStar } from '../lib/fi-icons-shim';
+import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { useTheme } from '../contexts/ThemeContext';
+import { tradingAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
 import { motion } from 'framer-motion';
-import { FiRefreshCw, FiFilter, FiSearch, FiStar, FiChevronUp, FiChevronDown } from 'react-icons/fi';
+import { formatZAR } from '../lib/format';
+import { Skeleton } from '../components/ui/Skeleton';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorBanner } from '../components/ui/ErrorBanner';
 
-interface MarketData {
-  id: number;
-  energyType: string;
-  region: string;
-  price: number;
-  change: number;
-  volume: number;
-  trend: 'up' | 'down' | 'stable';
-  isFavorite: boolean;
+const sparkline = (seed: number, trend: boolean) =>
+  Array.from({ length: 12 }, (_, i) => ({ v: (seed + (trend ? i * 3 : -i * 2) + Math.random() * 15) }));
+
+interface MarketRow {
+  name: string;
+  price: string;
+  price_cents?: number;
+  change: string;
+  positive: boolean;
+  volume: string;
+  cap: string;
+  spark: Array<{ v: number }>;
 }
 
-const mockMarketData: MarketData[] = [
-  { id: 1, energyType: 'Solar', region: 'California', price: 48.5, change: 2.3, volume: 12500, trend: 'up', isFavorite: true },
-  { id: 2, energyType: 'Wind', region: 'Texas', price: 38.2, change: -1.2, volume: 9800, trend: 'down', isFavorite: false },
-  { id: 3, energyType: 'Hydro', region: 'Pacific NW', price: 32.7, change: 0.8, volume: 7600, trend: 'up', isFavorite: true },
-  { id: 4, energyType: 'Natural Gas', region: 'Northeast', price: 52.1, change: 3.5, volume: 15200, trend: 'up', isFavorite: false },
-  { id: 5, energyType: 'Coal', region: 'Midwest', price: 41.8, change: -0.5, volume: 6800, trend: 'down', isFavorite: false },
-  { id: 6, energyType: 'Nuclear', region: 'Southeast', price: 36.4, change: 1.1, volume: 8900, trend: 'stable', isFavorite: false },
+const fallbackMarkets: MarketRow[] = [
+  { name: 'Solar PPA Spot', price_cents: 84720, price: 'R847.20', change: '+4.3%', positive: true, volume: '24.8K MWh', cap: 'R12.4B', spark: sparkline(700, true) },
+  { name: 'Wind Forward H2', price_cents: 62350, price: 'R623.50', change: '+2.1%', positive: true, volume: '18.2K MWh', cap: 'R8.7B', spark: sparkline(580, true) },
+  { name: 'Gas Spot', price_cents: 41280, price: 'R412.80', change: '-1.8%', positive: false, volume: '15.6K MWh', cap: 'R6.2B', spark: sparkline(440, false) },
+  { name: 'Carbon Credit', price_cents: 28500, price: 'R285.00', change: '+8.8%', positive: true, volume: '32.1K t', cap: 'R4.1B', spark: sparkline(240, true) },
+  { name: 'Biogas PPA', price_cents: 52040, price: 'R520.40', change: '+1.2%', positive: true, volume: '8.4K MWh', cap: 'R2.8B', spark: sparkline(490, true) },
+  { name: 'Nuclear Base', price_cents: 38000, price: 'R380.00', change: '-0.5%', positive: false, volume: '42.0K MWh', cap: 'R18.6B', spark: sparkline(390, false) },
+  { name: 'Hydro Peak', price_cents: 69580, price: 'R695.80', change: '+3.4%', positive: true, volume: '11.2K MWh', cap: 'R5.4B', spark: sparkline(650, true) },
+  { name: 'REC Certificate', price_cents: 14520, price: 'R145.20', change: '+5.6%', positive: true, volume: '28.6K', cap: 'R1.9B', spark: sparkline(120, true) },
 ];
 
 export default function Markets() {
-  const [markets, setMarkets] = useState<MarketData[]>(mockMarketData);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'price' | 'change' | 'volume'>('price');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const toggleFavorite = (id: number) => {
-    setMarkets(markets.map(market => 
-      market.id === id ? { ...market, isFavorite: !market.isFavorite } : market
-    ));
-  };
-
-  const sortedMarkets = [...markets]
-    .filter(market => 
-      market.energyType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      market.region.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortOrder === 'asc') {
-        return a[sortBy] - b[sortBy];
-      } else {
-        return b[sortBy] - a[sortBy];
-      }
+  const toast = useToast();
+  const { isDark } = useTheme();
+  const [search, setSearch] = useState('');
+  const [filterPositive, setFilterPositive] = useState<boolean | null>(null);
+  const [marketData, setMarketData] = useState<MarketRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  // F9: Watchlist
+  const [watchlist, setWatchlist] = useState<Set<string>>(() => {
+    try { const saved = localStorage.getItem('nxt_watchlist'); return saved ? new Set(JSON.parse(saved)) : new Set<string>(); } catch { return new Set<string>(); }
+  });
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  const toggleWatchlist = (name: string) => {
+    setWatchlist(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      localStorage.setItem('nxt_watchlist', JSON.stringify([...next]));
+      return next;
     });
-
-  const getTrendIcon = (trend: 'up' | 'down' | 'stable') => {
-    switch (trend) {
-      case 'up': return <FiChevronUp className="w-4 h-4 text-emerald-400" />;
-      case 'down': return <FiChevronDown className="w-4 h-4 text-rose-400" />;
-      default: return <div className="w-4 h-4"></div>;
-    }
   };
+
+  const loadData = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const res = await tradingAPI.getIndices();
+      const raw = res.data?.data;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        // Backend returns { solar_ppa: { price, change_24h, volume_24h }, ... }
+        const names: Record<string, string> = { solar: 'Solar PPA Spot', wind: 'Wind Forward H2', gas: 'Gas Spot', carbon: 'Carbon Credit', battery: 'Battery Storage', hydro: 'Hydro Peak', solar_ppa: 'Solar PPA Spot', wind_ppa: 'Wind Forward H2', gas_spot: 'Gas Spot' };
+        const rows: MarketRow[] = Object.entries(raw).map(([key, val]: [string, unknown]) => {
+          const v = val as { price?: number; change_24h?: number; volume_24h?: number };
+          const priceCents = v?.price || 0;
+          const change = v?.change_24h || 0;
+          const vol = v?.volume_24h || 0;
+          const fb = fallbackMarkets.find(f => f.name === (names[key] || key));
+          return {
+            name: names[key] || key.replace(/_/g, ' '),
+            price_cents: priceCents || fb?.price_cents || 0,
+            price: priceCents ? formatZAR(priceCents) : fb?.price || 'R0.00',
+            change: change !== 0 ? `${change > 0 ? '+' : ''}${change.toFixed(1)}%` : fb?.change || '0.0%',
+            positive: change !== 0 ? change > 0 : fb?.positive || false,
+            volume: vol > 0 ? `${(vol / 1000).toFixed(1)}K MWh` : fb?.volume || '0 MWh',
+            cap: fb?.cap || 'R0',
+            spark: fb?.spark || sparkline(priceCents / 100, change > 0),
+          };
+        });
+        setMarketData(rows.length > 0 ? rows : fallbackMarkets);
+      } else if (Array.isArray(raw) && raw.length > 0) {
+        setMarketData(raw);
+      } else {
+        setMarketData(fallbackMarkets);
+      }
+    } catch {
+      setError('Failed to load market data');
+      toast.error('Failed to load market data');
+      setMarketData(fallbackMarkets);
+    }
+    setLoading(false);
+  }, [toast]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const filtered = marketData.filter(m => {
+    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = filterPositive === null || m.positive === filterPositive;
+    const matchesWatchlist = !showWatchlistOnly || watchlist.has(m.name);
+    return matchesSearch && matchesFilter && matchesWatchlist;
+  });
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="space-y-6"
-    >
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      transition={{ duration: 0.2 }}
+      className="space-y-6" role="main" aria-label="Markets overview page">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
-          <h1 className="text-3xl font-bold gradient-text">Energy Markets</h1>
-          <p className="text-slate-400 mt-1">Real-time pricing and trading opportunities</p>
+          <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Markets</h1>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Live energy & carbon market overview</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <button className="flex items-center px-4 py-2 glass rounded-lg hover:bg-slate-700 transition-colors">
-            <FiRefreshCw className="w-4 h-4 mr-2" />
-            Refresh Data
-          </button>
-          <button className="flex items-center px-4 py-2 glass rounded-lg hover:bg-slate-700 transition-colors">
-            <FiFilter className="w-4 h-4 mr-2" />
-            Filters
-          </button>
+        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Refresh market data">
+          <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+        </button>
+      </div>
+
+      {error && <ErrorBanner message={error} onRetry={loadData} />}
+
+      {/* Search + Filter */}
+      <div className="flex flex-col sm:flex-row gap-3" style={{ animation: 'cardFadeUp 500ms ease 100ms both' }}>
+        <div className={`flex-1 flex items-center gap-2 px-4 py-2.5 rounded-2xl ${isDark ? 'bg-[#151F32] border border-white/[0.06]' : 'bg-white border border-black/[0.06]'}`}>
+          <FiSearch className="w-4 h-4 text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search markets..." aria-label="Search markets" className="flex-1 bg-transparent text-sm outline-none text-slate-800 dark:text-slate-200 placeholder-slate-400" />
+        </div>
+        <button onClick={() => setShowWatchlistOnly(!showWatchlistOnly)} className={`px-3 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-1.5 transition-all ${showWatchlistOnly ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/25' : isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Show watchlist only" aria-pressed={showWatchlistOnly}>
+          <FiStar className={`w-3.5 h-3.5 ${showWatchlistOnly ? 'fill-current' : ''}`} /> Watchlist ({watchlist.size})
+        </button>
+        <div className="flex gap-1" role="group" aria-label="Market filter">
+          {[{ label: 'All', val: null }, { label: 'Gainers', val: true }, { label: 'Losers', val: false }].map(f => (
+            <button key={f.label} onClick={() => setFilterPositive(f.val as boolean | null)}
+              className={`px-3 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-1.5 transition-all ${filterPositive === f.val ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25' : isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`}
+              aria-label={`Filter ${f.label}`} aria-pressed={filterPositive === f.val}>
+              {f.val === null && <FiFilter className="w-3.5 h-3.5" />}{f.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="glass p-4 rounded-lg">
-        <div className="relative">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search energy types or regions..."
-            className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Market Table */}
-      <div className="chart-glass rounded-lg overflow-hidden">
+      {/* Markets Table */}
+      {loading ? (
+        <div className="space-y-3" role="status" aria-label="Loading markets">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="w-full h-16" />)}</div>
+      ) : filtered.length === 0 ? (
+        <EmptyState title="No markets found" description="Try adjusting your search or filter criteria." />
+      ) : (
+      <div className={`cp-card !p-0 overflow-hidden ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-sm" role="table" aria-label="Energy markets">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Energy Type</th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Region</th>
-                <th 
-                  className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400"
-                  onClick={() => {
-                    setSortBy('price');
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  }}
-                >
-                  <div className="flex items-center">
-                    Price ($/MWh)
-                    {sortBy === 'price' && (
-                      <span className="ml-1">
-                        {sortOrder === 'asc' ? <FiChevronUp className="inline" /> : <FiChevronDown className="inline" />}
-                      </span>
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400"
-                  onClick={() => {
-                    setSortBy('change');
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  }}
-                >
-                  <div className="flex items-center">
-                    Change (%)
-                    {sortBy === 'change' && (
-                      <span className="ml-1">
-                        {sortOrder === 'asc' ? <FiChevronUp className="inline" /> : <FiChevronDown className="inline" />}
-                      </span>
-                    )}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-cyan-400"
-                  onClick={() => {
-                    setSortBy('volume');
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-                  }}
-                >
-                  <div className="flex items-center">
-                    Volume (MWh)
-                    {sortBy === 'volume' && (
-                      <span className="ml-1">
-                        {sortOrder === 'asc' ? <FiChevronUp className="inline" /> : <FiChevronDown className="inline" />}
-                      </span>
-                    )}
-                  </div>
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+              <tr className={`text-xs border-b ${isDark ? 'border-white/[0.06] text-slate-500' : 'border-black/[0.06] text-slate-400'}`}>
+                <th className="text-left py-3.5 px-5 font-medium" scope="col">Market</th>
+                <th className="text-right py-3.5 px-4 font-medium" scope="col">Price</th>
+                <th className="text-right py-3.5 px-4 font-medium" scope="col">24h Change</th>
+                <th className="text-right py-3.5 px-4 font-medium" scope="col">Volume</th>
+                <th className="text-right py-3.5 px-4 font-medium" scope="col">Market Cap</th>
+                <th className="text-right py-3.5 px-5 font-medium w-28" scope="col">7D</th>
               </tr>
             </thead>
             <tbody>
-              {sortedMarkets.map((market) => (
-                <motion.tr 
-                  key={market.id}
-                  whileHover={{ backgroundColor: 'rgba(30, 41, 59, 0.5)' }}
-                  className="border-b border-slate-700/50"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <button 
-                        onClick={() => toggleFavorite(market.id)}
-                        className="mr-3 text-amber-400 hover:text-amber-300"
-                      >
-                        {market.isFavorite ? <FiStar fill="currentColor" /> : <FiStar />}
+              {filtered.map((m, i) => (
+                <tr key={m.name} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer`}
+                  style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}>
+                  <td className="py-3.5 px-5">
+                    <div className="flex items-center gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); toggleWatchlist(m.name); }} className={`transition-colors ${watchlist.has(m.name) ? 'text-amber-500' : 'text-slate-300 dark:text-slate-600 hover:text-amber-400'}`} aria-label={watchlist.has(m.name) ? `Remove ${m.name} from watchlist` : `Add ${m.name} to watchlist`}>
+                        <FiStar className={`w-3.5 h-3.5 ${watchlist.has(m.name) ? 'fill-current' : ''}`} />
                       </button>
-                      <span className="font-medium">{market.energyType}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{m.name}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-slate-300">{market.region}</td>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium">${market.price.toFixed(2)}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap ${
-                    market.change > 0 ? 'text-emerald-400' : market.change < 0 ? 'text-rose-400' : 'text-slate-400'
-                  }`}>
-                    <div className="flex items-center">
-                      {getTrendIcon(market.trend)}
-                      {market.change > 0 ? '+' : ''}{market.change.toFixed(1)}%
+                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{m.price_cents ? formatZAR(m.price_cents) : m.price}</td>
+                  <td className="py-3.5 px-4 text-right">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${m.positive ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>
+                      {m.positive ? <FiTrendingUp className="w-3 h-3" /> : <FiTrendingDown className="w-3 h-3" />}
+                      {m.change}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-4 text-right text-slate-500 dark:text-slate-400 mono text-xs">{m.volume}</td>
+                  <td className="py-3.5 px-4 text-right text-slate-500 dark:text-slate-400 mono text-xs">{m.cap}</td>
+                  <td className="py-3.5 px-5 text-right">
+                    <div className="w-24 h-8 ml-auto">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={m.spark}>
+                          <defs>
+                            <linearGradient id={`sg-${i}`} x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={m.positive ? '#10B981' : '#EF4444'} stopOpacity={0.2} />
+                              <stop offset="100%" stopColor={m.positive ? '#10B981' : '#EF4444'} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <Area type="monotone" dataKey="v" stroke={m.positive ? '#10B981' : '#EF4444'} strokeWidth={1.5} fill={`url(#sg-${i})`} />
+                        </AreaChart>
+                      </ResponsiveContainer>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-slate-300">{market.volume.toLocaleString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <button className="px-3 py-1 text-sm rounded bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30 transition-colors">
-                      Trade
-                    </button>
-                  </td>
-                </motion.tr>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
-
-      {/* Market Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="chart-glass p-6">
-          <h3 className="text-lg font-bold mb-4">Top Performing</h3>
-          <div className="space-y-4">
-            {sortedMarkets
-              .filter(m => m.change > 0)
-              .sort((a, b) => b.change - a.change)
-              .slice(0, 3)
-              .map(market => (
-                <div key={market.id} className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{market.energyType}</div>
-                    <div className="text-sm text-slate-400">{market.region}</div>
-                  </div>
-                  <div className="text-emerald-400">+{market.change.toFixed(1)}%</div>
-                </div>
-              ))}
-          </div>
-        </div>
-        
-        <div className="chart-glass p-6">
-          <h3 className="text-lg font-bold mb-4">Volatility Indicators</h3>
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm">Solar</span>
-                <span className="text-sm">Medium</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-amber-500 h-2 rounded-full" style={{ width: '65%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm">Wind</span>
-                <span className="text-sm">High</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-rose-500 h-2 rounded-full" style={{ width: '85%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm">Natural Gas</span>
-                <span className="text-sm">Low</span>
-              </div>
-              <div className="w-full bg-slate-700 rounded-full h-2">
-                <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '30%' }}></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="chart-glass p-6">
-          <h3 className="text-lg font-bold mb-4">AI Trading Signals</h3>
-          <div className="space-y-4">
-            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-              <div className="font-medium text-emerald-400">BUY Signal</div>
-              <div className="text-sm mt-1">Solar prices favorable in CA. Confidence: 87%</div>
-            </div>
-            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-              <div className="font-medium text-amber-400">HOLD Signal</div>
-              <div className="text-sm mt-1">Wind market stabilizing. Wait for breakout. Confidence: 72%</div>
-            </div>
-            <div className="p-3 rounded-lg bg-slate-700/50 border border-slate-600">
-              <div className="font-medium text-slate-300">NEUTRAL Signal</div>
-              <div className="text-sm mt-1">Coal market unchanged. Monitor geopolitical risks.</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </motion.div>
   );
 }
