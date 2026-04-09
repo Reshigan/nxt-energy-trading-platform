@@ -2,34 +2,34 @@
 -- Phase 6.3: 5 demo participants, 3 projects, 10 contracts, 20 orders, 15 carbon credits, 5 invoices
 
 -- Additional participants (beyond existing seed)
-INSERT OR IGNORE INTO participants (id, company_name, registration_number, participant_type, contact_name, contact_email, phone, province, bbbee_level, kyc_status)
+INSERT OR IGNORE INTO participants (id, company_name, registration_number, role, contact_person, email, phone, bbbee_level, kyc_status)
 VALUES
-  ('P-UAT-IPP2', 'WindPower SA', '2021/200001/07', 'generator', 'Linda Nkosi', 'linda@windpower.co.za', '+27115550101', 'Eastern Cape', 2, 'verified'),
-  ('P-UAT-TRD2', 'GreenTraders Pty', '2021/200002/07', 'trader', 'Johan van Wyk', 'johan@greentraders.co.za', '+27115550102', 'Gauteng', 1, 'verified'),
-  ('P-UAT-OFF2', 'MuniPower Cape', '2021/200003/07', 'offtaker', 'Fatima Patel', 'fatima@munipower.co.za', '+27115550103', 'Western Cape', 3, 'verified'),
-  ('P-UAT-LND2', 'DevBank Africa', '2021/200004/07', 'lender', 'Samuel Moyo', 'samuel@devbank.co.za', '+27115550104', 'Gauteng', 1, 'verified'),
-  ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 'KwaZulu-Natal', 2, 'verified');
+  ('P-UAT-IPP2', 'WindPower SA', '2021/200001/07', 'generator', 'Linda Nkosi', 'linda@windpower.co.za', '+27115550101', 2, 'verified'),
+  ('P-UAT-TRD2', 'GreenTraders Pty', '2021/200002/07', 'trader', 'Johan van Wyk', 'johan@greentraders.co.za', '+27115550102', 1, 'verified'),
+  ('P-UAT-OFF2', 'MuniPower Cape', '2021/200003/07', 'offtaker', 'Fatima Patel', 'fatima@munipower.co.za', '+27115550103', 3, 'verified'),
+  ('P-UAT-LND2', 'DevBank Africa', '2021/200004/07', 'lender', 'Samuel Moyo', 'samuel@devbank.co.za', '+27115550104', 1, 'verified'),
+  ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 2, 'verified');
 
 -- Additional projects
-INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, status, completion_pct, grid_connection_status)
+INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, phase)
 VALUES
-  ('PRJ-UAT-001', 'Karoo Solar Array', 'P-UAT-IPP2', 'solar', 75.0, 'Northern Cape', 'construction', 80, 'approved'),
-  ('PRJ-UAT-002', 'Jeffreys Bay Wind', 'P-UAT-IPP2', 'wind', 120.0, 'Eastern Cape', 'operational', 100, 'connected'),
-  ('PRJ-UAT-003', 'Vaal Hydro Station', 'P-UAT-IPP2', 'hydro', 30.0, 'Free State', 'development', 20, 'not_applied');
+  ('PRJ-UAT-001', 'Karoo Solar Array', 'P-UAT-IPP2', 'solar', 75.0, 'Northern Cape', 'construction'),
+  ('PRJ-UAT-002', 'Jeffreys Bay Wind', 'P-UAT-IPP2', 'wind', 120.0, 'Eastern Cape', 'operational'),
+  ('PRJ-UAT-003', 'Vaal Hydro Station', 'P-UAT-IPP2', 'hydro', 30.0, 'Free State', 'development');
 
 -- Additional contract documents
-INSERT OR IGNORE INTO contract_documents (id, title, document_type, status, phase, version_major, version_minor, parties, created_by, sha256_hash)
+INSERT OR IGNORE INTO contract_documents (id, title, document_type, phase, version, creator_id, sha256_hash)
 VALUES
-  ('DOC-UAT-001', 'Karoo PPA 25-year', 'ppa', 'active', 'execution', 1, 0, '["P-UAT-IPP2","P-UAT-OFF2"]', 'P-UAT-IPP2', 'uat001hash'),
-  ('DOC-UAT-002', 'Wind Farm Term Sheet', 'term_sheet', 'active', 'execution', 1, 0, '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-IPP2', 'uat002hash'),
-  ('DOC-UAT-003', 'Carbon Offtake Agreement', 'ppa', 'pending_signature', 'signing', 1, 0, '["P-UAT-IPP2","P-UAT-TRD2"]', 'P-UAT-TRD2', 'uat003hash'),
-  ('DOC-UAT-004', 'Grid Connection Agreement', 'ppa', 'active', 'execution', 2, 1, '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat004hash'),
-  ('DOC-UAT-005', 'Loan Facility Agreement', 'term_sheet', 'active', 'execution', 1, 0, '["P-UAT-IPP2","P-UAT-LND2"]', 'P-UAT-LND2', 'uat005hash'),
-  ('DOC-UAT-006', 'EPC Contract Karoo', 'ppa', 'active', 'execution', 1, 2, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat006hash'),
-  ('DOC-UAT-007', 'Vaal Feasibility Study', 'term_sheet', 'draft', 'negotiation', 0, 1, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat007hash'),
-  ('DOC-UAT-008', 'Insurance Policy Wind', 'ppa', 'active', 'execution', 1, 0, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat008hash'),
-  ('DOC-UAT-009', 'Interconnection Agreement', 'ppa', 'active', 'execution', 1, 0, '["P-UAT-IPP2","P-UAT-GRD2"]', 'P-UAT-GRD2', 'uat009hash'),
-  ('DOC-UAT-010', 'O&M Contract Wind', 'ppa', 'active', 'execution', 1, 0, '["P-UAT-IPP2"]', 'P-UAT-IPP2', 'uat010hash');
+  ('DOC-UAT-001', 'Karoo PPA 25-year', 'ppa', 'active', 'v1.0', 'P-UAT-IPP2', 'uat001hash'),
+  ('DOC-UAT-002', 'Wind Farm Term Sheet', 'term_sheet', 'active', 'v1.0', 'P-UAT-IPP2', 'uat002hash'),
+  ('DOC-UAT-003', 'Carbon Offtake Agreement', 'ppa', 'pending_signature', 'v1.0', 'P-UAT-TRD2', 'uat003hash'),
+  ('DOC-UAT-004', 'Grid Connection Agreement', 'ppa', 'active', 'v2.1', 'P-UAT-GRD2', 'uat004hash'),
+  ('DOC-UAT-005', 'Loan Facility Agreement', 'term_sheet', 'active', 'v1.0', 'P-UAT-LND2', 'uat005hash'),
+  ('DOC-UAT-006', 'EPC Contract Karoo', 'ppa', 'active', 'v1.2', 'P-UAT-IPP2', 'uat006hash'),
+  ('DOC-UAT-007', 'Vaal Feasibility Study', 'term_sheet', 'draft', 'v0.1', 'P-UAT-IPP2', 'uat007hash'),
+  ('DOC-UAT-008', 'Insurance Policy Wind', 'ppa', 'active', 'v1.0', 'P-UAT-IPP2', 'uat008hash'),
+  ('DOC-UAT-009', 'Interconnection Agreement', 'ppa', 'active', 'v1.0', 'P-UAT-GRD2', 'uat009hash'),
+  ('DOC-UAT-010', 'O&M Contract Wind', 'ppa', 'active', 'v1.0', 'P-UAT-IPP2', 'uat010hash');
 
 -- Additional orders (20 orders across markets)
 INSERT OR IGNORE INTO orders (id, participant_id, direction, market, volume, price_cents, order_type, validity, status)
