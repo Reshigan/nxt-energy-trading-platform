@@ -2,13 +2,13 @@
 -- Phase 6.3: 5 demo participants, 3 projects, 10 contracts, 20 orders, 15 carbon credits, 5 invoices
 
 -- Additional participants (beyond existing seed)
-INSERT OR IGNORE INTO participants (id, company_name, registration_number, role, contact_person, email, phone, province, bbbee_level, kyc_status)
+INSERT OR IGNORE INTO participants (id, company_name, registration_number, role, contact_person, email, phone, bbbee_level, kyc_status)
 VALUES
-  ('P-UAT-IPP2', 'WindPower SA', '2021/200001/07', 'generator', 'Linda Nkosi', 'linda@windpower.co.za', '+27115550101', 'Eastern Cape', 2, 'verified'),
-  ('P-UAT-TRD2', 'GreenTraders Pty', '2021/200002/07', 'trader', 'Johan van Wyk', 'johan@greentraders.co.za', '+27115550102', 'Gauteng', 1, 'verified'),
-  ('P-UAT-OFF2', 'MuniPower Cape', '2021/200003/07', 'offtaker', 'Fatima Patel', 'fatima@munipower.co.za', '+27115550103', 'Western Cape', 3, 'verified'),
-  ('P-UAT-LND2', 'DevBank Africa', '2021/200004/07', 'lender', 'Samuel Moyo', 'samuel@devbank.co.za', '+27115550104', 'Gauteng', 1, 'verified'),
-  ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 'KwaZulu-Natal', 2, 'verified');
+  ('P-UAT-IPP2', 'WindPower SA', '2021/200001/07', 'generator', 'Linda Nkosi', 'linda@windpower.co.za', '+27115550101', 2, 'verified'),
+  ('P-UAT-TRD2', 'GreenTraders Pty', '2021/200002/07', 'trader', 'Johan van Wyk', 'johan@greentraders.co.za', '+27115550102', 1, 'verified'),
+  ('P-UAT-OFF2', 'MuniPower Cape', '2021/200003/07', 'offtaker', 'Fatima Patel', 'fatima@munipower.co.za', '+27115550103', 3, 'verified'),
+  ('P-UAT-LND2', 'DevBank Africa', '2021/200004/07', 'lender', 'Samuel Moyo', 'samuel@devbank.co.za', '+27115550104', 1, 'verified'),
+  ('P-UAT-GRD2', 'GridOps National', '2021/200005/07', 'grid', 'Priya Govender', 'priya@gridops.co.za', '+27115550105', 2, 'verified');
 
 -- Additional projects
 INSERT OR IGNORE INTO projects (id, name, developer_id, technology, capacity_mw, province, status, completion_pct, grid_connection_status)
