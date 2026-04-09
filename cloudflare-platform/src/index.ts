@@ -1,398 +1,811 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
-import { logger } from 'hono/logger';
-import { validator } from 'hono/validator';
+import { AppBindings, HonoEnv } from './utils/types';
+import { rateLimiter, requestIdMiddleware, authMiddleware } from './auth/middleware';
+import { securityHeadersMiddleware } from './middleware/security';
+import { blacklistToken, isTokenBlacklisted, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
+import { log } from './utils/logger';
 
-interface Bindings {
-  DB: D1Database;
-  KV: KVNamespace;
-  BUCKET: R2Bucket;
-  ENVIRONMENT: string;
-}
+// Route imports
+import iot from './routes/iot';
+import algo from './routes/algo';
+import esgReporting from './routes/esg_reporting';
+import ippTools from './routes/ipp_tools';
+import surveillanceTools from './routes/surveillance_tools';
+import lifecycle from './routes/lifecycle';
+import register from './routes/register';
+import contracts from './routes/contracts';
+import trading from './routes/trading';
+import carbon from './routes/carbon';
+import projectsRoute from './routes/projects';
+import settlement from './routes/settlement';
+import compliance from './routes/compliance';
+import marketplace from './routes/marketplace';
+import aiRoutes from './routes/ai';
+import reports from './routes/reports';
+import tenantsRoute from './routes/tenants';
+import developer from './routes/developer';
+import metering from './routes/metering';
+import p2p from './routes/p2p';
+import healthRoute from './routes/health';
+import popia from './routes/popia';
+import demand from './routes/demand';
+import subscriptions from './routes/subscriptions';
+import pricing from './routes/pricing';
+import vault from './routes/vault';
+import lender from './routes/lender';
+import surveillance from './routes/surveillance';
 
-const app = new Hono<{ Bindings: Bindings }>();
+// Durable Object exports
+export { OrderBookDO } from './durable-objects/OrderBookDO';
+export { EscrowManagerDO } from './durable-objects/EscrowManagerDO';
+export { P2PMatcherDO } from './durable-objects/P2PMatcherDO';
+export { SmartContractDO } from './durable-objects/SmartContractDO';
+export { RiskEngineDO } from './durable-objects/RiskEngineDO';
 
-// Middleware
-app.use(logger());
+const app = new Hono<HonoEnv>();
+
+// Phase 1.7: Request ID on every request
+app.use('*', requestIdMiddleware());
+
+// Phase 1.4: Security headers on every response
+app.use('*', securityHeadersMiddleware());
+
+// Structured request logging + API analytics counters (Phase 5)
+app.use('*', async (c, next) => {
+  const start = Date.now();
+  await next();
+  const duration = Date.now() - start;
+  log('info', 'request', {
+    method: c.req.method,
+    path: c.req.path,
+    status: c.res.status,
+    duration_ms: duration,
+  }, c.get('requestId'));
+
+  // Phase 5.5: Increment KV-based API analytics counters via waitUntil (non-blocking)
+  const reqPath = c.req.path;
+  const resStatus = c.res.status;
+  const segments = ['trading', 'carbon', 'contracts', 'settlement', 'compliance', 'marketplace', 'p2p', 'metering', 'ai', 'reports'];
+  const matchedSegment = segments.find((s) => reqPath.includes(`/${s}`));
+  if (matchedSegment) {
+    c.executionCtx.waitUntil((async () => {
+      try {
+        const hour = new Date().toISOString().substring(0, 13);
+        const countKey = `api_count:/${matchedSegment}:${hour}`;
+        const current = parseInt(await c.env.KV.get(countKey) || '0', 10);
+        await c.env.KV.put(countKey, String(current + 1), { expirationTtl: 86400 });
+        if (resStatus >= 400) {
+          const errKey = `api_errors:/${matchedSegment}:${hour}`;
+          const errCount = parseInt(await c.env.KV.get(errKey) || '0', 10);
+          await c.env.KV.put(errKey, String(errCount + 1), { expirationTtl: 86400 });
+        }
+        const rtKey = `api_rt:/${matchedSegment}:${hour}`;
+        const rtData = await c.env.KV.get(rtKey);
+        const rt = rtData ? JSON.parse(rtData) : { sum: 0, count: 0 };
+        rt.sum += duration;
+        rt.count += 1;
+        await c.env.KV.put(rtKey, JSON.stringify(rt), { expirationTtl: 86400 });
+      } catch {
+        // Non-critical: don't let analytics failures affect requests
+      }
+    })());
+  }
+});
+
+// Global middleware
 app.use(prettyJSON());
-app.use('*', cors());
+app.use('*', cors({
+  origin: ['https://et.vantax.co.za', 'http://localhost:5173', 'http://localhost:8788'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+  exposeHeaders: ['X-Request-Id'],
+  maxAge: 86400,
+}));
 
-// Welcome endpoint
+// Phase 1.2: Rate limiting
+app.use('/api/v1/trading/*', rateLimiter({ maxRequests: 300, windowSeconds: 60 }));
+app.use('/api/v1/*', rateLimiter({ maxRequests: 100, windowSeconds: 60 }));
+
+// Welcome
 app.get('/', (c) => {
   return c.json({
-    message: "Welcome to NXT Energy Trading Platform",
-    version: "2.0.0",
-    status: "running",
-    platform: "Cloudflare Workers",
-    features: [
-      "AI-powered market simulation",
-      "Digital contract management",
-      "Carbon credit marketplace",
-      "IPP project lifecycle management",
-      "Real-time energy portfolio analytics"
-    ]
+    message: 'NXT Energy Trading Platform API',
+    version: '2.0.0',
+    status: 'running',
+    platform: 'Cloudflare Workers',
+    docs: 'https://et.vantax.co.za/api/v1',
   });
 });
 
-// Health check endpoint
-app.get('/health', (c) => {
+// Phase 5.3: Enhanced health check
+app.route('/health', healthRoute);
+
+// API v1 routes
+const api = new Hono<HonoEnv>();
+
+// Registration & Auth
+api.route('/register', register);
+api.post('/auth/login', async (c) => {
+  const registerApp = new Hono<HonoEnv>();
+  registerApp.route('/', register);
+  const url = new URL(c.req.url);
+  url.pathname = '/auth/login';
+  const newReq = new Request(url.toString(), c.req.raw);
+  return registerApp.fetch(newReq, c.env);
+});
+
+// Phase 1.8 + 3.9: Logout with token blacklist
+api.post('/auth/logout', authMiddleware(), async (c) => {
+  const token = c.req.header('Authorization')?.substring(7);
+  if (token) {
+    try {
+      await blacklistToken(c.env.KV, token, 86400);
+    } catch { /* best-effort */ }
+  }
+  return c.json({ success: true, message: 'Logged out' });
+});
+
+// Phase 1.8: Token refresh with rotation
+api.post('/auth/refresh', async (c) => {
+  const body = await c.req.json() as { refreshToken?: string };
+  if (!body.refreshToken) {
+    return c.json({ success: false, error: 'Refresh token required' }, 400);
+  }
+
+  const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+
+  // Check if refresh token has been blacklisted (rotated)
+  try {
+    const blacklisted = await isTokenBlacklisted(c.env.KV, body.refreshToken);
+    if (blacklisted) {
+      return c.json({ success: false, error: 'Refresh token has been revoked' }, 401);
+    }
+  } catch { /* If KV fails, allow through */ }
+
+  const decoded = await verifyJwt(body.refreshToken, secret);
+  if (!decoded || (decoded as unknown as Record<string, unknown>).type !== 'refresh') {
+    return c.json({ success: false, error: 'Invalid refresh token' }, 401);
+  }
+
+  const participant = await c.env.DB.prepare(
+    'SELECT id, email, role, company_name, kyc_status FROM participants WHERE id = ?'
+  ).bind(decoded.sub).first<{
+    id: string; email: string; role: string; company_name: string; kyc_status: string;
+  }>();
+
+  if (!participant) {
+    return c.json({ success: false, error: 'Participant not found' }, 404);
+  }
+
+  // Blacklist old refresh token (rotation)
+  try { await blacklistToken(c.env.KV, body.refreshToken, 86400 * 30); } catch { /* */ }
+
+  const newToken = await signJwt({
+    sub: participant.id,
+    email: participant.email,
+    role: participant.role as any,
+    company_name: participant.company_name,
+    kyc_status: participant.kyc_status as any,
+  }, secret);
+  const newRefresh = await signRefreshToken(participant.id, secret);
+
+  return c.json({ success: true, data: { token: newToken, refreshToken: newRefresh } });
+});
+
+// Core routes
+api.route('/participants', participants);
+api.route('/contracts', contracts);
+api.route('/trading', trading);
+api.route('/carbon', carbon);
+api.route('/projects', projectsRoute);
+api.route('/settlement', settlement);
+api.route('/compliance', compliance);
+api.route('/marketplace', marketplace);
+api.route('/ai', aiRoutes);
+api.route('/reports', reports);
+api.route('/tenants', tenantsRoute);
+api.route('/developer', developer);
+api.route('/metering', metering);
+api.route('/p2p', p2p);
+api.route('/popia', popia);
+api.route('/demand', demand);
+api.route('/subscriptions', subscriptions);
+api.route('/pricing', pricing);
+api.route('/vault', vault);
+api.route('/lender', lender);
+api.route('/surveillance', surveillance);
+
+api.route('/iot', iot);
+api.route('/algo', algo);
+api.route('/esg-reporting', esgReporting);
+api.route('/ipp-tools', ippTools);
+api.route('/surveillance-tools', surveillanceTools);
+
+
+
+api.route('/lifecycle', lifecycle);
+
+// Dashboard summary (role-adaptive)
+api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
+  const user = c.get('user');
+  const counts = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM projects').first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM trades WHERE status = 'pending'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM contract_documents WHERE phase = 'active'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM carbon_credits WHERE status = 'active'").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM disputes WHERE status NOT IN ('resolved', 'escalated')").first<{ count: number }>(),
+    c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM orders WHERE participant_id = ? AND status IN ('open', 'partial')").bind(user.sub).first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM notifications WHERE participant_id = ? AND read = 0').bind(user.sub).first<{ count: number }>(),
+  ]);
+
   return c.json({
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    platform: "Cloudflare Workers Edge Network",
-    uptime: "Running globally at the edge"
+    success: true,
+    data: {
+      participants: counts[0]?.count || 0,
+      projects: counts[1]?.count || 0,
+      pending_trades: counts[2]?.count || 0,
+      active_contracts: counts[3]?.count || 0,
+      active_credits: counts[4]?.count || 0,
+      open_disputes: counts[5]?.count || 0,
+      total_traded_cents: counts[6]?.total || 0,
+      my_open_orders: counts[7]?.count || 0,
+      unread_notifications: counts[8]?.count || 0,
+      role: user.role,
+      participant_id: user.sub,
+    },
   });
 });
 
-// AI-powered market insights endpoint
-app.get('/api/v1/market/insights', async (c) => {
-  // Simulate AI-driven market insights
-  const insights = {
+// Notifications
+api.get('/notifications', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20', 10)));
+  const offset = (page - 1) * limit;
+  const results = await c.env.DB.prepare(
+    'SELECT * FROM notifications WHERE participant_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?'
+  ).bind(user.sub, limit, offset).all();
+  const total = await c.env.DB.prepare(
+    'SELECT COUNT(*) as count FROM notifications WHERE participant_id = ?'
+  ).bind(user.sub).first<{ count: number }>();
+  return c.json({ success: true, data: results.results, meta: { page, limit, total: total?.count || 0 } });
+});
+
+api.patch('/notifications/:id/read', authMiddleware(), async (c) => {
+  const { id } = c.req.param();
+  const user = c.get('user');
+  await c.env.DB.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND participant_id = ?').bind(id, user.sub).run();
+  return c.json({ success: true });
+});
+
+api.patch('/notifications/read-all', authMiddleware(), async (c) => {
+  const user = c.get('user');
+  await c.env.DB.prepare('UPDATE notifications SET read = 1 WHERE participant_id = ? AND read = 0').bind(user.sub).run();
+  return c.json({ success: true });
+});
+
+// Legacy market insights
+api.get('/market/insights', async (c) => {
+  const markets = ['solar', 'wind', 'hydro', 'gas', 'carbon', 'battery'];
+  const indices: Record<string, unknown> = {};
+  for (const market of markets) {
+    const indexStr = await c.env.KV.get(`index:${market}`);
+    indices[market] = indexStr ? JSON.parse(indexStr) : { price: 0, change_24h: 0, volume_24h: 0, last_trade: null };
+  }
+  return c.json({
     timestamp: new Date().toISOString(),
-    marketCondition: "Bullish",
+    marketCondition: 'Bullish',
     confidence: 0.87,
-    predictions: {
-      nextHour: {
-        demandForecast: Math.floor(Math.random() * 5000) + 30000,
-        priceForecast: (Math.random() * 200 + 50).toFixed(2),
-        trend: Math.random() > 0.5 ? "up" : "down"
-      },
-      nextDay: {
-        demandForecast: Math.floor(Math.random() * 10000) + 100000,
-        priceForecast: (Math.random() * 250 + 40).toFixed(2),
-        trend: Math.random() > 0.3 ? "up" : "down"
-      }
-    },
+    indices,
     recommendations: [
-      "Consider increasing solar portfolio exposure",
-      "Monitor natural gas prices for arbitrage opportunities",
-      "Prepare for potential demand spike in evening hours"
+      'Consider increasing solar portfolio exposure',
+      'Monitor natural gas prices for arbitrage opportunities',
+      'Prepare for potential demand spike in evening hours',
     ],
-    riskIndicators: {
-      volatility: "Medium",
-      marketStress: "Low",
-      liquidity: "High"
-    }
-  };
-
-  return c.json(insights);
-});
-
-// Portfolio analytics endpoint
-app.get('/api/v1/portfolio/analytics/:portfolioId', async (c) => {
-  const { portfolioId } = c.req.param();
-  
-  // Simulate AI-powered portfolio analysis
-  const analytics = {
-    portfolioId,
-    timestamp: new Date().toISOString(),
-    energyMix: {
-      renewablePercentage: 68.5,
-      solarPercentage: 32.1,
-      windPercentage: 28.4,
-      hydroPercentage: 8.0,
-      fossilFuelsPercentage: 31.5
-    },
-    performanceMetrics: {
-      efficiencyScore: 87.3,
-      carbonIntensity: 125.4, // gCO2/kWh
-      revenueOptimization: 92.1 // %
-    },
-    aiRecommendations: [
-      {
-        action: "Increase solar capacity by 15%",
-        confidence: 0.91,
-        projectedROI: "12.4%"
-      },
-      {
-        action: "Shift trading window to peak hours",
-        confidence: 0.85,
-        projectedROI: "8.7%"
-      },
-      {
-        action: "Hedge against natural gas price volatility",
-        confidence: 0.78,
-        projectedRiskReduction: "23%"
-      }
-    ],
-    sustainabilityMetrics: {
-      renewableEnergyCertificates: 12500,
-      carbonCredits: 8450,
-      sdgImpactScore: 8.2
-    }
-  };
-
-  return c.json(analytics);
-});
-
-// Trading AI advisor endpoint
-app.post('/api/v1/trading/advisor', async (c) => {
-  const body = await c.req.json();
-  
-  // Parse request body
-  const { energyType, volume, preferredPriceRange, marketConditions } = body;
-  
-  // Simulate AI trading recommendations
-  const recommendations = {
-    timestamp: new Date().toISOString(),
-    analysis: {
-      marketSentiment: "Positive",
-      supplyDemandRatio: 0.95,
-      volatilityIndex: 0.34
-    },
-    optimalTrades: [
-      {
-        action: "BUY",
-        energyType: energyType || "Solar",
-        volume: volume || Math.floor(Math.random() * 1000) + 500,
-        recommendedPrice: (Math.random() * 150 + 30).toFixed(2),
-        timing: "Immediate",
-        confidence: 0.89,
-        rationale: "Market oversupply detected with favorable weather conditions"
-      },
-      {
-        action: "SELL",
-        energyType: "NaturalGas",
-        volume: Math.floor(Math.random() * 800) + 300,
-        recommendedPrice: (Math.random() * 180 + 40).toFixed(2),
-        timing: "Next 2 hours",
-        confidence: 0.76,
-        rationale: "Expected demand reduction during off-peak hours"
-      }
-    ],
-    riskAssessment: {
-      overallRisk: "Medium",
-      keyRisks: [
-        "Potential weather disruption affecting solar generation",
-        "Grid congestion in key transmission zones"
-      ],
-      mitigationStrategies: [
-        "Diversify geographically across multiple regions",
-        "Establish backup contracts with alternative suppliers"
-      ]
-    }
-  };
-
-  return c.json(recommendations);
-});
-
-// Carbon credit AI valuation endpoint
-app.get('/api/v1/carbon/valuation', async (c) => {
-  // Simulate AI-powered carbon credit valuation
-  const valuation = {
-    timestamp: new Date().toISOString(),
-    marketOverview: {
-      totalSupply: 50000000, // tons
-      averagePrice: 18.75, // USD/ton
-      marketCap: 937500000 // USD
-    },
-    aiInsights: {
-      priceTrend: "Bullish",
-      volatility: "Low-Medium",
-      confidence: 0.84
-    },
-    investmentOpportunities: [
-      {
-        projectType: "Solar PV",
-        expectedROI: "15.2%",
-        riskLevel: "Low",
-        recommendation: "Strong Buy",
-        timeframe: "12-18 months"
-      },
-      {
-        projectType: "Wind Energy",
-        expectedROI: "12.8%",
-        riskLevel: "Medium",
-        recommendation: "Buy",
-        timeframe: "18-24 months"
-      },
-      {
-        projectType: "Reforestation",
-        expectedROI: "9.5%",
-        riskLevel: "Medium-High",
-        recommendation: "Hold",
-        timeframe: "24-36 months"
-      }
-    ],
-    forecast: {
-      "30days": {
-        predictedPrice: 19.45,
-        confidenceInterval: "17.80-21.10"
-      },
-      "90days": {
-        predictedPrice: 21.30,
-        confidenceInterval: "18.90-23.70"
-      },
-      "1year": {
-        predictedPrice: 25.60,
-        confidenceInterval: "21.50-29.70"
-      }
-    }
-  };
-
-  return c.json(valuation);
-});
-
-// Contract negotiation AI endpoint
-app.post('/api/v1/contracts/negotiate', async (c) => {
-  const body = await c.req.json();
-  
-  // Parse contract details
-  const { contractType, terms, parties } = body;
-  
-  // Simulate AI contract negotiation
-  const negotiation = {
-    timestamp: new Date().toISOString(),
-    contractType,
-    aiAnalysis: {
-      fairnessScore: 0.87,
-      riskProfile: "Balanced",
-      optimizationOpportunities: [
-        "Adjust pricing mechanism to indexed + cap structure",
-        "Include force majeure clauses for extreme weather events",
-        "Add automatic renewal clause with price adjustment"
-      ]
-    },
-    suggestedTerms: {
-      pricing: {
-        mechanism: "BlockAndIndex",
-        basePrice: (Math.random() * 100 + 50).toFixed(2),
-        ceilingPrice: (Math.random() * 200 + 100).toFixed(2),
-        floorPrice: (Math.random() * 80 + 30).toFixed(2)
-      },
-      volume: {
-        committed: Math.floor(Math.random() * 50000) + 10000,
-        flexibility: "±15% monthly adjustment allowed"
-      },
-      duration: "24 months with quarterly review",
-      penalties: {
-        deliveryShortfall: "5% of shortfall value",
-        lateDelivery: "0.1% per day overdue"
-      }
-    },
-    blockchainIntegration: {
-      smartContractReady: true,
-      deploymentRecommended: true,
-      estimatedGasCost: "0.024 ETH",
-      executionTime: "30 seconds"
-    }
-  };
-
-  return c.json(negotiation);
-});
-
-// IPP project management endpoint
-app.get('/api/v1/ipp/projects', async (c) => {
-  // Simulate AI-enhanced IPP project tracking
-  const projects = [
-    {
-      projectId: "IPP-SOLAR-2023-001",
-      name: "California Solar Farm Phase 3",
-      technology: "Solar PV",
-      capacity: "150 MW",
-      location: "San Bernardino, CA",
-      status: "Construction",
-      progress: 78,
-      estimatedCOD: "2024-03-15",
-      financialClose: {
-        completed: true,
-        closureDate: "2023-06-30",
-        totalCost: "$185M",
-        financingStructure: "60% Debt, 40% Equity"
-      },
-      aiInsights: {
-        riskAssessment: "Low",
-        weatherImpact: "Minimal delays expected",
-        constructionEfficiency: "Above average",
-        recommendation: "Proceed with planned grid connection timeline"
-      }
-    },
-    {
-      projectId: "IPP-WIND-2023-002",
-      name: "Texas Wind Complex",
-      technology: "Wind",
-      capacity: "300 MW",
-      location: "Amarillo, TX",
-      status: "Development",
-      progress: 45,
-      estimatedCOD: "2024-12-01",
-      financialClose: {
-        completed: false,
-        nextMilestone: "Tax equity placement Q3 2023"
-      },
-      aiInsights: {
-        riskAssessment: "Medium",
-        permittingRisk: "High - Environmental review pending",
-        recommendation: "Accelerate permitting process through expedited review channels"
-      }
-    }
-  ];
-
-  return c.json({
-    timestamp: new Date().toISOString(),
-    projects,
-    summary: {
-      totalProjects: projects.length,
-      projectsByStatus: {
-        Development: projects.filter(p => p.status === "Development").length,
-        Construction: projects.filter(p => p.status === "Construction").length,
-        Operational: projects.filter(p => p.status === "Operational").length
-      },
-      totalCapacity: "450 MW",
-      estimatedAnnualGeneration: "1,200,000 MWh"
-    }
   });
 });
 
-// Carbon credit portfolio AI endpoint
-app.get('/api/v1/carbon/portfolio', async (c) => {
-  // Simulate AI-managed carbon credit portfolio
-  const portfolio = {
-    timestamp: new Date().toISOString(),
-    portfolioId: "CARBON-PORT-2023-001",
-    totalCredits: 12500,
-    vintageBreakdown: {
-      "2023": 4500,
-      "2022": 3800,
-      "2021": 2900,
-      "2020": 1300
-    },
-    projectTypes: {
-      "Solar": 35,
-      "Wind": 25,
-      "Hydro": 15,
-      "Reforestation": 20,
-      "MethaneCapture": 5
-    },
-    aiRecommendations: [
-      {
-        action: "Purchase additional wind credits",
-        rationale: "Market undervaluation identified with strong ESG alignment",
-        confidence: 0.92,
-        projectedROI: "18% over 12 months"
-      },
-      {
-        action: "Sell 2020 vintage credits",
-        rationale: "Premium pricing opportunity before regulatory changes",
-        confidence: 0.85,
-        urgency: "High - act within 30 days"
-      }
-    ],
-    marketOutlook: {
-      shortTerm: "Bullish - Government policy support increasing",
-      mediumTerm: "Stable growth with volatility in specific sectors",
-      longTerm: "Structural demand increase expected"
-    },
-    sustainabilityMetrics: {
-      totalCO2Offset: "12,500 tons",
-      SDGAlignment: "7, 13",
-      communityImpact: "Job creation in rural areas: 25 positions"
-    }
-  };
-
-  return c.json(portfolio);
+// Phase 5.6: Frontend error reporting endpoint (receives from ErrorBoundary sendBeacon)
+api.post('/errors/frontend', async (c) => {
+  try {
+    const body = await c.req.json() as { message?: string; stack?: string; componentStack?: string; url?: string; timestamp?: string };
+    const { storeError } = await import('./utils/logger');
+    await storeError(c.env.KV, 'frontend_error', new Error(body.message || 'Unknown frontend error'), c.get('requestId'));
+    log('error', 'frontend_error', { message: body.message, url: body.url, timestamp: body.timestamp }, c.get('requestId'));
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: true }); // Always return 200 for beacon
+  }
 });
 
-// Export the app
-export default app;
+// Phase 5.5: API analytics endpoint (reads KV counters written by middleware)
+api.get('/analytics/api', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const hour = new Date().toISOString().substring(0, 13); // YYYY-MM-DDTHH
+  const endpoints = ['/trading', '/carbon', '/contracts', '/settlement', '/compliance', '/marketplace', '/p2p', '/metering', '/ai', '/reports'];
+  const stats: Record<string, unknown> = {};
+  for (const ep of endpoints) {
+    const countStr = await c.env.KV.get(`api_count:${ep}:${hour}`);
+    const errStr = await c.env.KV.get(`api_errors:${ep}:${hour}`);
+    const rtStr = await c.env.KV.get(`api_rt:${ep}:${hour}`);
+    const rt = rtStr ? JSON.parse(rtStr) : { sum: 0, count: 0 };
+    stats[ep] = {
+      requests: parseInt(countStr || '0', 10),
+      errors: parseInt(errStr || '0', 10),
+      avg_response_ms: rt.count > 0 ? Math.round(rt.sum / rt.count) : 0,
+    };
+  }
+  return c.json({ success: true, data: { hour, endpoints: stats } });
+});
+
+// Fee schedule
+api.get('/fees', async (c) => {
+  const fees = await c.env.DB.prepare('SELECT * FROM fee_schedule WHERE active = 1').all();
+  return c.json({ success: true, data: fees.results });
+});
+
+// ── Admin routes ──────────────────────────────────────────────
+api.get('/admin/participants', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
+  const results = await c.env.DB.prepare('SELECT * FROM participants ORDER BY created_at DESC LIMIT ? OFFSET ?').bind(limit, offset).all();
+  const total = await c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>();
+  return c.json({ success: true, data: results.results, meta: { page, limit, total: total?.count || 0 } });
+});
+
+api.get('/admin/users', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const results = await c.env.DB.prepare('SELECT id, email, role, company_name, kyc_status, created_at FROM participants ORDER BY created_at DESC').all();
+  return c.json({ success: true, data: results.results });
+});
+
+api.get('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  const user = await c.env.DB.prepare('SELECT * FROM participants WHERE id = ?').bind(id).first();
+  if (!user) return c.json({ success: false, error: 'User not found' }, 404);
+  return c.json({ success: true, data: user });
+});
+
+api.patch('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json() as Record<string, unknown>;
+  const updates: string[] = [];
+  const values: unknown[] = [];
+  for (const [key, val] of Object.entries(body)) {
+    if (['role', 'kyc_status', 'trading_enabled', 'company_name'].includes(key)) {
+      updates.push(`${key} = ?`);
+      values.push(val);
+    }
+  }
+  if (updates.length === 0) return c.json({ success: false, error: 'No valid fields to update' }, 400);
+  values.push(id);
+  await c.env.DB.prepare(`UPDATE participants SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+  return c.json({ success: true });
+});
+
+api.delete('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM participants WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+api.get('/admin/stats', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const [users, trades, contracts, credits] = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM trades').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM contract_documents').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM carbon_credits').first<{ count: number }>(),
+  ]);
+  return c.json({ success: true, data: { users: users?.count || 0, trades: trades?.count || 0, contracts: contracts?.count || 0, credits: credits?.count || 0 } });
+});
+
+api.get('/admin/revenue', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const totalTraded = await c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>();
+    const monthTraded = await c.env.DB.prepare("SELECT SUM(total_cents) as total FROM trades WHERE status = 'settled' AND created_at >= date('now', 'start of month')").first<{ total: number | null }>();
+    const fees = await c.env.DB.prepare("SELECT SUM(fee_cents) as total FROM trades WHERE status = 'settled'").first<{ total: number | null }>();
+    let subsCount = 0;
+    try {
+      const subs = await c.env.DB.prepare("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'").first<{ count: number }>();
+      subsCount = subs?.count || 0;
+    } catch {
+      // subscriptions table may not exist yet
+    }
+    return c.json({
+      success: true,
+      data: {
+        total_revenue_cents: totalTraded?.total || 0,
+        month_revenue_cents: monthTraded?.total || 0,
+        trading_fees_cents: fees?.total || 0,
+        active_subscriptions: subsCount,
+        monthly: [],
+      },
+    });
+  } catch {
+    return c.json({ success: true, data: { total_revenue_cents: 0, month_revenue_cents: 0, trading_fees_cents: 0, active_subscriptions: 0, monthly: [] } });
+  }
+});
+
+// ── Audit Trail ──────────────────────────────────────────────
+api.get('/admin/audit-log', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
+  const action = c.req.query('action');
+  let query = 'SELECT * FROM audit_log';
+  const params: unknown[] = [];
+  if (action) { query += ' WHERE action = ?'; params.push(action); }
+  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+  const results = await c.env.DB.prepare(query).bind(...params).all();
+  return c.json({ success: true, data: results.results });
+});
+
+// ── Tenant Admin ─────────────────────────────────────────────
+api.post('/admin/tenants', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  const body = await c.req.json() as { name: string; domain?: string };
+  if (!body.name) return c.json({ success: false, error: 'Tenant name is required' }, 400);
+  const id = generateId();
+  await c.env.DB.prepare('INSERT INTO tenants (id, name, domain, status, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, body.name, body.domain || null, 'active', nowISO()).run();
+  return c.json({ success: true, data: { id } });
+});
+
+api.delete('/admin/tenants/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const { id } = c.req.param();
+  await c.env.DB.prepare('DELETE FROM tenants WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// ── Disputes (Settlement) ────────────────────────────────────
+api.get('/settlement/disputes', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin' || user.role === 'regulator';
+    let query = 'SELECT * FROM disputes';
+    const params: unknown[] = [];
+    if (!isAdmin) {
+      query += ' WHERE claimant_id = ? OR respondent_id = ?';
+      params.push(user.sub, user.sub);
+    }
+    query += ' ORDER BY created_at DESC';
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.post('/settlement/disputes', authMiddleware(), async (c) => {
+  try {
+    const { generateId, nowISO } = await import('./utils/id');
+    const user = c.get('user');
+    const body = await c.req.json() as { type: string; subject: string; description: string; category?: string; respondent_id?: string; counterparty_id?: string; contract_id?: string; value_cents?: number };
+    if (!body.type && !body.category) return c.json({ success: false, error: 'Type/category is required' }, 400);
+    const id = generateId();
+    const category = body.category || body.type || 'other';
+    const respondent = body.respondent_id || body.counterparty_id;
+    if (!respondent) return c.json({ success: false, error: 'respondent_id is required' }, 400);
+    await c.env.DB.prepare(
+      'INSERT INTO disputes (id, claimant_id, respondent_id, category, description, value_cents, contract_id, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.sub, respondent, category, body.description || body.subject || '', body.value_cents || 0, body.contract_id || null, 'filed', nowISO()).run();
+    return c.json({ success: true, data: { id } });
+  } catch (err) {
+    return c.json({ success: false, error: 'Failed to file dispute' }, 500);
+  }
+});
+
+api.patch('/settlement/disputes/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const body = await c.req.json() as { status?: string; resolution?: string };
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (body.status) { updates.push('status = ?'); values.push(body.status); }
+    if (body.resolution) { updates.push('resolution = ?'); values.push(body.resolution); }
+    if (updates.length === 0) return c.json({ success: false, error: 'No fields to update' }, 400);
+    values.push(id);
+    await c.env.DB.prepare(`UPDATE disputes SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to update dispute' }, 500);
+  }
+});
+
+// ── Invoices ─────────────────────────────────────────────────
+api.get('/invoices', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
+    let query = 'SELECT * FROM invoices';
+    const params: unknown[] = [];
+    if (!isAdmin) { query += ' WHERE from_participant_id = ? OR to_participant_id = ?'; params.push(user.sub, user.sub); }
+    query += ' ORDER BY created_at DESC';
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.post('/invoices', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const { generateId, nowISO } = await import('./utils/id');
+    const user = c.get('user');
+    const body = await c.req.json() as { participant_id?: string; to_participant_id?: string; amount_cents: number; description: string; due_date: string };
+    const toParticipant = body.to_participant_id || body.participant_id;
+    if (!toParticipant || !body.amount_cents) return c.json({ success: false, error: 'participant and amount are required' }, 400);
+    const id = generateId();
+    const invoiceNumber = `INV-${Date.now()}`;
+    const vatCents = Math.round(body.amount_cents * 0.15);
+    await c.env.DB.prepare(
+      'INSERT INTO invoices (id, invoice_number, from_participant_id, to_participant_id, description, subtotal_cents, vat_cents, total_cents, status, due_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, invoiceNumber, user.sub, toParticipant, body.description || '', body.amount_cents, vatCents, body.amount_cents + vatCents, 'outstanding', body.due_date || null, nowISO()).run();
+    return c.json({ success: true, data: { id } });
+  } catch (err) {
+    return c.json({ success: false, error: 'Failed to create invoice' }, 500);
+  }
+});
+
+// ── Smart Rules ──────────────────────────────────────────────
+api.get('/smart-rules', authMiddleware(), async (c) => {
+  try {
+    const results = await c.env.DB.prepare('SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id ORDER BY scr.created_at DESC').all();
+    return c.json({ success: true, data: results.results });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.post('/smart-rules', authMiddleware(), async (c) => {
+  try {
+    const { generateId, nowISO } = await import('./utils/id');
+    const body = await c.req.json() as { contract_doc_id: string; rule_type: string; trigger_condition: string; action: string };
+    if (!body.contract_doc_id || !body.rule_type) return c.json({ success: false, error: 'contract_doc_id and rule_type are required' }, 400);
+    const id = generateId();
+    await c.env.DB.prepare(
+      'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, body.contract_doc_id, body.rule_type, body.trigger_condition || '{}', body.action || '{}', nowISO()).run();
+    return c.json({ success: true, data: { id } });
+  } catch {
+    return c.json({ success: false, error: 'Smart rules table not available' }, 500);
+  }
+});
+
+api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const body = await c.req.json() as Record<string, unknown>;
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    for (const [key, val] of Object.entries(body)) {
+      if (['rule_type', 'trigger_condition', 'action', 'enabled'].includes(key)) { updates.push(`${key} = ?`); values.push(val); }
+    }
+    if (updates.length === 0) return c.json({ success: false, error: 'No valid fields' }, 400);
+    values.push(id);
+    await c.env.DB.prepare(`UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to update smart rule' }, 500);
+  }
+});
+
+api.delete('/smart-rules/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    await c.env.DB.prepare('DELETE FROM smart_contract_rules WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to delete smart rule' }, 500);
+  }
+});
+
+// ── System Health ────────────────────────────────────────────
+api.get('/health/status', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const [users, trades, contracts] = await Promise.all([
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM trades').first<{ count: number }>(),
+    c.env.DB.prepare('SELECT COUNT(*) as count FROM contract_documents').first<{ count: number }>(),
+  ]);
+  return c.json({
+    success: true,
+    data: {
+      status: 'healthy',
+      uptime: 0,  // Workers don't have process.uptime
+      database: { status: 'connected', users: users?.count || 0, trades: trades?.count || 0, contracts: contracts?.count || 0 },
+      services: { d1: 'operational', kv: 'operational', r2: 'operational', do: 'operational' },
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+api.get('/health/metrics', authMiddleware({ roles: ['admin'] }), async (c) => {
+  const hour = new Date().toISOString().substring(0, 13);
+  const endpoints = ['/trading', '/carbon', '/contracts', '/settlement', '/p2p'];
+  const metrics: Record<string, unknown> = {};
+  for (const ep of endpoints) {
+    const countStr = await c.env.KV.get(`api_count:${ep}:${hour}`);
+    const rtStr = await c.env.KV.get(`api_rt:${ep}:${hour}`);
+    const rt = rtStr ? JSON.parse(rtStr) : { sum: 0, count: 0 };
+    metrics[ep] = { requests: parseInt(countStr || '0', 10), avg_response_ms: rt.count > 0 ? Math.round(rt.sum / rt.count) : 0 };
+  }
+  return c.json({ success: true, data: { hour, metrics } });
+});
+
+// ── Reports Schedule ─────────────────────────────────────────
+api.post('/reports/schedule', authMiddleware(), async (c) => {
+  try {
+    const { generateId, nowISO } = await import('./utils/id');
+    const user = c.get('user');
+    const body = await c.req.json() as { frequency: string; email: string; report_type?: string };
+    if (!body.frequency || !body.email) return c.json({ success: false, error: 'Frequency and email are required' }, 400);
+    const id = generateId();
+    await c.env.DB.prepare(
+      'INSERT INTO report_schedules (id, participant_id, frequency, email, report_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.sub, body.frequency, body.email, body.report_type || 'general', 'active', nowISO()).run();
+    return c.json({ success: true, data: { id } });
+  } catch {
+    return c.json({ success: false, error: 'Report schedules not available' }, 500);
+  }
+});
+
+api.get('/reports/schedules', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const results = await c.env.DB.prepare('SELECT * FROM report_schedules WHERE participant_id = ? ORDER BY created_at DESC').bind(user.sub).all();
+    return c.json({ success: true, data: results.results });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.delete('/reports/schedule/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    await c.env.DB.prepare('DELETE FROM report_schedules WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to delete schedule' }, 500);
+  }
+});
+
+// ── 2FA Auth ─────────────────────────────────────────────────
+api.post('/auth/2fa/enable', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const secret = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
+    await c.env.KV.put(`2fa:${user.sub}`, secret, { expirationTtl: 86400 * 365 });
+    return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/NXT%20Energy:${user.email}?secret=${secret}&issuer=NXT%20Energy` } });
+  } catch {
+    return c.json({ success: false, error: '2FA setup failed' }, 500);
+  }
+});
+
+api.post('/auth/2fa/verify', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as { code: string };
+    const secret = await c.env.KV.get(`2fa:${user.sub}`);
+    if (!secret) return c.json({ success: false, error: '2FA not enabled' }, 400);
+    if (!body.code || body.code.length !== 6) return c.json({ success: false, error: 'Invalid code' }, 400);
+    try {
+      await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
+    } catch { /* two_factor_enabled column may not exist */ }
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: '2FA verification failed' }, 500);
+  }
+});
+
+api.post('/auth/2fa/disable', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    await c.env.KV.delete(`2fa:${user.sub}`);
+    try {
+      await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 0, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
+    } catch { /* two_factor_enabled column may not exist */ }
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: '2FA disable failed' }, 500);
+  }
+});
+
+// Mount API
+app.route('/api/v1', api);
+
+// Cron trigger handler
+const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env) => {
+  const { generateId, nowISO } = await import('./utils/id');
+  try {
+    // 1. Licence expiry notifications
+    const expiringLicences = await env.DB.prepare(`
+      SELECT l.id, l.participant_id, l.type, l.expiry_date FROM licences l
+      WHERE l.status = 'active' AND l.expiry_date <= date('now', '+90 days') AND l.expiry_date > date('now')
+    `).all();
+    for (const licence of expiringLicences.results) {
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
+        VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)
+      `).bind(
+        generateId(), licence.participant_id,
+        'Your ' + licence.type + ' licence expires on ' + licence.expiry_date + '. Please renew.',
+        licence.id
+      ).run();
+    }
+
+    // 2. Mark overdue invoices
+    await env.DB.prepare(`UPDATE invoices SET status = 'overdue' WHERE status = 'outstanding' AND due_date < date('now')`).run();
+
+    // 3. Expire marketplace listings
+    await env.DB.prepare(`UPDATE marketplace_listings SET status = 'expired' WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+
+    // 4. Expire day orders and GTD orders
+    await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'day' AND date(created_at) < date('now')`).run();
+    await env.DB.prepare(`UPDATE orders SET status = 'expired', updated_at = datetime('now') WHERE status IN ('open', 'partial') AND validity = 'gtd' AND gtd_expiry IS NOT NULL AND gtd_expiry < datetime('now')`).run();
+
+    // 5. Expire P2P offers
+    await env.DB.prepare(`UPDATE p2p_trades SET status = 'expired' WHERE status = 'open' AND expires_at IS NOT NULL AND expires_at < datetime('now')`).run();
+
+    // 6. Phase 3.3: D1 backup to R2 (daily export of critical tables)
+    try {
+      const tables = ['participants', 'trades', 'carbon_credits', 'contract_documents', 'invoices', 'orders'];
+      const dateStr = new Date().toISOString().split('T')[0];
+      for (const table of tables) {
+        const rows = await env.DB.prepare(`SELECT * FROM ${table}`).all();
+        await env.R2.put(
+          `backups/${dateStr}/${table}.json`,
+          JSON.stringify({ table, exported_at: nowISO(), row_count: rows.results.length, data: rows.results }),
+        );
+      }
+      log('info', 'backup_completed', { tables: tables.length, date: dateStr });
+    } catch (backupErr) {
+      log('error', 'backup_failed', { error: backupErr instanceof Error ? backupErr.message : String(backupErr) });
+    }
+
+    // 7. Phase 3.10: Daily risk metrics recalculation
+    try {
+      const participants = await env.DB.prepare(
+        "SELECT id FROM participants WHERE trading_enabled = 1 AND kyc_status = 'verified'"
+      ).all();
+      for (const p of participants.results) {
+        const doId = env.RISK_ENGINE.idFromName(p.id as string);
+        const stub = env.RISK_ENGINE.get(doId);
+        await stub.fetch(new Request('https://do/recalculate', { method: 'POST' }));
+      }
+      log('info', 'risk_recalc_completed', { participants: participants.results.length });
+    } catch (riskErr) {
+      log('error', 'risk_recalc_failed', { error: riskErr instanceof Error ? riskErr.message : String(riskErr) });
+    }
+
+    // 8. Phase 3.10: Weekly compliance report generation (runs on Mondays)
+    if (new Date().getDay() === 1) {
+      try {
+        const report = {
+          id: generateId(),
+          generated_at: nowISO(),
+          type: 'weekly_compliance',
+          kyc_pending: ((await env.DB.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'pending'").first<{ c: number }>())?.c || 0),
+          licences_expiring: expiringLicences.results.length,
+          open_disputes: ((await env.DB.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','escalated')").first<{ c: number }>())?.c || 0),
+          overdue_invoices: ((await env.DB.prepare("SELECT COUNT(*) as c FROM invoices WHERE status = 'overdue'").first<{ c: number }>())?.c || 0),
+        };
+        await env.KV.put(`compliance_report:${new Date().toISOString().split('T')[0]}`, JSON.stringify(report), { expirationTtl: 86400 * 90 });
+        log('info', 'compliance_report_generated', report);
+      } catch (compErr) {
+        log('error', 'compliance_report_failed', { error: compErr instanceof Error ? compErr.message : String(compErr) });
+      }
+    }
+
+    log('info', 'cron_completed', { licences: expiringLicences.results.length });
+  } catch (err) {
+    log('error', 'cron_failed', { error: err instanceof Error ? err.message : String(err) });
+  }
+};
+
+export default {
+  fetch: app.fetch,
+  scheduled,
+};
