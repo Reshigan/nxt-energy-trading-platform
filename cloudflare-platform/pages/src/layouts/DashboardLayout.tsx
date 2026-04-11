@@ -45,6 +45,10 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Support Dashboard', href: '/support-dashboard', icon: IconHelp },
       { name: 'Platform Config', href: '/platform-config', icon: IconSettings },
     ]},
+    { label: 'Finance & Compliance', items: [
+      { name: 'Payments', href: '/payments', icon: IconInvoices },
+      { name: 'AML Monitoring', href: '/aml-dashboard', icon: IconSurveillance },
+    ]},
     { label: 'System', items: [
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },

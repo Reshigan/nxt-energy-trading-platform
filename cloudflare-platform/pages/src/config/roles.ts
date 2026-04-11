@@ -112,7 +112,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-slate-600',
     accentBg: 'bg-slate-500',
     accentHex: '#525252',
-    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin', '/vault', '/lender', '/surveillance', '/trade-journal', '/carbon-deep', '/ipp-deep', '/offtaker-deep', '/reporting-engine', '/staff', '/support-dashboard', '/support', '/platform-config'],
+    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin', '/vault', '/lender', '/surveillance', '/trade-journal', '/carbon-deep', '/ipp-deep', '/offtaker-deep', '/reporting-engine', '/staff', '/support-dashboard', '/support', '/platform-config', '/aml-dashboard', '/payments'],
     kpis: [
       { label: 'Platform Users', value: '142', change: '+12', positive: true },
       { label: 'API Calls Today', value: '48.2K', change: '+18%', positive: true },

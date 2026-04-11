@@ -50,6 +50,8 @@ import staffRoute from './routes/staff';
 import ticketsRoute from './routes/tickets';
 import announcementsRoute from './routes/announcements';
 import configRoute from './routes/config';
+import paymentsRoute from './routes/payments';
+import amlRoute from './routes/aml';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -282,6 +284,8 @@ api.route('/staff', staffRoute);
 api.route('/tickets', ticketsRoute);
 api.route('/announcements', announcementsRoute);
 api.route('/admin/config', configRoute);
+api.route('/payments', paymentsRoute);
+api.route('/aml', amlRoute);
 api.route('/iot', iot);
 api.route('/algo', algo);
 api.route('/esg-reporting', esgReporting);
