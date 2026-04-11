@@ -9,6 +9,8 @@ interface User {
   company_name: string;
   kyc_status: string;
   kyc_checks_passed?: number;
+  admin_level?: 'superadmin' | 'admin' | 'support' | null;
+  impersonator_id?: string | null;
 }
 
 interface AuthState {

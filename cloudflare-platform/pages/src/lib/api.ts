@@ -453,4 +453,30 @@ export const accountRecoveryAPI = {
   reset2FA: (userId: string) => api.post(`/register/admin/users/${userId}/reset-2fa`),
 };
 
+// Payments
+export const paymentsAPI = {
+  list: (params?: Record<string, string>) => api.get('/payments', { params }),
+  stats: () => api.get('/payments/stats'),
+  initiate: (data: Record<string, unknown>) => api.post('/payments', data),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/payments/${id}`, data),
+  creditNotes: () => api.get('/payments/credit-notes'),
+  issueCreditNote: (data: { invoice_id: string; amount_cents: number; reason: string }) => api.post('/payments/credit-note', data),
+};
+
+// AML Monitoring
+export const amlAPI = {
+  alerts: (params?: Record<string, string>) => api.get('/aml/alerts', { params }),
+  getAlert: (id: string) => api.get(`/aml/alerts/${id}`),
+  updateAlert: (id: string, data: Record<string, unknown>) => api.patch(`/aml/alerts/${id}`, data),
+  scan: (participantId: string) => api.post(`/aml/scan/${participantId}`),
+  rules: () => api.get('/aml/rules'),
+  updateRule: (id: string, data: Record<string, unknown>) => api.patch(`/aml/rules/${id}`, data),
+};
+
+// Trading Limits
+export const tradingLimitsAPI = {
+  get: (participantId: string) => api.get(`/admin/users/${participantId}`),
+  update: (participantId: string, data: Record<string, unknown>) => api.patch(`/admin/users/${participantId}`, data),
+};
+
 export default api;
