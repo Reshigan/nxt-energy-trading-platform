@@ -78,6 +78,7 @@ const Changelog = lazy(() => import('./pages/Changelog'));
 
 function App() {
   return (
+    <>
     <ErrorBoundary>
     <Suspense fallback={<LoadingSkeleton />}>
     <Routes>
@@ -145,6 +146,7 @@ function App() {
     </Suspense>
     </ErrorBoundary>
     <CookieConsent />
+    </>
   );
 }
 
