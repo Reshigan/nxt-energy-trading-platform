@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -237,6 +237,13 @@ export default function DashboardLayout() {
   const { isDark, toggleTheme } = useTheme();
   const roleBtnRef = useRef<HTMLButtonElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Item 10: Frontend auth guard — redirect to /login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);

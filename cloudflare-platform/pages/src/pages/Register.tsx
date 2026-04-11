@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { FiZap } from '../lib/fi-icons-shim';
 import { authAPI } from '../lib/api';
-import { useAuthStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { useToast } from '../contexts/ToastContext';
-import { formatZAR } from '../lib/format';
 import { motion } from 'framer-motion';
 
 const ROLES = [
@@ -20,7 +18,6 @@ const ROLES = [
 export default function Register() {
   const { isDark } = useTheme();
   const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
   const toast = useToast();
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
@@ -46,16 +43,9 @@ export default function Register() {
         nersa_licence: form.nersa_licence || undefined,
         fsca_licence: form.fsca_licence || undefined,
       };
-      const res = await authAPI.register(payload);
-      login(res.data.data.token, {
-        id: res.data.data.id,
-        email: form.email,
-        role: form.role as 'trader',
-        company_name: form.company_name,
-        kyc_status: 'pending',
-      });
-      toast.success('Account created successfully!');
-      navigate('/');
+      await authAPI.register(payload);
+      toast.success('Registration successful! Please check your email for a verification code.');
+      navigate(`/verify-email?email=${encodeURIComponent(form.email)}`);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string } } };
       setError(axiosErr.response?.data?.error || 'Registration failed');

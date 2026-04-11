@@ -105,13 +105,21 @@ app.use('*', async (c, next) => {
 
 // Global middleware
 app.use(prettyJSON());
-app.use('*', cors({
-  origin: ['https://et.vantax.co.za', 'http://localhost:5173', 'http://localhost:8788'],
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-  exposeHeaders: ['X-Request-Id'],
-  maxAge: 86400,
-}));
+// Item 2: Dynamic CORS — only allow localhost origins in non-production environments
+app.use('*', async (c, next) => {
+  const env = (c.env as Record<string, unknown>).ENVIRONMENT as string || 'development';
+  const origins: string[] = ['https://et.vantax.co.za'];
+  if (env !== 'production') {
+    origins.push('http://localhost:5173', 'http://localhost:8788');
+  }
+  return cors({
+    origin: origins,
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Idempotency-Key'],
+    exposeHeaders: ['X-Request-Id'],
+    maxAge: 86400,
+  })(c, next);
+});
 
 // Phase 1.2: Role-based rate limiting
 // Higher limits for trading-heavy roles, lower for read-heavy roles
@@ -431,10 +439,21 @@ api.patch('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) =>
   return c.json({ success: true });
 });
 
+// Item 18: Soft-delete for admin user deletion — mark as deleted instead of hard DELETE
 api.delete('/admin/users/:id', authMiddleware({ roles: ['admin'] }), async (c) => {
   const { id } = c.req.param();
-  await c.env.DB.prepare('DELETE FROM participants WHERE id = ?').bind(id).run();
-  return c.json({ success: true });
+  const user = c.get('user');
+  await c.env.DB.prepare(
+    "UPDATE participants SET kyc_status = 'deleted', trading_enabled = 0, updated_at = datetime('now') WHERE id = ?"
+  ).bind(id).run();
+  // Audit the soft-delete
+  try {
+    const { generateId } = await import('./utils/id');
+    await c.env.DB.prepare(
+      "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'admin.user_soft_deleted', 'participant', ?, ?, ?)"
+    ).bind(generateId(), user.sub, id, JSON.stringify({ action: 'soft_delete' }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+  } catch { /* best-effort audit */ }
+  return c.json({ success: true, message: 'User account deactivated (soft-deleted)' });
 });
 
 api.get('/admin/stats', authMiddleware({ roles: ['admin'] }), async (c) => {
@@ -543,9 +562,11 @@ api.post('/settlement/disputes', authMiddleware(), async (c) => {
   }
 });
 
-api.patch('/settlement/disputes/:id', authMiddleware(), async (c) => {
+// Item 16: Dispute update ownership check — only admin/regulator can change status
+api.patch('/settlement/disputes/:id', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
   try {
     const { id } = c.req.param();
+    const user = c.get('user');
     const body = await c.req.json() as { status?: string; resolution?: string };
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -596,20 +617,36 @@ api.post('/invoices', authMiddleware({ roles: ['admin'] }), async (c) => {
 });
 
 // ── Smart Rules ──────────────────────────────────────────────
+// Item 17: Smart rules ownership check — only show rules for contracts user is party to, or all for admin
 api.get('/smart-rules', authMiddleware(), async (c) => {
   try {
-    const results = await c.env.DB.prepare('SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id ORDER BY scr.created_at DESC').all();
+    const user = c.get('user');
+    if (user.role === 'admin') {
+      const results = await c.env.DB.prepare('SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id ORDER BY scr.created_at DESC').all();
+      return c.json({ success: true, data: results.results });
+    }
+    // Non-admin: only rules for contracts where user is creator or counterparty
+    const results = await c.env.DB.prepare(
+      'SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id WHERE cd.creator_id = ? OR cd.counterparty_id = ? ORDER BY scr.created_at DESC'
+    ).bind(user.sub, user.sub).all();
     return c.json({ success: true, data: results.results });
   } catch {
     return c.json({ success: true, data: [] });
   }
 });
 
+// Item 17: Smart rules ownership check — verify user is party to contract or admin
 api.post('/smart-rules', authMiddleware(), async (c) => {
   try {
     const { generateId, nowISO } = await import('./utils/id');
+    const user = c.get('user');
     const body = await c.req.json() as { contract_doc_id: string; rule_type: string; trigger_condition: string; action: string };
     if (!body.contract_doc_id || !body.rule_type) return c.json({ success: false, error: 'contract_doc_id and rule_type are required' }, 400);
+    // Ownership check: user must be party to contract or admin
+    if (user.role !== 'admin') {
+      const contract = await c.env.DB.prepare('SELECT id FROM contract_documents WHERE id = ? AND (creator_id = ? OR counterparty_id = ?)').bind(body.contract_doc_id, user.sub, user.sub).first();
+      if (!contract) return c.json({ success: false, error: 'You are not a party to this contract' }, 403);
+    }
     const id = generateId();
     await c.env.DB.prepare(
       'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
@@ -620,9 +657,18 @@ api.post('/smart-rules', authMiddleware(), async (c) => {
   }
 });
 
+// Item 17: Smart rules ownership check on update
 api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
   try {
     const { id } = c.req.param();
+    const user = c.get('user');
+    // Ownership check: user must be party to the rule's contract or admin
+    if (user.role !== 'admin') {
+      const rule = await c.env.DB.prepare(
+        'SELECT scr.id FROM smart_contract_rules scr JOIN contract_documents cd ON scr.contract_doc_id = cd.id WHERE scr.id = ? AND (cd.creator_id = ? OR cd.counterparty_id = ?)'
+      ).bind(id, user.sub, user.sub).first();
+      if (!rule) return c.json({ success: false, error: 'Not authorized to modify this rule' }, 403);
+    }
     const body = await c.req.json() as Record<string, unknown>;
     const updates: string[] = [];
     const values: unknown[] = [];
@@ -638,9 +684,18 @@ api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
   }
 });
 
+// Item 17: Smart rules ownership check on delete
 api.delete('/smart-rules/:id', authMiddleware(), async (c) => {
   try {
     const { id } = c.req.param();
+    const user = c.get('user');
+    // Ownership check: user must be party to the rule's contract or admin
+    if (user.role !== 'admin') {
+      const rule = await c.env.DB.prepare(
+        'SELECT scr.id FROM smart_contract_rules scr JOIN contract_documents cd ON scr.contract_doc_id = cd.id WHERE scr.id = ? AND (cd.creator_id = ? OR cd.counterparty_id = ?)'
+      ).bind(id, user.sub, user.sub).first();
+      if (!rule) return c.json({ success: false, error: 'Not authorized to delete this rule' }, 403);
+    }
     await c.env.DB.prepare('DELETE FROM smart_contract_rules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
   } catch {
