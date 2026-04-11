@@ -73,8 +73,8 @@ function sum(v: unknown): number {
   return (v as Record<string, number> | null)?.s ?? 0;
 }
 function formatZAR(cents: number): string {
-  if (cents >= 100_000_000) return `R${(cents / 100_000_00).toFixed(1)}M`;
-  if (cents >= 100_000) return `R${(cents / 100_00).toFixed(0)}K`;
+  if (cents >= 100_000_000) return `R${(cents / 100_000_000).toFixed(1)}M`;
+  if (cents >= 100_000) return `R${(cents / 100_000).toFixed(0)}K`;
   return `R${(cents / 100).toFixed(0)}`;
 }
 
@@ -128,7 +128,7 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [participants, revenue, volume, kycQueue, activeContracts, disputes] = await Promise.all([
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'verified'").first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(fee_cents),0) as s FROM trades WHERE created_at >= date('now','start of month')").first<{ s: number }>(),
-    db.prepare("SELECT COALESCE(SUM(total_value_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(total_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE registration_status = 'manual_review'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE phase = 'active'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','withdrawn')").first<{ c: number }>(),
@@ -165,7 +165,7 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Module cards
   const [partStats, tradeStats, complianceStats] = await Promise.all([
     db.prepare("SELECT kyc_status, COUNT(*) as c FROM participants GROUP BY kyc_status").all(),
-    db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(total_value_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ c: number; s: number }>(),
+    db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(total_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ c: number; s: number }>(),
     db.prepare("SELECT status, COUNT(*) as c FROM statutory_checks GROUP BY status").all(),
   ]);
 
@@ -215,7 +215,7 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Action queue
   const [outstandingCPs, pendingSignatures, projectList] = await Promise.all([
     db.prepare("SELECT cp.id, cp.description, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.participant_id = ? AND cp.status = 'outstanding' ORDER BY cp.created_at ASC LIMIT 10").bind(pid).all(),
-    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN contract_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 10").bind(pid).all(),
+    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 10").bind(pid).all(),
     db.prepare("SELECT id, name, phase, capacity_mw FROM projects WHERE participant_id = ? ORDER BY created_at DESC").bind(pid).all(),
   ]);
 
@@ -268,7 +268,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [openOrders, tradeCount, carbonPosition, settlements] = await Promise.all([
     db.prepare("SELECT COUNT(*) as c FROM orders WHERE participant_id = ? AND status IN ('open','partial')").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= date('now','-30 days')").bind(pid, pid).first<{ c: number }>(),
-    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'available'").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending' AND created_at <= datetime('now','-1 day')").bind(pid, pid).first<{ c: number }>(),
   ]);
 
@@ -284,7 +284,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [partialOrders, pendingSetts, pendingSignatures] = await Promise.all([
     db.prepare("SELECT id, market, filled_qty, quantity, created_at FROM orders WHERE participant_id = ? AND status = 'partial' LIMIT 10").bind(pid).all(),
     db.prepare("SELECT t.id, t.created_at FROM trades t WHERE (t.buyer_id = ? OR t.seller_id = ?) AND t.status = 'pending' AND t.created_at <= datetime('now','-1 day') LIMIT 10").bind(pid, pid).all(),
-    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN contract_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
+    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
@@ -340,7 +340,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
 // ══════════════════════════════════════════════════════════════
 async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [creditsAvailable, activeOptions, retiredYTD] = await Promise.all([
-    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'available'").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active'").bind(pid, pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
   ]);
@@ -348,7 +348,7 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
   // Action queue
   const [expiringOptions, pendingTransfers] = await Promise.all([
     db.prepare("SELECT id, option_type, underlying, expiry_date, created_at FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active' AND expiry_date <= date('now','+30 days') LIMIT 10").bind(pid, pid).all(),
-    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN contract_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
+    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
@@ -366,7 +366,7 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
     })),
   ]);
 
-  const creditsByRegistry = await db.prepare("SELECT registry, COUNT(*) as c, COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'available' GROUP BY registry").bind(pid).all();
+  const creditsByRegistry = await db.prepare("SELECT registry, COUNT(*) as c, COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active' GROUP BY registry").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
     { module: 'inventory', title: 'Credit Inventory', summary: { byRegistry: creditsByRegistry.results, total: sum(creditsAvailable) }, chart_type: 'pie', action_count: 0, link: '/carbon' },
@@ -403,7 +403,7 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Action queue
   const [dueInvoices, pendingSignatures] = await Promise.all([
     db.prepare("SELECT id, invoice_number, total_cents, due_date, created_at FROM invoices WHERE to_participant_id = ? AND status = 'outstanding' AND due_date <= date('now','+7 days') ORDER BY due_date ASC LIMIT 10").bind(pid).all(),
-    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN contract_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
+    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
@@ -459,7 +459,7 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [pendingDisb, approachingCPs, pendingSignatures] = await Promise.all([
     db.prepare("SELECT d.id, d.amount_cents, p.name as project_name, d.created_at FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'ie_certified' LIMIT 10").bind(pid).all(),
     db.prepare("SELECT cp.id, cp.description, cp.target_date, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.lender_id = ? AND cp.status = 'outstanding' AND cp.target_date <= date('now','+14 days') LIMIT 10").bind(pid).all(),
-    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN contract_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
+    db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
