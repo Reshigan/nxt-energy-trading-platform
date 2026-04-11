@@ -7,6 +7,7 @@ import { signJwt, signRefreshToken } from '../auth/jwt';
 import { authMiddleware } from '../auth/middleware';
 import { cascade } from '../utils/cascade';
 import { captureException } from '../utils/sentry';
+import { encryptPII } from '../utils/crypto';
 
 const register = new Hono<HonoEnv>();
 
@@ -50,10 +51,12 @@ register.post('/', async (c) => {
       sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled, email_verified)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0)
   `).bind(
-    id, data.company_name, data.registration_number, data.tax_number,
+    id, data.company_name, data.registration_number,
+    data.tax_number ? await encryptPII(data.tax_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
     data.vat_number || null, data.role, data.contact_person, data.email,
     hash, salt, data.phone, data.physical_address,
-    data.sa_id_number || null, data.bbbee_level || null,
+    data.sa_id_number ? await encryptPII(data.sa_id_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
+    data.bbbee_level || null,
     data.nersa_licence || null, data.fsca_licence || null
   ).run();
 
@@ -580,11 +583,11 @@ register.post('/auth/login', async (c) => {
   }
 
   const participant = await c.env.DB.prepare(
-    'SELECT id, email, role, company_name, kyc_status, password_hash, password_salt, trading_enabled, two_factor_enabled FROM participants WHERE email = ?'
+    'SELECT id, email, role, company_name, kyc_status, password_hash, password_salt, trading_enabled, two_factor_enabled, admin_level FROM participants WHERE email = ?'
   ).bind(email).first<{
     id: string; email: string; role: string; company_name: string;
     kyc_status: string; password_hash: string; password_salt: string;
-    trading_enabled: number; two_factor_enabled: number;
+    trading_enabled: number; two_factor_enabled: number; admin_level: string | null;
   }>();
 
   if (!participant) {
@@ -648,6 +651,7 @@ register.post('/auth/login', async (c) => {
     role: participant.role as any,
     company_name: participant.company_name,
     kyc_status: participant.kyc_status as any,
+    ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
   }, jwtSecret);
   const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -709,10 +713,10 @@ register.post('/auth/login/2fa', async (c) => {
 
     // Fetch participant and issue JWT
     const participant = await c.env.DB.prepare(
-      'SELECT id, email, role, company_name, kyc_status, trading_enabled FROM participants WHERE id = ?'
+      'SELECT id, email, role, company_name, kyc_status, trading_enabled, admin_level FROM participants WHERE id = ?'
     ).bind(tempData.participant_id).first<{
       id: string; email: string; role: string; company_name: string;
-      kyc_status: string; trading_enabled: number;
+      kyc_status: string; trading_enabled: number; admin_level: string | null;
     }>();
     if (!participant) {
       return c.json({ success: false, error: 'Participant not found' }, 404);
@@ -725,6 +729,7 @@ register.post('/auth/login/2fa', async (c) => {
       role: participant.role as any,
       company_name: participant.company_name,
       kyc_status: participant.kyc_status as any,
+      ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
     }, jwtSecret);
     const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -1041,6 +1046,243 @@ register.post('/me/preferences', authMiddleware({ requireKyc: false }), async (c
   } catch (err) {
     captureException(c, err);
     return c.json({ success: false, error: 'Failed to update preferences' }, 500);
+  }
+});
+
+// ── Part 5: Admin-initiated account recovery endpoints ──────────
+
+// POST /admin/users/:id/reset-password — Admin resets a user's password
+register.post('/admin/users/:id/reset-password', authMiddleware({ roles: ['admin'], adminLevel: 'support' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { new_password: string };
+
+    if (!body.new_password || body.new_password.length < 8) {
+      return c.json({ success: false, error: 'new_password is required (min 8 chars)' }, 400);
+    }
+
+    const target = await c.env.DB.prepare('SELECT id, email FROM participants WHERE id = ?').bind(id).first<{ id: string; email: string }>();
+    if (!target) return c.json({ success: false, error: 'User not found' }, 404);
+
+    const { hash, salt } = await hashPassword(body.new_password);
+    await c.env.DB.prepare(
+      "UPDATE participants SET password_hash = ?, password_salt = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(hash, salt, id).run();
+
+    // Invalidate existing tokens
+    await c.env.KV.put(`pw_changed:${id}`, nowISO(), { expirationTtl: 86400 });
+
+    // Audit
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'admin_reset_password', 'participant', ?, ?, ?)`
+    ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Password reset successful' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to reset password' }, 500);
+  }
+});
+
+// POST /admin/users/:id/unlock — Admin unlocks a locked account
+register.post('/admin/users/:id/unlock', authMiddleware({ roles: ['admin'], adminLevel: 'support' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    const target = await c.env.DB.prepare('SELECT id, email FROM participants WHERE id = ?').bind(id).first<{ id: string; email: string }>();
+    if (!target) return c.json({ success: false, error: 'User not found' }, 404);
+
+    // Clear brute-force lockout
+    await c.env.KV.delete(`login_fail:${target.email}`);
+
+    // If suspended, restore to verified
+    await c.env.DB.prepare(
+      "UPDATE participants SET kyc_status = CASE WHEN kyc_status = 'suspended' THEN 'verified' ELSE kyc_status END, updated_at = datetime('now') WHERE id = ?"
+    ).bind(id).run();
+
+    // Audit
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'admin_unlock_account', 'participant', ?, ?, ?)`
+    ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Account unlocked' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to unlock account' }, 500);
+  }
+});
+
+// POST /admin/users/:id/resend-verification — Admin sends email verification
+register.post('/admin/users/:id/resend-verification', authMiddleware({ roles: ['admin'], adminLevel: 'support' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const target = await c.env.DB.prepare('SELECT id, email FROM participants WHERE id = ?').bind(id).first<{ id: string; email: string }>();
+    if (!target) return c.json({ success: false, error: 'User not found' }, 404);
+
+    const otp = generateOTP();
+    await c.env.KV.put(`otp:verify:${target.email}`, otp, { expirationTtl: 600 });
+
+    const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+    if (resendKey) {
+      c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'Ionvex <noreply@et.vantax.co.za>',
+          to: [target.email],
+          subject: 'Ionvex — Email Verification',
+          html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`,
+        }),
+      }).catch(() => {}));
+    }
+
+    return c.json({ success: true, message: 'Verification email sent' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to send verification' }, 500);
+  }
+});
+
+// POST /admin/users/:id/verify-email — Admin force-verifies a user's email
+register.post('/admin/users/:id/verify-email', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    await c.env.DB.prepare(
+      "UPDATE participants SET email_verified = 1, updated_at = datetime('now') WHERE id = ?"
+    ).bind(id).run();
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'admin_verify_email', 'participant', ?, '{}', ?)`
+    ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Email verified' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to verify email' }, 500);
+  }
+});
+
+// POST /admin/users/:id/reset-2fa — Admin resets 2FA for a user
+register.post('/admin/users/:id/reset-2fa', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    // Delete 2FA secret from KV
+    await c.env.KV.delete(`2fa:${id}`);
+
+    // Update DB
+    try {
+      await c.env.DB.prepare(
+        "UPDATE participants SET two_factor_enabled = 0, updated_at = datetime('now') WHERE id = ?"
+      ).bind(id).run();
+    } catch { /* column may not exist */ }
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'admin_reset_2fa', 'participant', ?, '{}', ?)`
+    ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: '2FA reset successful' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to reset 2FA' }, 500);
+  }
+});
+
+// ── Part 6: Missing endpoints ───────────────────────────────────
+
+// POST /auth/send-verification — Send email verification OTP
+register.post('/auth/send-verification', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string };
+    if (!body.email) return c.json({ success: false, error: 'Email is required' }, 400);
+
+    const participant = await c.env.DB.prepare('SELECT id, email FROM participants WHERE email = ?').bind(body.email).first<{ id: string; email: string }>();
+    if (participant) {
+      const otp = generateOTP();
+      await c.env.KV.put(`otp:verify:${body.email}`, otp, { expirationTtl: 600 });
+
+      const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+      if (resendKey) {
+        c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'Ionvex <noreply@et.vantax.co.za>',
+            to: [body.email],
+            subject: 'Ionvex — Email Verification',
+            html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`,
+          }),
+        }).catch(() => {}));
+      }
+    }
+
+    // Always return success to avoid email enumeration
+    return c.json({ success: true, message: 'If the email is registered, a verification code has been sent.' });
+  } catch {
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// POST /auth/verify-email — Verify email with OTP
+register.post('/auth/verify-email', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string; otp: string };
+    if (!body.email || !body.otp) return c.json({ success: false, error: 'email and otp are required' }, 400);
+
+    const stored = await c.env.KV.get(`otp:verify:${body.email}`);
+    if (!stored || stored !== body.otp) {
+      return c.json({ success: false, error: 'Invalid or expired verification code' }, 400);
+    }
+
+    await c.env.KV.delete(`otp:verify:${body.email}`);
+    await c.env.DB.prepare(
+      "UPDATE participants SET email_verified = 1, updated_at = datetime('now') WHERE email = ?"
+    ).bind(body.email).run();
+
+    return c.json({ success: true, message: 'Email verified successfully' });
+  } catch {
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// GET /me/onboarding-status — Check onboarding completion
+register.get('/me/onboarding-status', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    const participant = await c.env.DB.prepare(
+      'SELECT kyc_status, email_verified, company_name, contact_person, phone FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{
+      kyc_status: string; email_verified: number; company_name: string;
+      contact_person: string | null; phone: string | null;
+    }>();
+
+    if (!participant) return c.json({ success: false, error: 'Not found' }, 404);
+
+    const steps = {
+      email_verified: participant.email_verified === 1,
+      profile_complete: !!(participant.company_name && participant.contact_person && participant.phone),
+      kyc_submitted: participant.kyc_status !== 'pending',
+      kyc_verified: participant.kyc_status === 'verified',
+    };
+
+    const completed = Object.values(steps).filter(Boolean).length;
+    const total = Object.keys(steps).length;
+
+    return c.json({ success: true, data: { steps, completed, total, complete: completed === total } });
+  } catch {
+    return c.json({ success: false, error: 'Failed to fetch onboarding status' }, 500);
+  }
+});
+
+// POST /me/complete-onboarding — Mark onboarding as complete
+register.post('/me/complete-onboarding', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    // Set a KV flag indicating onboarding is complete
+    await c.env.KV.put(`onboarding:${user.sub}`, 'complete');
+    return c.json({ success: true, message: 'Onboarding marked as complete' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to complete onboarding' }, 500);
   }
 });
 
