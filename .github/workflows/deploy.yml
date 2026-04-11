@@ -3,14 +3,53 @@ on:
   push:
     branches:
       - main
+      - energy-trading-platform-v1
 
 env:
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
+  CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
   CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 jobs:
-  deploy:
+  # ── Detect which parts of the platform changed ──────────────
+  detect-changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      migrations: ${{ steps.filter.outputs.migrations }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'cloudflare-platform/src/**'
+              - 'cloudflare-platform/wrangler.toml'
+              - 'cloudflare-platform/package.json'
+              - 'cloudflare-platform/tsconfig.json'
+            frontend:
+              - 'cloudflare-platform/pages/**'
+            migrations:
+              - 'cloudflare-platform/migrations/**'
+
+      - name: Print detected changes
+        run: |
+          echo "Backend changed: ${{ steps.filter.outputs.backend }}"
+          echo "Frontend changed: ${{ steps.filter.outputs.frontend }}"
+          echo "Migrations changed: ${{ steps.filter.outputs.migrations }}"
+
+  # ── Deploy backend Worker + Durable Objects ─────────────────
+  deploy-backend:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.migrations == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,19 +65,106 @@ jobs:
           cd cloudflare-platform
           npm install
 
-      - name: Deploy Backend and Durable Objects
+      - name: Deploy Worker
         run: |
           cd cloudflare-platform
           npx wrangler deploy
 
-      - name: Run Database Migrations
+  # ── Run D1 database migrations ──────────────────────────────
+  run-migrations:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-backend]
+    # Run migrations when migration files changed; wait for backend if it was deploying
+    if: |
+      always() &&
+      needs.detect-changes.outputs.migrations == 'true' &&
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Apply D1 Migrations
         run: |
           cd cloudflare-platform
           npx wrangler d1 migrations apply DB --remote
 
-      - name: Build and Deploy Frontend
+  # ── Build & deploy frontend ─────────────────────────────────
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-backend, run-migrations]
+    # Deploy frontend when frontend OR backend changed (keeps API contract in sync)
+    if: |
+      always() &&
+      (needs.detect-changes.outputs.frontend == 'true' || needs.detect-changes.outputs.backend == 'true') &&
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped') &&
+      (needs.run-migrations.result == 'success' || needs.run-migrations.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Wrangler
+        run: npm install -g wrangler
+
+      - name: Install Frontend Dependencies
         run: |
           cd cloudflare-platform/pages
           npm install
+
+      - name: Build Frontend
+        run: |
+          cd cloudflare-platform/pages
           npm run build
-          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform
+
+      - name: Deploy to Cloudflare Pages
+        run: |
+          cd cloudflare-platform
+          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch production
+
+  # ── Post-deploy health checks ───────────────────────────────
+  verify:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-backend, run-migrations, deploy-frontend]
+    if: always() && !contains(needs.*.result, 'failure')
+    steps:
+      - name: Health check — Backend API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://et.vantax.co.za/api/)
+          echo "Backend API status: $STATUS"
+          if [ "$STATUS" -ge 500 ]; then
+            echo "::error::Backend health check failed (HTTP $STATUS)"
+            exit 1
+          fi
+
+      - name: Health check — Frontend
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://et.vantax.co.za/)
+          echo "Frontend status: $STATUS"
+          if [ "$STATUS" -ge 500 ]; then
+            echo "::error::Frontend health check failed (HTTP $STATUS)"
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component   | Changed | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|---------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend     | ${{ needs.detect-changes.outputs.backend }} | ${{ needs.deploy-backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Migrations  | ${{ needs.detect-changes.outputs.migrations }} | ${{ needs.run-migrations.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend    | ${{ needs.detect-changes.outputs.frontend }} | ${{ needs.deploy-frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Production URL:** https://et.vantax.co.za" >> $GITHUB_STEP_SUMMARY
