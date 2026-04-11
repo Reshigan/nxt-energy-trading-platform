@@ -117,7 +117,14 @@ app.use('*', cors({
 // Higher limits for trading-heavy roles, lower for read-heavy roles
 app.use('/api/v1/trading/*', rateLimiter({ maxRequests: 300, windowSeconds: 60 }));
 app.use('/api/v1/carbon/*', rateLimiter({ maxRequests: 200, windowSeconds: 60 }));
-app.use('/api/v1/*', rateLimiter({ maxRequests: 100, windowSeconds: 60 }));
+// General rate limit — skip paths that already have a specific limiter above
+app.use('/api/v1/*', async (c, next) => {
+  const p = c.req.path;
+  if (p.startsWith('/api/v1/trading/') || p.startsWith('/api/v1/carbon/')) {
+    return next();
+  }
+  return rateLimiter({ maxRequests: 100, windowSeconds: 60 })(c, next);
+});
 
 // API versioning headers on all responses
 app.use('*', async (c, next) => {
