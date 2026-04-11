@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - energy-trading-platform-v1
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -20,7 +21,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Dependencies
+      - name: Install Backend Dependencies
         run: |
           npm install -g wrangler
           cd cloudflare-platform
@@ -36,9 +37,17 @@ jobs:
           cd cloudflare-platform
           npx wrangler d1 migrations apply DB --remote
 
-      - name: Build and Deploy Frontend
+      - name: Install Frontend Dependencies
         run: |
           cd cloudflare-platform/pages
           npm install
+
+      - name: Build Frontend
+        run: |
+          cd cloudflare-platform/pages
           npm run build
-          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform
+
+      - name: Deploy Frontend
+        run: |
+          cd cloudflare-platform
+          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch production
