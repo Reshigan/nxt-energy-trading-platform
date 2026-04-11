@@ -10,7 +10,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 interface SummaryData {
   period_days: number;
   generation: { total_kwh: number; readings: number; avg_kwh: number; peak_kwh: number };
-  consumption: { total_kwh: number; readings: number; avg_kwh: number; peak_kwh: number; avg_carbon_intensity: number; estimated_emissions_tco2e: number };
+  consumption: { total_kwh: number; readings: number; avg_kwh: number; peak_kwh: number; avg_carbon_intensity_gco2: number; estimated_emissions_kgco2: number };
   net_kwh: number;
   by_tariff_period: Array<{ tariff_period: string; total_kwh: number; readings: number }>;
   by_direction: Array<{ direction: string; total_kwh: number; readings: number }>;
@@ -62,8 +62,8 @@ export default function MeteringAnalytics() {
   const genMWh = summary ? Math.round(summary.generation.total_kwh / 1000) : 0;
   const conMWh = summary ? Math.round(summary.consumption.total_kwh / 1000) : 0;
   const netMWh = summary ? Math.round(summary.net_kwh / 1000) : 0;
-  const avgCI = summary ? Math.round(summary.consumption.avg_carbon_intensity) : 0;
-  const avoidedTCO2 = summary ? Math.round(summary.consumption.estimated_emissions_tco2e * 10) / 10 : 0;
+  const avgCI = summary ? Math.round(summary.consumption.avg_carbon_intensity_gco2) : 0;
+  const avoidedTCO2 = summary ? Math.round(summary.consumption.estimated_emissions_kgco2 / 1000 * 10) / 10 : 0;
   const avgPF = summary ? summary.avg_power_factor : 0;
 
   const pieData = summary?.by_direction?.map(d => ({ name: d.direction, value: Math.round(d.total_kwh / 1000) })) ?? [];
