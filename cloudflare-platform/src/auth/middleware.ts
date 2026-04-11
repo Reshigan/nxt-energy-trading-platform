@@ -49,6 +49,16 @@ export function authMiddleware(options?: {
       return c.json({ success: false, error: 'Invalid or expired token', code: 'AUTH_FAILED' }, 401);
     }
 
+    // Check if password was changed after this token was issued (invalidates all pre-reset tokens)
+    try {
+      const pwChanged = await c.env.KV.get(`pw_changed:${payload.sub}`);
+      if (pwChanged && payload.iat < Math.floor(new Date(pwChanged).getTime() / 1000)) {
+        return c.json({ success: false, error: 'Token invalidated by password reset. Please login again.', code: 'AUTH_FAILED' }, 401);
+      }
+    } catch {
+      // If KV fails, allow through
+    }
+
     const requireKyc = options?.requireKyc !== false;
     if (requireKyc && payload.kyc_status !== 'verified') {
       const path = c.req.path;
