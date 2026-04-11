@@ -286,14 +286,14 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= date('now','-30 days')").bind(pid, pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending' AND created_at <= datetime('now','-1 day')").bind(pid, pid).first<{ c: number }>(),
-    // ODSE: Total generation (30d) for energy balance
-    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t WHERE t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").first<{ s: number }>(),
-    // ODSE: Total consumption (30d) for energy balance
-    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t WHERE t.direction = 'consumption' AND t.timestamp >= date('now','-30 days')").first<{ s: number }>(),
-    // ODSE: Daily generation vs consumption for balance chart
-    db.prepare("SELECT date(t.timestamp) as date, t.direction, ROUND(SUM(t.kwh)/1000,2) as mwh FROM odse_timeseries t WHERE t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY date(t.timestamp), t.direction ORDER BY date DESC LIMIT 60").all(),
-    // ODSE: Hourly energy balance profile
-    db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, t.direction, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t WHERE t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY hour, t.direction ORDER BY hour").all(),
+    // ODSE: Total generation (30d) for energy balance — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ s: number }>(),
+    // ODSE: Total consumption (30d) for energy balance — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ s: number }>(),
+    // ODSE: Daily generation vs consumption for balance chart — scoped to participant's assets
+    db.prepare("SELECT date(t.timestamp) as date, t.direction, ROUND(SUM(t.kwh)/1000,2) as mwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY date(t.timestamp), t.direction ORDER BY date DESC LIMIT 60").bind(pid).all(),
+    // ODSE: Hourly energy balance profile — scoped to participant's assets
+    db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, t.direction, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY hour, t.direction ORDER BY hour").bind(pid).all(),
   ]);
 
   // Filled vs total for fill rate
@@ -371,12 +371,12 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active'").bind(pid, pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
-    // ODSE: Avoided emissions from renewable generation (grid emission factor ~1000 gCO2/kWh for SA)
-    db.prepare("SELECT COALESCE(SUM(t.kwh * (1000 - COALESCE(t.carbon_intensity_gco2_per_kwh, 0)) / 1000000),0) as avoided_tco2e FROM odse_timeseries t WHERE t.direction = 'generation' AND t.timestamp >= date('now','start of year')").first<{ avoided_tco2e: number }>(),
-    // ODSE: Daily carbon intensity trend
-    db.prepare("SELECT date(t.timestamp) as date, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci, ROUND(SUM(t.kwh * COALESCE(t.carbon_intensity_gco2_per_kwh,0) / 1000000),3) as emissions_tco2e FROM odse_timeseries t WHERE t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY date(t.timestamp) ORDER BY date DESC LIMIT 30").all(),
-    // ODSE: Carbon by asset type
-    db.prepare("SELECT a.asset_type, ROUND(SUM(t.kwh),0) as total_kwh, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY a.asset_type").all(),
+    // ODSE: Avoided emissions from renewable generation — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh * (1000 - COALESCE(t.carbon_intensity_gco2_per_kwh, 0)) / 1000000),0) as avoided_tco2e FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','start of year')").bind(pid).first<{ avoided_tco2e: number }>(),
+    // ODSE: Daily carbon intensity trend — scoped to participant's assets
+    db.prepare("SELECT date(t.timestamp) as date, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci, ROUND(SUM(t.kwh * COALESCE(t.carbon_intensity_gco2_per_kwh,0) / 1000000),3) as emissions_tco2e FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY date(t.timestamp) ORDER BY date DESC LIMIT 30").bind(pid).all(),
+    // ODSE: Carbon by asset type — scoped to participant's assets
+    db.prepare("SELECT a.asset_type, ROUND(SUM(t.kwh),0) as total_kwh, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY a.asset_type").bind(pid).all(),
   ]);
 
   // Action queue
