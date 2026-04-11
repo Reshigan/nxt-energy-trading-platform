@@ -30,7 +30,7 @@ export default function Login() {
         const res2fa = await fetch(`${base}/register/auth/login/2fa`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, token: otpToken, otp: otpCode }),
+          body: JSON.stringify({ temp_token: otpToken, otp: otpCode }),
         });
         const json2fa = await res2fa.json();
         if (!res2fa.ok) throw new Error(json2fa.error || '2FA verification failed');
@@ -56,7 +56,7 @@ export default function Login() {
       }
       if (payload.requires_2fa) {
         setNeeds2FA(true);
-        setOtpToken(payload.token || '');
+        setOtpToken(payload.temp_token || '');
         return;
       }
       login(payload.token, payload.participant || { email, role: 'trader' });
