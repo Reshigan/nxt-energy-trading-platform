@@ -80,7 +80,7 @@ export default function Login() {
         <div className="text-center mb-8" style={{ animation: 'cardFadeUp 500ms ease both' }}>
           <div className="inline-flex items-center gap-2.5 mb-4">
             <NXTLogo size={44} animated />
-            <span className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">NXT Energy</span>
+            <span className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">Ionvex</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back</h1>
           <p className="text-sm text-slate-500 mt-1">Sign in to your trading account</p>
@@ -151,7 +151,7 @@ export default function Login() {
         </form>
 
         <p className="text-center text-[11px] text-slate-400 mt-6">
-          NXT Open Market Energy Trading Platform &middot; GONXT Technology (Pty) Ltd
+          Ionvex Energy Exchange &middot; GONXT Technology (Pty) Ltd
         </p>
       </div>
     </motion.div>

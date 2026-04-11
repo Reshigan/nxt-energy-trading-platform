@@ -1,6 +1,6 @@
 {
-  "name": "NXT Energy Trading Platform",
-  "short_name": "NXT Energy",
+    "name": "Ionvex Energy Exchange",
+    "short_name": "Ionvex",
   "description": "South Africa's premier energy trading, carbon management, and portfolio optimisation platform",
   "start_url": "/",
   "display": "standalone",

@@ -204,13 +204,29 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
 // COCKPIT 2: IPP DEVELOPER / GENERATOR
 // ══════════════════════════════════════════════════════════════
 async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
-  const [projects, capacity, cpsOutstanding, disbPending, generation] = await Promise.all([
+  const [projects, capacity, cpsOutstanding, disbPending, generation, odseGenMTD, odseCapFactor, odseHourly, odseDailyTrend] = await Promise.all([
     db.prepare("SELECT COUNT(*) as c FROM projects WHERE participant_id = ?").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(capacity_mw),0) as s FROM projects WHERE participant_id = ?").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.participant_id = ? AND cp.status = 'outstanding'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.participant_id = ? AND d.status IN ('pending','pending_fc')").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.participant_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
+    // ODSE: Generation MTD from ODSE timeseries
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s, COUNT(*) as c FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','start of month')").bind(pid).first<{ s: number; c: number }>(),
+    // ODSE: Capacity factor (actual gen / theoretical max) — separate subquery for capacity to avoid inflation by reading count
+    Promise.all([
+      db.prepare("SELECT COALESCE(SUM(t.kwh),0) as gen_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ gen_kwh: number }>(),
+      db.prepare("SELECT COALESCE(SUM(capacity_kw),0) as cap_kw FROM odse_assets WHERE participant_id = ?").bind(pid).first<{ cap_kw: number }>(),
+    ]).then(([gen, cap]) => ({ gen_kwh: gen?.gen_kwh ?? 0, cap_kw: cap?.cap_kw ?? 0 })),
+    // ODSE: Hourly generation profile (for chart)
+    db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days') GROUP BY hour ORDER BY hour").bind(pid).all(),
+    // ODSE: Daily generation trend (for chart)
+    db.prepare("SELECT date(t.timestamp) as date, ROUND(SUM(t.kwh)/1000,2) as mwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days') GROUP BY date(t.timestamp) ORDER BY date DESC LIMIT 30").bind(pid).all(),
   ]);
+
+  // ODSE capacity factor calculation
+  const genKwh = (odseCapFactor as Record<string, number> | null)?.gen_kwh ?? 0;
+  const theoreticalKwh = ((odseCapFactor as Record<string, number> | null)?.cap_kw ?? 0) * 30 * 24; // 30 days * 24 hours
+  const capFactor = theoreticalKwh > 0 ? Math.round((genKwh / theoreticalKwh) * 10000) / 100 : 0;
 
   // Action queue
   const [outstandingCPs, pendingSignatures, projectList] = await Promise.all([
@@ -243,6 +259,7 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
     { module: 'cp_tracker', title: 'CP Tracker', summary: { outstanding: cnt(cpsOutstanding) }, action_count: cnt(cpsOutstanding), link: '/ipp' },
     { module: 'disbursements', title: 'Disbursements', summary: { byStatus: disbursementStats.results, pending: cnt(disbPending) }, action_count: cnt(disbPending), link: '/ipp' },
     { module: 'generation', title: 'Generation', summary: { mtd_kwh: sum(generation), mtd_mwh: Math.round(sum(generation) / 1000) }, chart_type: 'sparkline', action_count: 0, link: '/metering' },
+    { module: 'odse_generation', title: 'ODSE Generation Analytics', summary: { mtd_kwh: sum(odseGenMTD), mtd_mwh: Math.round(sum(odseGenMTD) / 1000), capacity_factor_pct: capFactor, hourly_profile: odseHourly.results, daily_trend: odseDailyTrend.results }, chart_type: 'bar', chart_data: odseDailyTrend.results as unknown[], action_count: 0, link: '/metering-analytics' },
     { module: 'contracts', title: 'Contracts', summary: { pending_signatures: pendingSignatures.results.length }, action_count: pendingSignatures.results.length, link: '/contracts' },
   ];
 
@@ -252,6 +269,8 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
       { id: 'capacity', label: 'Total Capacity', value: `${sum(capacity)} MW`, value_raw: sum(capacity), unit: 'MW', change: 0, trend: 'up', positive: true, period: 'all_time', source_endpoint: '/projects' },
       { id: 'cps', label: 'CPs Outstanding', value: String(cnt(cpsOutstanding)), value_raw: cnt(cpsOutstanding), unit: 'count', change: 0, trend: 'down', positive: cnt(cpsOutstanding) === 0, period: 'current', source_endpoint: '/projects' },
       { id: 'generation', label: 'Generation MTD', value: `${Math.round(sum(generation) / 1000)} MWh`, value_raw: sum(generation), unit: 'MWh', change: 0, trend: 'up', positive: true, period: 'mtd', source_endpoint: '/metering' },
+      { id: 'odse_gen', label: 'ODSE Gen MTD', value: `${Math.round(sum(odseGenMTD) / 1000)} MWh`, value_raw: sum(odseGenMTD), unit: 'MWh', change: 0, trend: 'up', positive: true, period: 'mtd', source_endpoint: '/odse/analytics/summary' },
+      { id: 'capacity_factor', label: 'Capacity Factor', value: `${capFactor}%`, value_raw: capFactor, unit: '%', change: 0, trend: 'up', positive: capFactor > 20, period: '30d', source_endpoint: '/odse/analytics/summary' },
       { id: 'disbursements', label: 'Disbursements Pending', value: String(cnt(disbPending)), value_raw: cnt(disbPending), unit: 'count', change: 0, trend: 'flat', positive: true, period: 'current', source_endpoint: '/projects' },
     ],
     action_queue,
@@ -265,11 +284,19 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
 // COCKPIT 3: ENERGY TRADER
 // ══════════════════════════════════════════════════════════════
 async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
-  const [openOrders, tradeCount, carbonPosition, settlements] = await Promise.all([
+  const [openOrders, tradeCount, carbonPosition, settlements, odseGenTotal, odseConsTotal, odseDailyBalance, odseHourlyBalance] = await Promise.all([
     db.prepare("SELECT COUNT(*) as c FROM orders WHERE participant_id = ? AND status IN ('open','partial')").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND created_at >= date('now','-30 days')").bind(pid, pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending' AND created_at <= datetime('now','-1 day')").bind(pid, pid).first<{ c: number }>(),
+    // ODSE: Total generation (30d) for energy balance — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ s: number }>(),
+    // ODSE: Total consumption (30d) for energy balance — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ s: number }>(),
+    // ODSE: Daily generation vs consumption for balance chart — scoped to participant's assets
+    db.prepare("SELECT date(t.timestamp) as date, t.direction, ROUND(SUM(t.kwh)/1000,2) as mwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY date(t.timestamp), t.direction ORDER BY date DESC LIMIT 60").bind(pid).all(),
+    // ODSE: Hourly energy balance profile — scoped to participant's assets
+    db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, t.direction, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.timestamp >= date('now','-30 days') AND t.direction IN ('generation','consumption') GROUP BY hour, t.direction ORDER BY hour").bind(pid).all(),
   ]);
 
   // Filled vs total for fill rate
@@ -311,9 +338,12 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Module cards
   const recentTrades = await db.prepare("SELECT id, market, price_cents, quantity, side, created_at FROM trades WHERE (buyer_id = ? OR seller_id = ?) ORDER BY created_at DESC LIMIT 10").bind(pid, pid).all();
 
+  const netBalance = sum(odseGenTotal) - sum(odseConsTotal);
+
   const module_cards: ModuleCard[] = [
     { module: 'positions', title: 'Positions', summary: { open_orders: cnt(openOrders) }, chart_type: 'bar', action_count: 0, link: '/trading' },
     { module: 'orderbook', title: 'Order Book', summary: {}, chart_type: 'bar', action_count: partialOrders.results.length, link: '/trading' },
+    { module: 'odse_energy_balance', title: 'Energy Balance (ODSE)', summary: { generation_mwh: Math.round(sum(odseGenTotal) / 1000), consumption_mwh: Math.round(sum(odseConsTotal) / 1000), net_mwh: Math.round(netBalance / 1000), daily_balance: odseDailyBalance.results, hourly_profile: odseHourlyBalance.results }, chart_type: 'bar', chart_data: odseDailyBalance.results as unknown[], action_count: 0, link: '/metering-analytics' },
     { module: 'risk', title: 'Risk', summary: {}, chart_type: 'gauge', action_count: 0, link: '/risk' },
     { module: 'carbon', title: 'Carbon Portfolio', summary: { position_tco2e: sum(carbonPosition) }, chart_type: 'pie', action_count: 0, link: '/carbon' },
     { module: 'recent_trades', title: 'Recent Trades', summary: { trades: recentTrades.results }, chart_type: 'sparkline', action_count: 0, link: '/trade-journal' },
@@ -324,6 +354,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
       { id: 'portfolio', label: 'Portfolio Value', value: 'R0', value_raw: 0, unit: 'ZAR', change: 0, trend: 'flat', positive: true, period: 'current', source_endpoint: '/trading' },
       { id: 'open_orders', label: 'Open Orders', value: String(cnt(openOrders)), value_raw: cnt(openOrders), unit: 'count', change: 0, trend: 'up', positive: true, period: 'current', source_endpoint: '/trading' },
       { id: 'fill_rate', label: 'Fill Rate (30d)', value: `${fillRate}%`, value_raw: fillRate, unit: '%', change: 0, trend: 'up', positive: fillRate > 50, period: '30d', source_endpoint: '/trading' },
+      { id: 'energy_balance', label: 'Net Energy (30d)', value: `${Math.round(netBalance / 1000)} MWh`, value_raw: netBalance, unit: 'MWh', change: 0, trend: netBalance > 0 ? 'up' : 'down', positive: netBalance >= 0, period: '30d', source_endpoint: '/odse/analytics/summary' },
       { id: 'carbon', label: 'Carbon Position', value: `${sum(carbonPosition).toLocaleString()} tCO₂e`, value_raw: sum(carbonPosition), unit: 'tCO₂e', change: 0, trend: 'up', positive: true, period: 'current', source_endpoint: '/carbon' },
       { id: 'trades_30d', label: 'Trades (30d)', value: String(cnt(tradeCount)), value_raw: cnt(tradeCount), unit: 'count', change: 0, trend: 'up', positive: true, period: '30d', source_endpoint: '/trading' },
       { id: 'settlements', label: 'Pending Settlements', value: String(cnt(settlements)), value_raw: cnt(settlements), unit: 'count', change: 0, trend: 'down', positive: cnt(settlements) === 0, period: 'current', source_endpoint: '/settlement' },
@@ -339,10 +370,16 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
 // COCKPIT 4: CARBON FUND MANAGER
 // ══════════════════════════════════════════════════════════════
 async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData> {
-  const [creditsAvailable, activeOptions, retiredYTD] = await Promise.all([
+  const [creditsAvailable, activeOptions, retiredYTD, odseAvoidedEmissions, odseCarbonTrend, odseCarbonByAsset] = await Promise.all([
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active'").bind(pid, pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
+    // ODSE: Avoided emissions from renewable generation — scoped to participant's assets
+    db.prepare("SELECT COALESCE(SUM(t.kwh * (1000 - COALESCE(t.carbon_intensity_gco2_per_kwh, 0)) / 1000000),0) as avoided_tco2e FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','start of year')").bind(pid).first<{ avoided_tco2e: number }>(),
+    // ODSE: Daily carbon intensity trend — scoped to participant's assets
+    db.prepare("SELECT date(t.timestamp) as date, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci, ROUND(SUM(t.kwh * COALESCE(t.carbon_intensity_gco2_per_kwh,0) / 1000000),3) as emissions_tco2e FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY date(t.timestamp) ORDER BY date DESC LIMIT 30").bind(pid).all(),
+    // ODSE: Carbon by asset type — scoped to participant's assets
+    db.prepare("SELECT a.asset_type, ROUND(SUM(t.kwh),0) as total_kwh, ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days') GROUP BY a.asset_type").bind(pid).all(),
   ]);
 
   // Action queue
@@ -368,9 +405,12 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
 
   const creditsByRegistry = await db.prepare("SELECT registry, COUNT(*) as c, COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE owner_id = ? AND status = 'active' GROUP BY registry").bind(pid).all();
 
+  const avoidedTCO2e = Math.round(((odseAvoidedEmissions as Record<string, number> | null)?.avoided_tco2e ?? 0) * 100) / 100;
+
   const module_cards: ModuleCard[] = [
     { module: 'inventory', title: 'Credit Inventory', summary: { byRegistry: creditsByRegistry.results, total: sum(creditsAvailable) }, chart_type: 'pie', action_count: 0, link: '/carbon' },
     { module: 'options', title: 'Options Book', summary: { active: cnt(activeOptions) }, chart_type: 'bar', action_count: expiringOptions.results.length, link: '/carbon' },
+    { module: 'odse_carbon', title: 'Carbon Analytics (ODSE)', summary: { avoided_emissions_tco2e: avoidedTCO2e, carbon_intensity_trend: odseCarbonTrend.results, by_asset_type: odseCarbonByAsset.results }, chart_type: 'bar', chart_data: odseCarbonTrend.results as unknown[], action_count: 0, link: '/metering-analytics' },
     { module: 'performance', title: 'Fund Performance', summary: {}, chart_type: 'sparkline', action_count: 0, link: '/portfolio' },
     { module: 'registry', title: 'Registry Status', summary: {}, action_count: 0, link: '/carbon' },
     { module: 'market', title: 'Market Prices', summary: {}, chart_type: 'sparkline', action_count: 0, link: '/markets' },
@@ -379,6 +419,7 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
   return {
     kpis: [
       { id: 'credits', label: 'Credits Available', value: `${sum(creditsAvailable).toLocaleString()} tCO₂e`, value_raw: sum(creditsAvailable), unit: 'tCO₂e', change: 0, trend: 'up', positive: true, period: 'current', source_endpoint: '/carbon' },
+      { id: 'avoided_emissions', label: 'Avoided Emissions YTD', value: `${avoidedTCO2e.toLocaleString()} tCO₂e`, value_raw: avoidedTCO2e, unit: 'tCO₂e', change: 0, trend: 'up', positive: true, period: 'ytd', source_endpoint: '/odse/analytics/carbon' },
       { id: 'options', label: 'Active Options', value: String(cnt(activeOptions)), value_raw: cnt(activeOptions), unit: 'count', change: 0, trend: 'flat', positive: true, period: 'current', source_endpoint: '/carbon' },
       { id: 'retired', label: 'Credits Retired YTD', value: `${sum(retiredYTD).toLocaleString()} tCO₂e`, value_raw: sum(retiredYTD), unit: 'tCO₂e', change: 0, trend: 'up', positive: true, period: 'ytd', source_endpoint: '/carbon' },
     ],
@@ -393,11 +434,21 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
 // COCKPIT 5: OFFTAKER / ENERGY CONSUMER
 // ══════════════════════════════════════════════════════════════
 async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
-  const [consumptionMTD, outstandingInvoices, activePPAs, carbonOffset] = await Promise.all([
+  const [consumptionMTD, outstandingInvoices, activePPAs, carbonOffset, odseConsMTD, odseTariffSplit, odseHourlyDemand, odseDailyConsumption, odseCarbonIntensity] = await Promise.all([
     db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.offtaker_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM invoices WHERE to_participant_id = ? AND status = 'outstanding'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE counterparty_id = ? AND phase = 'active'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE beneficiary_id = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
+    // ODSE: Consumption MTD
+    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
+    // ODSE: Peak vs off-peak tariff split
+    db.prepare("SELECT t.tariff_period, ROUND(SUM(t.kwh),2) as kwh, ROUND(SUM(t.energy_charge_component),2) as cost FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','-30 days') AND t.tariff_period IS NOT NULL GROUP BY t.tariff_period").bind(pid).all(),
+    // ODSE: Hourly demand profile
+    db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','-30 days') GROUP BY hour ORDER BY hour").bind(pid).all(),
+    // ODSE: Daily consumption trend
+    db.prepare("SELECT date(t.timestamp) as date, ROUND(SUM(t.kwh)/1000,2) as mwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','-30 days') GROUP BY date(t.timestamp) ORDER BY date DESC LIMIT 30").bind(pid).all(),
+    // ODSE: Average carbon intensity
+    db.prepare("SELECT ROUND(AVG(t.carbon_intensity_gco2_per_kwh),1) as avg_ci FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.carbon_intensity_gco2_per_kwh IS NOT NULL AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ avg_ci: number }>(),
   ]);
 
   // Action queue
@@ -421,16 +472,21 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
     })),
   ]);
 
+  const avgCI = (odseCarbonIntensity as Record<string, number> | null)?.avg_ci ?? 0;
+
   const module_cards: ModuleCard[] = [
     { module: 'consumption', title: 'Consumption', summary: { mtd_mwh: Math.round(sum(consumptionMTD) / 1000) }, chart_type: 'sparkline', action_count: 0, link: '/demand' },
+    { module: 'odse_consumption', title: 'ODSE Consumption Analytics', summary: { mtd_kwh: sum(odseConsMTD), mtd_mwh: Math.round(sum(odseConsMTD) / 1000), tariff_breakdown: odseTariffSplit.results, hourly_demand: odseHourlyDemand.results, daily_trend: odseDailyConsumption.results, avg_carbon_intensity: avgCI }, chart_type: 'bar', chart_data: odseDailyConsumption.results as unknown[], action_count: 0, link: '/metering-analytics' },
     { module: 'cost', title: 'Cost Analysis', summary: {}, chart_type: 'bar', action_count: 0, link: '/offtaker-cost' },
-    { module: 'carbon', title: 'Carbon Footprint', summary: { offset_tco2e: sum(carbonOffset) }, chart_type: 'gauge', action_count: 0, link: '/carbon' },
+    { module: 'carbon', title: 'Carbon Footprint', summary: { offset_tco2e: sum(carbonOffset), avg_carbon_intensity_gco2: avgCI }, chart_type: 'gauge', action_count: 0, link: '/carbon' },
     { module: 'invoices', title: 'Invoice Summary', summary: { outstanding: cnt(outstandingInvoices) }, action_count: cnt(outstandingInvoices), link: '/invoices' },
   ];
 
   return {
     kpis: [
       { id: 'consumption', label: 'Consumption MTD', value: `${Math.round(sum(consumptionMTD) / 1000)} MWh`, value_raw: sum(consumptionMTD), unit: 'MWh', change: 0, trend: 'up', positive: true, period: 'mtd', source_endpoint: '/metering' },
+      { id: 'odse_consumption', label: 'ODSE Consumption MTD', value: `${Math.round(sum(odseConsMTD) / 1000)} MWh`, value_raw: sum(odseConsMTD), unit: 'MWh', change: 0, trend: 'up', positive: true, period: 'mtd', source_endpoint: '/odse/analytics/summary' },
+      { id: 'carbon_intensity', label: 'Avg Carbon Intensity', value: `${avgCI} gCO₂/kWh`, value_raw: avgCI, unit: 'gCO₂/kWh', change: 0, trend: 'down', positive: avgCI < 500, period: '30d', source_endpoint: '/odse/analytics/carbon' },
       { id: 'invoices', label: 'Outstanding Invoices', value: String(cnt(outstandingInvoices)), value_raw: cnt(outstandingInvoices), unit: 'count', change: 0, trend: 'flat', positive: cnt(outstandingInvoices) === 0, period: 'current', source_endpoint: '/invoices' },
       { id: 'ppas', label: 'Active PPAs', value: String(cnt(activePPAs)), value_raw: cnt(activePPAs), unit: 'count', change: 0, trend: 'up', positive: true, period: 'all_time', source_endpoint: '/contracts' },
       { id: 'carbon', label: 'Carbon Offset YTD', value: `${sum(carbonOffset).toLocaleString()} tCO₂e`, value_raw: sum(carbonOffset), unit: 'tCO₂e', change: 0, trend: 'up', positive: true, period: 'ytd', source_endpoint: '/carbon' },
