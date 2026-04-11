@@ -6,6 +6,7 @@ import { rateLimiter, requestIdMiddleware, authMiddleware } from './auth/middlew
 import { securityHeadersMiddleware } from './middleware/security';
 import { blacklistToken, isTokenBlacklisted, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
 import { log } from './utils/logger';
+import { hashPassword } from './utils/hash';
 
 // Route imports
 import iot from './routes/iot';
@@ -937,11 +938,9 @@ api.post('/admin/reset-password/:id', authMiddleware({ roles: ['admin'], adminLe
     const { id } = c.req.param();
     const user = c.get('user');
     const tempPassword = `Temp${Date.now().toString(36)}!`;
-    const encoder = new TextEncoder();
-    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(tempPassword));
-    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { hash, salt } = await hashPassword(tempPassword);
 
-    await c.env.DB.prepare('UPDATE participants SET password_hash = ? WHERE id = ?').bind(hashHex, id).run();
+    await c.env.DB.prepare('UPDATE participants SET password_hash = ?, password_salt = ? WHERE id = ?').bind(hash, salt, id).run();
 
     await c.env.DB.prepare(
       `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'reset_password','participant',?,?,?)`
