@@ -75,6 +75,7 @@ const OfftakerDeep = lazy(() => import('./pages/OfftakerDeep'));
 const ReportingEngine = lazy(() => import('./pages/ReportingEngine'));
 const ModuleAdmin = lazy(() => import('./pages/ModuleAdmin'));
 const Changelog = lazy(() => import('./pages/Changelog'));
+const MeteringAnalytics = lazy(() => import('./pages/MeteringAnalytics'));
 
 function App() {
   return (
@@ -139,6 +140,7 @@ function App() {
         <Route path="/offtaker-deep" element={<OfftakerDeep />} />
         <Route path="/reporting-engine" element={<ReportingEngine />} />
         <Route path="/modules" element={<ModuleAdmin />} />
+        <Route path="/metering-analytics" element={<MeteringAnalytics />} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>
