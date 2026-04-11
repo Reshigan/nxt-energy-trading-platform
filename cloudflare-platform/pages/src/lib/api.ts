@@ -475,8 +475,8 @@ export const amlAPI = {
 
 // Trading Limits
 export const tradingLimitsAPI = {
-  get: (participantId: string) => api.get(`/admin/users/${participantId}`),
-  update: (participantId: string, data: Record<string, unknown>) => api.patch(`/admin/users/${participantId}`, data),
+  get: () => api.get('/trading/my-limits'),
+  update: (data: Record<string, unknown>) => api.patch('/trading/my-limits', data),
 };
 
 export default api;
