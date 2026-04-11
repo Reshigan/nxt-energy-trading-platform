@@ -10,7 +10,15 @@ import { captureException } from '../utils/sentry';
 
 const register = new Hono<HonoEnv>();
 
-// POST /register — Self-registration
+// ── Item 3: Two-phase registration with OTP verification ────
+// Helper: generate 6-digit OTP using crypto
+function generateOTP(): string {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return String(arr[0] % 1000000).padStart(6, '0');
+}
+
+// Phase A: POST /register — Create participant, send OTP, return NO JWT
 register.post('/', async (c) => {
   try {
   const body = await c.req.json();
@@ -39,8 +47,8 @@ register.post('/', async (c) => {
   await c.env.DB.prepare(`
     INSERT INTO participants (id, company_name, registration_number, tax_number, vat_number, role,
       contact_person, email, password_hash, password_salt, phone, physical_address,
-      sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0)
+      sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled, email_verified)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0)
   `).bind(
     id, data.company_name, data.registration_number, data.tax_number,
     data.vat_number || null, data.role, data.contact_person, data.email,
@@ -62,16 +70,24 @@ register.post('/', async (c) => {
   // Run auto-validations asynchronously (simulate pipeline)
   await runAutoValidations(id, data, c.env.DB);
 
-  // Generate JWT
-  const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
-  const token = await signJwt({
-    sub: id,
-    email: data.email,
-    role: data.role as any,
-    company_name: data.company_name,
-    kyc_status: 'pending',
-  }, jwtSecret);
-  const refreshToken = await signRefreshToken(id, jwtSecret);
+  // Generate OTP and store in KV (600s TTL)
+  const otp = generateOTP();
+  await c.env.KV.put(`otp:register:${data.email}`, JSON.stringify({ otp, participant_id: id }), { expirationTtl: 600 });
+
+  // Send OTP email (best-effort via Resend if configured)
+  const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+  if (resendKey) {
+    c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'NXT Energy <noreply@et.vantax.co.za>',
+        to: [data.email],
+        subject: 'NXT Energy — Verify your email',
+        html: `<p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`,
+      }),
+    }).catch(() => {}));
+  }
 
   // Audit log
   await c.env.DB.prepare(`
@@ -94,16 +110,135 @@ register.post('/', async (c) => {
     request_id: c.get('requestId'),
   }));
 
+  // Item 3: No JWT issued until OTP verified
   return c.json({
     success: true,
     data: {
       id,
-      token,
-      refreshToken,
       kyc_status: 'pending',
-      message: 'Registration successful. Auto-validation pipeline triggered.',
+      message: 'Registration successful. Please verify your email with the OTP sent to your inbox.',
+      email_verification_required: true,
     },
   }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// Phase B: POST /register/verify-otp — Verify email OTP, issue JWT
+register.post('/verify-otp', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string; otp: string };
+    if (!body.email || !body.otp) {
+      return c.json({ success: false, error: 'Email and OTP are required' }, 400);
+    }
+
+    // Rate limit: 5 attempts per 10 min
+    const rateLimitKey = `otp_attempts:${body.email}`;
+    const attemptsStr = await c.env.KV.get(rateLimitKey);
+    const attempts = attemptsStr ? parseInt(attemptsStr, 10) : 0;
+    if (attempts >= 5) {
+      return c.json({ success: false, error: 'Too many OTP attempts. Please request a new code.' }, 429);
+    }
+    await c.env.KV.put(rateLimitKey, String(attempts + 1), { expirationTtl: 600 });
+
+    // Verify OTP
+    const storedStr = await c.env.KV.get(`otp:register:${body.email}`);
+    if (!storedStr) {
+      return c.json({ success: false, error: 'OTP expired or not found. Please request a new code.' }, 400);
+    }
+    const stored = JSON.parse(storedStr) as { otp: string; participant_id: string };
+    if (stored.otp !== body.otp) {
+      return c.json({ success: false, error: 'Invalid OTP' }, 400);
+    }
+
+    // Mark email as verified
+    await c.env.DB.prepare(
+      "UPDATE participants SET email_verified = 1, updated_at = datetime('now') WHERE id = ?"
+    ).bind(stored.participant_id).run();
+
+    // Clean up OTP
+    await c.env.KV.delete(`otp:register:${body.email}`);
+    await c.env.KV.delete(rateLimitKey);
+
+    // Fetch participant and issue JWT
+    const participant = await c.env.DB.prepare(
+      'SELECT id, email, role, company_name, kyc_status FROM participants WHERE id = ?'
+    ).bind(stored.participant_id).first<{ id: string; email: string; role: string; company_name: string; kyc_status: string }>();
+    if (!participant) {
+      return c.json({ success: false, error: 'Participant not found' }, 404);
+    }
+
+    const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+    const token = await signJwt({
+      sub: participant.id,
+      email: participant.email,
+      role: participant.role as any,
+      company_name: participant.company_name,
+      kyc_status: participant.kyc_status as any,
+    }, jwtSecret);
+    const refreshToken = await signRefreshToken(participant.id, jwtSecret);
+
+    return c.json({
+      success: true,
+      data: { token, refreshToken, participant_id: participant.id, message: 'Email verified successfully.' },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// Phase C: POST /register/resend-otp — Resend OTP with rate limit
+register.post('/resend-otp', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string };
+    if (!body.email) {
+      return c.json({ success: false, error: 'Email is required' }, 400);
+    }
+
+    // Rate limit: 3 resends per 10 min
+    const rateLimitKey = `otp_resend:${body.email}`;
+    const resendsStr = await c.env.KV.get(rateLimitKey);
+    const resends = resendsStr ? parseInt(resendsStr, 10) : 0;
+    if (resends >= 3) {
+      return c.json({ success: false, error: 'Too many resend requests. Please wait before trying again.' }, 429);
+    }
+    await c.env.KV.put(rateLimitKey, String(resends + 1), { expirationTtl: 600 });
+
+    // Verify participant exists and is not yet verified
+    const participant = await c.env.DB.prepare(
+      'SELECT id, email_verified FROM participants WHERE email = ?'
+    ).bind(body.email).first<{ id: string; email_verified: number }>();
+    if (!participant) {
+      // Don't reveal whether email exists
+      return c.json({ success: true, message: 'If the email is registered, a new OTP has been sent.' });
+    }
+    if (participant.email_verified === 1) {
+      return c.json({ success: false, error: 'Email already verified' }, 400);
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    await c.env.KV.put(`otp:register:${body.email}`, JSON.stringify({ otp, participant_id: participant.id }), { expirationTtl: 600 });
+
+    // Send OTP email
+    const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+    if (resendKey) {
+      c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'NXT Energy <noreply@et.vantax.co.za>',
+          to: [body.email],
+          subject: 'NXT Energy — New verification code',
+          html: `<p>Your new verification code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`,
+        }),
+      }).catch(() => {}));
+    }
+
+    return c.json({ success: true, message: 'If the email is registered, a new OTP has been sent.' });
   } catch (err) {
     captureException(c, err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
@@ -425,7 +560,7 @@ register.post('/me/password', authMiddleware({ requireKyc: false }), async (c) =
 
 // ---- Auth endpoints ----
 
-// POST /auth/login
+// POST /auth/login — Item 9: brute-force protection + Item 8: 2FA check
 register.post('/auth/login', async (c) => {
   try {
   const body = await c.req.json();
@@ -435,24 +570,75 @@ register.post('/auth/login', async (c) => {
   }
 
   const { email, password } = parsed.data;
+
+  // Item 9: Brute-force protection — 5 attempts per 15 min per email
+  const failKey = `login_fail:${email}`;
+  const failStr = await c.env.KV.get(failKey);
+  const failCount = failStr ? parseInt(failStr, 10) : 0;
+  if (failCount >= 5) {
+    return c.json({ success: false, error: 'Account temporarily locked due to too many failed login attempts. Try again in 15 minutes.' }, 429);
+  }
+
   const participant = await c.env.DB.prepare(
-    'SELECT id, email, role, company_name, kyc_status, password_hash, password_salt, trading_enabled FROM participants WHERE email = ?'
+    'SELECT id, email, role, company_name, kyc_status, password_hash, password_salt, trading_enabled, two_factor_enabled FROM participants WHERE email = ?'
   ).bind(email).first<{
     id: string; email: string; role: string; company_name: string;
-    kyc_status: string; password_hash: string; password_salt: string; trading_enabled: number;
+    kyc_status: string; password_hash: string; password_salt: string;
+    trading_enabled: number; two_factor_enabled: number;
   }>();
 
   if (!participant) {
+    await c.env.KV.put(failKey, String(failCount + 1), { expirationTtl: 900 });
     return c.json({ success: false, error: 'Invalid credentials' }, 401);
   }
 
   const valid = await verifyPassword(password, participant.password_hash, participant.password_salt);
   if (!valid) {
+    await c.env.KV.put(failKey, String(failCount + 1), { expirationTtl: 900 });
     return c.json({ success: false, error: 'Invalid credentials' }, 401);
   }
 
+  // Successful password — clear brute-force counter
+  await c.env.KV.delete(failKey);
+
   if (participant.kyc_status === 'suspended') {
     return c.json({ success: false, error: 'Account suspended' }, 403);
+  }
+  if (participant.kyc_status === 'deleted') {
+    return c.json({ success: false, error: 'Account has been deactivated' }, 403);
+  }
+
+  // Item 8: 2FA check — if enabled, return temporary token instead of full JWT
+  if (participant.two_factor_enabled === 1) {
+    // Generate a temporary token (5 min TTL) and OTP
+    const tempToken = crypto.randomUUID();
+    const otp = generateOTP();
+    await c.env.KV.put(`2fa_temp:${tempToken}`, JSON.stringify({ participant_id: participant.id, email: participant.email }), { expirationTtl: 300 });
+    await c.env.KV.put(`2fa_otp:${participant.id}`, otp, { expirationTtl: 300 });
+
+    // Send 2FA OTP email
+    const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+    if (resendKey) {
+      c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: 'NXT Energy <noreply@et.vantax.co.za>',
+          to: [participant.email],
+          subject: 'NXT Energy — 2FA Login Code',
+          html: `<p>Your 2FA login code is: <strong>${otp}</strong></p><p>This code expires in 5 minutes.</p>`,
+        }),
+      }).catch(() => {}));
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        requires_2fa: true,
+        temp_token: tempToken,
+        message: 'Two-factor authentication required. Check your email for the code.',
+      },
+    });
   }
 
   const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
@@ -490,6 +676,181 @@ register.post('/auth/login', async (c) => {
       },
     },
   });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// Item 8: POST /auth/login/2fa — Exchange temp token + OTP for real JWT
+register.post('/auth/login/2fa', async (c) => {
+  try {
+    const body = await c.req.json() as { temp_token: string; otp: string };
+    if (!body.temp_token || !body.otp) {
+      return c.json({ success: false, error: 'temp_token and otp are required' }, 400);
+    }
+
+    // Validate temp token
+    const tempStr = await c.env.KV.get(`2fa_temp:${body.temp_token}`);
+    if (!tempStr) {
+      return c.json({ success: false, error: 'Temporary token expired or invalid' }, 401);
+    }
+    const tempData = JSON.parse(tempStr) as { participant_id: string; email: string };
+
+    // Validate OTP
+    const storedOtp = await c.env.KV.get(`2fa_otp:${tempData.participant_id}`);
+    if (!storedOtp || storedOtp !== body.otp) {
+      return c.json({ success: false, error: 'Invalid 2FA code' }, 401);
+    }
+
+    // Clean up
+    await c.env.KV.delete(`2fa_temp:${body.temp_token}`);
+    await c.env.KV.delete(`2fa_otp:${tempData.participant_id}`);
+
+    // Fetch participant and issue JWT
+    const participant = await c.env.DB.prepare(
+      'SELECT id, email, role, company_name, kyc_status, trading_enabled FROM participants WHERE id = ?'
+    ).bind(tempData.participant_id).first<{
+      id: string; email: string; role: string; company_name: string;
+      kyc_status: string; trading_enabled: number;
+    }>();
+    if (!participant) {
+      return c.json({ success: false, error: 'Participant not found' }, 404);
+    }
+
+    const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+    const token = await signJwt({
+      sub: participant.id,
+      email: participant.email,
+      role: participant.role as any,
+      company_name: participant.company_name,
+      kyc_status: participant.kyc_status as any,
+    }, jwtSecret);
+    const refreshToken = await signRefreshToken(participant.id, jwtSecret);
+
+    // Audit
+    await c.env.DB.prepare(`
+      INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+      VALUES (?, ?, 'login_2fa', 'participant', ?, ?, ?)
+    `).bind(
+      generateId(), participant.id, participant.id,
+      JSON.stringify({ token, user_agent: c.req.header('User-Agent') || 'Unknown' }),
+      c.req.header('CF-Connecting-IP') || 'unknown'
+    ).run();
+
+    return c.json({
+      success: true,
+      data: {
+        token,
+        refreshToken,
+        participant: {
+          id: participant.id,
+          email: participant.email,
+          role: participant.role,
+          company_name: participant.company_name,
+          kyc_status: participant.kyc_status,
+          trading_enabled: participant.trading_enabled,
+        },
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// Item 7: POST /auth/forgot-password — Generate OTP, send email, 3/hour rate limit
+register.post('/auth/forgot-password', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string };
+    if (!body.email) {
+      return c.json({ success: false, error: 'Email is required' }, 400);
+    }
+
+    // Rate limit: 3 requests per hour
+    const rateLimitKey = `forgot_pw:${body.email}`;
+    const countStr = await c.env.KV.get(rateLimitKey);
+    const count = countStr ? parseInt(countStr, 10) : 0;
+    if (count >= 3) {
+      return c.json({ success: false, error: 'Too many password reset requests. Try again later.' }, 429);
+    }
+    await c.env.KV.put(rateLimitKey, String(count + 1), { expirationTtl: 3600 });
+
+    // Always return success (don't reveal if email exists)
+    const participant = await c.env.DB.prepare(
+      'SELECT id, email FROM participants WHERE email = ?'
+    ).bind(body.email).first<{ id: string; email: string }>();
+
+    if (participant) {
+      const otp = generateOTP();
+      await c.env.KV.put(`otp:reset:${body.email}`, JSON.stringify({ otp, participant_id: participant.id }), { expirationTtl: 600 });
+
+      const resendKey = (c.env as Record<string, unknown>).RESEND_API_KEY as string | undefined;
+      if (resendKey) {
+        c.executionCtx.waitUntil(fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'NXT Energy <noreply@et.vantax.co.za>',
+            to: [body.email],
+            subject: 'NXT Energy — Password Reset Code',
+            html: `<p>Your password reset code is: <strong>${otp}</strong></p><p>This code expires in 10 minutes. If you did not request this, please ignore this email.</p>`,
+          }),
+        }).catch(() => {}));
+      }
+    }
+
+    return c.json({ success: true, message: 'If the email is registered, a password reset code has been sent.' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// Item 7: POST /auth/reset-password — Verify OTP, set new password, blacklist old tokens
+register.post('/auth/reset-password', async (c) => {
+  try {
+    const body = await c.req.json() as { email: string; otp: string; new_password: string };
+    if (!body.email || !body.otp || !body.new_password) {
+      return c.json({ success: false, error: 'Email, OTP, and new password are required' }, 400);
+    }
+
+    // Validate password strength (Item 11 policy)
+    if (body.new_password.length < 8 || body.new_password.length > 128) {
+      return c.json({ success: false, error: 'Password must be between 8 and 128 characters' }, 400);
+    }
+    if (!/[A-Z]/.test(body.new_password) || !/[a-z]/.test(body.new_password) || !/[0-9]/.test(body.new_password) || !/[^A-Za-z0-9]/.test(body.new_password)) {
+      return c.json({ success: false, error: 'Password must contain uppercase, lowercase, number, and special character' }, 400);
+    }
+
+    // Verify OTP
+    const storedStr = await c.env.KV.get(`otp:reset:${body.email}`);
+    if (!storedStr) {
+      return c.json({ success: false, error: 'OTP expired or not found' }, 400);
+    }
+    const stored = JSON.parse(storedStr) as { otp: string; participant_id: string };
+    if (stored.otp !== body.otp) {
+      return c.json({ success: false, error: 'Invalid OTP' }, 400);
+    }
+
+    // Update password
+    const { hash, salt } = await hashPassword(body.new_password);
+    await c.env.DB.prepare(
+      "UPDATE participants SET password_hash = ?, password_salt = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(hash, salt, stored.participant_id).run();
+
+    // Clean up OTP
+    await c.env.KV.delete(`otp:reset:${body.email}`);
+
+    // Blacklist all existing tokens for this user (force re-login)
+    await c.env.KV.put(`token_blacklist:${stored.participant_id}`, nowISO(), { expirationTtl: 86400 });
+
+    // Audit
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'password_reset', 'participant', ?, '{}', ?)`
+    ).bind(generateId(), stored.participant_id, stored.participant_id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Password reset successful. Please login with your new password.' });
   } catch (err) {
     captureException(c, err);
     return c.json({ success: false, error: 'Internal server error' }, 500);

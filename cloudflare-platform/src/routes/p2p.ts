@@ -22,12 +22,19 @@ p2p.post('/offers', async (c) => {
       expires_at?: string;
     };
 
-    // B1: KYC gates trading — reject unverified users
+    // Item 22: Idempotency key check
+    const idempotencyKey = c.req.header('X-Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await c.env.KV.get(`idempotency:p2p:${idempotencyKey}`);
+      if (cached) return c.json(JSON.parse(cached));
+    }
+
+    // Item 23 + B1: KYC gates trading — reject unverified users; require manual KYC approval
     const participant = await c.env.DB.prepare(
       'SELECT kyc_status, trading_enabled FROM participants WHERE id = ?'
     ).bind(user.sub).first<{ kyc_status: string; trading_enabled: number }>();
     if (!participant || participant.kyc_status !== 'verified' || participant.trading_enabled !== 1) {
-      return c.json({ success: false, error: 'KYC verification required before trading' }, 403);
+      return c.json({ success: false, error: 'KYC verification required before trading. Your account must be manually approved by an admin.' }, 403);
     }
 
     // Validate volume limits: min 10 kWh
@@ -79,7 +86,16 @@ p2p.post('/offers', async (c) => {
       request_id: c.get('requestId'),
     }));
 
-    return c.json({ success: true, data: { id, total_cents: total } }, 201);
+    const offerResponse = { success: true, data: { id, total_cents: total } };
+
+    // Item 22: Store idempotency result
+    if (idempotencyKey) {
+      c.executionCtx.waitUntil(
+        c.env.KV.put(`idempotency:p2p:${idempotencyKey}`, JSON.stringify(offerResponse), { expirationTtl: 86400 })
+      );
+    }
+
+    return c.json(offerResponse, 201);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

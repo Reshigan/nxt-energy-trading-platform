@@ -63,6 +63,18 @@ The platform consists of two main components:
 - Cloudflare account with Workers and Pages enabled
 - Wrangler CLI installed (`npm install -g wrangler`)
 
+### Required Secrets / Environment Variables
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `JWT_SECRET` | Worker secret | **Required.** Used to sign and verify JWT tokens. Must be set via `wrangler secret put JWT_SECRET`. The platform will refuse to start if this is missing (no fallback). |
+| `RESEND_API_KEY` | Worker secret | **Required for email.** Used by the Resend email service to send OTP codes (registration, password reset, 2FA). Obtain from [resend.com/api-keys](https://resend.com/api-keys). Set via `wrangler secret put RESEND_API_KEY`. Without this, all email-dependent flows (registration OTP, forgot-password, 2FA) will fail silently. |
+| `CLOUDFLARE_API_KEY` | GitHub secret | Global API key for CI/CD deployments. |
+| `CLOUDFLARE_EMAIL` | GitHub secret | Cloudflare account email for CI/CD. |
+| `CLOUDFLARE_ACCOUNT_ID` | GitHub secret | Cloudflare account ID for CI/CD. |
+| `STRIPE_SECRET_KEY` | Worker secret | Stripe secret key for billing/subscriptions. |
+| `STRIPE_WEBHOOK_SECRET` | Worker secret | Stripe webhook signing secret. |
+
 ### Deploying the Worker
 ```bash
 cd workers
