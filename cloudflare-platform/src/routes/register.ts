@@ -823,7 +823,15 @@ register.post('/auth/reset-password', async (c) => {
       return c.json({ success: false, error: 'Password must contain uppercase, lowercase, number, and special character' }, 400);
     }
 
-    // Verify OTP
+    // Verify OTP with per-attempt rate limiting (5 attempts max)
+    const otpAttemptKey = `otp_reset_attempts:${body.email}`;
+    const attemptsStr = await c.env.KV.get(otpAttemptKey);
+    const attempts = attemptsStr ? parseInt(attemptsStr, 10) : 0;
+    if (attempts >= 5) {
+      return c.json({ success: false, error: 'Too many OTP attempts. Please request a new code.' }, 429);
+    }
+    await c.env.KV.put(otpAttemptKey, String(attempts + 1), { expirationTtl: 600 });
+
     const storedStr = await c.env.KV.get(`otp:reset:${body.email}`);
     if (!storedStr) {
       return c.json({ success: false, error: 'OTP expired or not found' }, 400);
@@ -842,8 +850,8 @@ register.post('/auth/reset-password', async (c) => {
     // Clean up OTP
     await c.env.KV.delete(`otp:reset:${body.email}`);
 
-    // Blacklist all existing tokens for this user (force re-login)
-    await c.env.KV.put(`token_blacklist:${stored.participant_id}`, nowISO(), { expirationTtl: 86400 });
+    // Store password-changed timestamp — auth middleware rejects tokens issued before this time
+    await c.env.KV.put(`pw_changed:${stored.participant_id}`, nowISO(), { expirationTtl: 86400 });
 
     // Audit
     await c.env.DB.prepare(

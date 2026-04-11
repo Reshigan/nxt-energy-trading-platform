@@ -28,7 +28,7 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
     if (idempotencyKey) {
       const cached = await c.env.KV.get(`idempotency:order:${idempotencyKey}`);
       if (cached) {
-        return c.json(JSON.parse(cached));
+        return c.json(JSON.parse(cached), 201);
       }
     }
 
