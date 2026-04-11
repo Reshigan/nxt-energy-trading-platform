@@ -50,6 +50,8 @@ import staffRoute from './routes/staff';
 import ticketsRoute from './routes/tickets';
 import announcementsRoute from './routes/announcements';
 import configRoute from './routes/config';
+import paymentsRoute from './routes/payments';
+import amlRoute from './routes/aml';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -282,6 +284,8 @@ api.route('/staff', staffRoute);
 api.route('/tickets', ticketsRoute);
 api.route('/announcements', announcementsRoute);
 api.route('/admin/config', configRoute);
+api.route('/payments', paymentsRoute);
+api.route('/aml', amlRoute);
 api.route('/iot', iot);
 api.route('/algo', algo);
 api.route('/esg-reporting', esgReporting);
@@ -924,6 +928,159 @@ api.patch('/admin/fees/:id', authMiddleware({ roles: ['admin'], adminLevel: 'adm
     return c.json({ success: true });
   } catch {
     return c.json({ success: false, error: 'Failed to update fee' }, 500);
+  }
+});
+
+// ── Account Recovery (admin only) ────────────────────────────
+api.post('/admin/reset-password/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const tempPassword = `Temp${Date.now().toString(36)}!`;
+    const encoder = new TextEncoder();
+    const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(tempPassword));
+    const hashHex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    await c.env.DB.prepare('UPDATE participants SET password_hash = ? WHERE id = ?').bind(hashHex, id).run();
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'reset_password','participant',?,?,?)`
+    ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, data: { temporary_password: tempPassword } });
+  } catch {
+    return c.json({ success: false, error: 'Failed to reset password' }, 500);
+  }
+});
+
+api.post('/admin/unlock/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    await c.env.DB.prepare("UPDATE participants SET locked_until = NULL, failed_login_attempts = 0 WHERE id = ?").bind(id).run();
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'unlock_account','participant',?,?,?)`
+    ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: 'Account unlocked' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to unlock account' }, 500);
+  }
+});
+
+api.post('/admin/reset-2fa/:id', authMiddleware({ roles: ['admin'], adminLevel: 'superadmin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 0, totp_secret = NULL WHERE id = ?").bind(id).run();
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'reset_2fa','participant',?,?,?)`
+    ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, message: '2FA reset' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to reset 2FA' }, 500);
+  }
+});
+
+// ── Trading Limits ───────────────────────────────────────────
+api.get('/trading/my-limits', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const limits = await c.env.DB.prepare(
+      'SELECT * FROM participant_trading_limits WHERE participant_id = ?'
+    ).bind(user.sub).first();
+
+    if (!limits) {
+      return c.json({
+        success: true,
+        data: {
+          max_position_cents: 100000000,
+          max_order_cents: 10000000,
+          max_daily_loss_cents: 50000000,
+          daily_loss_today_cents: 0,
+        },
+      });
+    }
+    return c.json({ success: true, data: limits });
+  } catch {
+    return c.json({ success: false, error: 'Failed to fetch trading limits' }, 500);
+  }
+});
+
+api.patch('/trading/my-limits', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as {
+      max_position_cents?: number;
+      max_order_cents?: number;
+      max_daily_loss_cents?: number;
+    };
+
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM participant_trading_limits WHERE participant_id = ?'
+    ).bind(user.sub).first<{ id: string }>();
+
+    if (existing) {
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      if (body.max_position_cents !== undefined) { updates.push('max_position_cents = ?'); values.push(body.max_position_cents); }
+      if (body.max_order_cents !== undefined) { updates.push('max_order_cents = ?'); values.push(body.max_order_cents); }
+      if (body.max_daily_loss_cents !== undefined) { updates.push('max_daily_loss_cents = ?'); values.push(body.max_daily_loss_cents); }
+      if (updates.length === 0) return c.json({ success: false, error: 'No valid fields' }, 400);
+      updates.push("updated_at = datetime('now')");
+      values.push(user.sub);
+      await c.env.DB.prepare(`UPDATE participant_trading_limits SET ${updates.join(', ')} WHERE participant_id = ?`).bind(...values).run();
+    } else {
+      await c.env.DB.prepare(
+        `INSERT INTO participant_trading_limits (id, participant_id, max_position_cents, max_order_cents, max_daily_loss_cents, created_at, updated_at)
+         VALUES (?,?,?,?,?,datetime('now'),datetime('now'))`
+      ).bind(
+        generateId(), user.sub,
+        body.max_position_cents ?? 100000000,
+        body.max_order_cents ?? 10000000,
+        body.max_daily_loss_cents ?? 50000000,
+      ).run();
+    }
+
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to update trading limits' }, 500);
+  }
+});
+
+// ── POST /admin/fees — Create new fee schedule entry ─────────
+api.post('/admin/fees', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as {
+      market: string;
+      role: string;
+      maker_fee_bps: number;
+      taker_fee_bps: number;
+    };
+
+    if (!body.market || !body.role || body.maker_fee_bps === undefined || body.taker_fee_bps === undefined) {
+      return c.json({ success: false, error: 'market, role, maker_fee_bps, taker_fee_bps are required' }, 400);
+    }
+
+    const id = generateId();
+    await c.env.DB.prepare(
+      `INSERT INTO fee_schedule (id, market, role, maker_fee_bps, taker_fee_bps, active, created_at, updated_at)
+       VALUES (?,?,?,?,?,1,datetime('now'),datetime('now'))`
+    ).bind(id, body.market, body.role, body.maker_fee_bps, body.taker_fee_bps).run();
+
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'create_fee','fee_schedule',?,?,?)`
+    ).bind(generateId(), user.sub, id, JSON.stringify(body), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true, data: { id } }, 201);
+  } catch {
+    return c.json({ success: false, error: 'Failed to create fee' }, 500);
   }
 });
 
