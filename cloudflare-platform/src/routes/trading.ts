@@ -7,6 +7,7 @@ import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '.
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
 import { cascade } from '../utils/cascade';
+import { getConfigNumber } from '../utils/config';
 
 const trading = new Hono<HonoEnv>();
 
@@ -47,7 +48,7 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
     ).bind(user.sub, user.sub).first<{ exposure_cents: number }>();
     const currentExposureCents = exposureResult?.exposure_cents || 0;
     const orderValueCents = Math.round((data.volume || 0) * (data.price || 0) * 100); // Convert Rand to cents
-    const marginLimitCents = 10000000; // Default R100k limit
+    const marginLimitCents = await getConfigNumber(c.env.DB, c.env.KV, 'margin_limit_cents', 10000000);
     if (currentExposureCents + orderValueCents > marginLimitCents) {
       return c.json({ success: false, error: `Insufficient margin. Current exposure: R${(currentExposureCents / 100).toFixed(2)}, Order: R${(orderValueCents / 100).toFixed(2)}, Limit: R${(marginLimitCents / 100).toFixed(2)}` }, 400);
     }
@@ -67,8 +68,9 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
         if (lastPrice > 0) {
           const priceCentsCheck = Math.round(data.price * 100);
           const deviation = Math.abs(priceCentsCheck - lastPrice) / lastPrice;
-          if (deviation > 0.20) {
-            return c.json({ success: false, error: `Price deviates ${(deviation * 100).toFixed(1)}% from last trade (${lastPrice / 100}). Maximum allowed deviation is 20%.` }, 400);
+          const maxDeviation = await getConfigNumber(c.env.DB, c.env.KV, 'price_band_deviation', 0.20);
+          if (deviation > maxDeviation) {
+            return c.json({ success: false, error: `Price deviates ${(deviation * 100).toFixed(1)}% from last trade (${lastPrice / 100}). Maximum allowed deviation is ${(maxDeviation * 100).toFixed(0)}%.` }, 400);
           }
         }
       }
