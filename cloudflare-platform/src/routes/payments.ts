@@ -43,26 +43,32 @@ payments.get('/', authMiddleware(), async (c) => {
 // GET /payments/stats — Payment statistics (admin only)
 payments.get('/stats', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
   try {
-    const [pending, completed, failed, totalVolume] = await Promise.all([
+    const [pending, processing, completed, failed, reversed, totalVolume] = await Promise.all([
       c.env.DB.prepare("SELECT COUNT(*) as c FROM payment_transactions WHERE status = 'pending'").first<{ c: number }>(),
+      c.env.DB.prepare("SELECT COUNT(*) as c FROM payment_transactions WHERE status = 'processing'").first<{ c: number }>(),
       c.env.DB.prepare("SELECT COUNT(*) as c FROM payment_transactions WHERE status = 'completed'").first<{ c: number }>(),
       c.env.DB.prepare("SELECT COUNT(*) as c FROM payment_transactions WHERE status = 'failed'").first<{ c: number }>(),
+      c.env.DB.prepare("SELECT COUNT(*) as c FROM payment_transactions WHERE status = 'reversed'").first<{ c: number }>(),
       c.env.DB.prepare("SELECT COALESCE(SUM(amount_cents),0) as total FROM payment_transactions WHERE status = 'completed'").first<{ total: number }>(),
     ]);
 
     const pendingCount = pending?.c ?? 0;
+    const processingCount = processing?.c ?? 0;
     const completedCount = completed?.c ?? 0;
     const failedCount = failed?.c ?? 0;
+    const reversedCount = reversed?.c ?? 0;
     const totalAmountCents = totalVolume?.total ?? 0;
 
     return c.json({
       success: true,
       data: {
-        total_count: pendingCount + completedCount + failedCount,
+        total_count: pendingCount + processingCount + completedCount + failedCount + reversedCount,
         total_amount_cents: totalAmountCents,
         pending_count: pendingCount,
+        processing_count: processingCount,
         completed_count: completedCount,
         failed_count: failedCount,
+        reversed_count: reversedCount,
         // Legacy field names for backward compatibility
         pending: pendingCount,
         completed: completedCount,
