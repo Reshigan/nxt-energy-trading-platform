@@ -87,8 +87,8 @@ const ONBOARDING_SEQUENCE: OnboardingTemplate[] = [
  * POST /onboarding/process — Called by cron to process onboarding emails.
  * Finds participants registered within the last 14 days and sends appropriate emails.
  */
-onboarding.post('/process', async (c) => {
-  // This endpoint is called by the scheduled cron — no auth needed (internal only)
+onboarding.post('/process', authMiddleware({ roles: ['admin'] }), async (c) => {
+  // Admin-only — also callable by scheduled cron with admin service token
   const now = new Date();
   let sent = 0;
 

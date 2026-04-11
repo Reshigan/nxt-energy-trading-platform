@@ -211,11 +211,11 @@ const HREF_TO_MODULE: Record<string, string> = {
   '/settlement': 'settlement',
   '/marketplace': 'marketplace',
   '/metering': 'metering',
-  '/developer': 'api_gateway',
+  '/developer': 'developer_api',
   '/reports': 'report_builder',
-  '/ai': 'ai_optimisation',
-  '/recs': 'rec_tracking',
-  '/tokens': 'carbon_tokenisation',
+  '/ai': 'ai_portfolio',
+  '/recs': 'recs',
+  '/tokens': 'tokenization',
 };
 
 const marketTicker = [
