@@ -30,20 +30,20 @@ recs.get('/', async (c) => {
   return c.json({ success: true, data: results.results });
 });
 
-// GET /recs/summary — Portfolio summary by year and technology
+// GET /recs/summary — Portfolio summary by year and standard
 recs.get('/summary', async (c) => {
   const user = c.get('user');
   const ownerFilter = user.role !== 'admin' ? 'AND r.owner_id = ?' : '';
   const params = user.role !== 'admin' ? [user.sub] : [];
 
   const summary = await c.env.DB.prepare(`
-    SELECT r.standard, p.technology, strftime('%Y', r.generation_period_start) as year,
+    SELECT r.standard, r.vintage_year as year,
            COUNT(*) as cert_count, SUM(r.volume_mwh) as total_mwh,
            SUM(CASE WHEN r.status = 'active' THEN r.volume_mwh ELSE 0 END) as active_mwh,
            SUM(CASE WHEN r.status = 'redeemed' THEN r.volume_mwh ELSE 0 END) as redeemed_mwh
     FROM recs r LEFT JOIN projects p ON r.project_id = p.id
     WHERE 1=1 ${ownerFilter}
-    GROUP BY r.standard, p.technology, year ORDER BY year DESC
+    GROUP BY r.standard, r.vintage_year ORDER BY year DESC
   `).bind(...params).all();
 
   return c.json({ success: true, data: summary.results });
@@ -64,14 +64,14 @@ recs.post('/:id/transfer', async (c) => {
 
   // Keep original owner_id on the transferred record to preserve audit trail / provenance
   await c.env.DB.prepare(
-    "UPDATE recs SET status = 'transferred', transferred_at = ? WHERE id = ?"
-  ).bind(nowISO(), id).run();
+    "UPDATE recs SET status = 'transferred' WHERE id = ?"
+  ).bind(id).run();
 
-  // Create new active REC for recipient
+  // Create new active REC for recipient with matching attributes
   const newId = generateId();
   await c.env.DB.prepare(
-    `INSERT INTO recs (id, project_id, owner_id, certificate_number, standard, generation_period_start, generation_period_end, volume_mwh, technology, country, status)
-     SELECT ?, project_id, ?, certificate_number || '-T', standard, generation_period_start, generation_period_end, volume_mwh, technology, country, 'active'
+    `INSERT INTO recs (id, project_id, owner_id, certificate_number, standard, volume_mwh, vintage_year, status)
+     SELECT ?, project_id, ?, certificate_number || '-T', standard, volume_mwh, vintage_year, 'active'
      FROM recs WHERE id = ?`
   ).bind(newId, body.to_participant_id, id).run();
 
@@ -94,8 +94,8 @@ recs.post('/:id/redeem', async (c) => {
   if (rec.status !== 'active') return c.json({ success: false, error: 'Only active RECs can be redeemed' }, 400);
 
   await c.env.DB.prepare(
-    "UPDATE recs SET status = 'redeemed', redeemed_by = ?, redeemed_for = ?, redeemed_at = ? WHERE id = ?"
-  ).bind(user.sub, `${body.purpose}: ${body.beneficiary}`, nowISO(), id).run();
+    "UPDATE recs SET status = 'redeemed', beneficiary = ?, purpose = ?, redeemed_at = ? WHERE id = ?"
+  ).bind(body.beneficiary, body.purpose, nowISO(), id).run();
 
   c.executionCtx.waitUntil(cascade(c.env, {
     type: 'rec.redeemed', actor_id: user.sub, entity_type: 'rec', entity_id: id,
@@ -120,17 +120,17 @@ recs.post('/issue', authMiddleware({ roles: ['admin'] }), async (c) => {
   const mwh = (generation?.total || 0) / 1000;
   if (mwh < 1) return c.json({ success: false, error: `Only ${mwh.toFixed(2)} MWh generated — minimum 1 MWh for REC issuance` }, 400);
 
-  // Generate certificate number
-  const year = new Date().getFullYear();
-  const seqResult = await c.env.DB.prepare("SELECT COUNT(*) as c FROM recs WHERE certificate_number LIKE ?").bind(`ZA-IREC-${year}-%`).first<{ c: number }>();
+  // Generate certificate number using vintage year from period start
+  const vintageYear = new Date(body.period_start).getFullYear();
+  const seqResult = await c.env.DB.prepare("SELECT COUNT(*) as c FROM recs WHERE certificate_number LIKE ?").bind(`ZA-IREC-${vintageYear}-%`).first<{ c: number }>();
   const seq = String((seqResult?.c || 0) + 1).padStart(5, '0');
-  const certNumber = `ZA-IREC-${year}-${seq}`;
+  const certNumber = `ZA-IREC-${vintageYear}-${seq}`;
 
   const id = generateId();
   await c.env.DB.prepare(
-    `INSERT INTO recs (id, project_id, owner_id, certificate_number, standard, generation_period_start, generation_period_end, volume_mwh, technology, country, status)
-     VALUES (?, ?, ?, ?, 'i_rec', ?, ?, ?, ?, 'ZA', 'active')`
-  ).bind(id, body.project_id, project.participant_id, certNumber, body.period_start, body.period_end, Math.round(mwh * 100) / 100, project.technology).run();
+    `INSERT INTO recs (id, project_id, owner_id, certificate_number, standard, volume_mwh, vintage_year, status)
+     VALUES (?, ?, ?, ?, 'i_rec', ?, ?, 'active')`
+  ).bind(id, body.project_id, project.participant_id, certNumber, Math.round(mwh * 100) / 100, vintageYear).run();
 
   return c.json({ success: true, data: { id, certificate_number: certNumber, volume_mwh: mwh } }, 201);
 });
