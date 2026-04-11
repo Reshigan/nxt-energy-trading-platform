@@ -404,4 +404,53 @@ export const odseAPI = {
   ingest: (data: { readings: Array<Record<string, unknown>> }) => api.post('/odse/ingest', data),
 };
 
+// Staff Management (admin)
+export const staffAPI = {
+  list: () => api.get('/staff'),
+  create: (data: { email: string; password: string; company_name: string; admin_level: string }) => api.post('/staff', data),
+  updateLevel: (id: string, data: { admin_level: string }) => api.patch(`/staff/${id}`, data),
+  revoke: (id: string) => api.delete(`/staff/${id}/revoke`),
+  activity: (params?: Record<string, string>) => api.get('/staff/activity', { params }),
+};
+
+// Support Tickets
+export const ticketsAPI = {
+  list: (params?: Record<string, string | undefined>) => api.get('/tickets', { params }),
+  create: (data: { subject: string; category: string; description: string; priority?: string }) => api.post('/tickets', data),
+  get: (id: string) => api.get(`/tickets/${id}`),
+  addMessage: (id: string, data: { message: string; is_internal_note?: boolean }) => api.post(`/tickets/${id}/messages`, data),
+  update: (id: string, data: { status?: string; assigned_to?: string; priority?: string }) => api.patch(`/tickets/${id}`, data),
+  stats: () => api.get('/tickets/stats'),
+};
+
+// Announcements
+export const announcementsAPI = {
+  list: () => api.get('/announcements'),
+  create: (data: { title: string; body?: string; type?: string; starts_at?: string; expires_at?: string }) => api.post('/admin/announcements', data),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/admin/announcements/${id}`, data),
+  remove: (id: string) => api.delete(`/admin/announcements/${id}`),
+};
+
+// Platform Config (admin)
+export const platformConfigAPI = {
+  list: () => api.get('/admin/config'),
+  get: (key: string) => api.get(`/admin/config/${key}`),
+  update: (key: string, data: { value: string }) => api.patch(`/admin/config/${key}`, data),
+};
+
+// User Impersonation (superadmin)
+export const impersonateAPI = {
+  start: (userId: string) => api.post(`/admin/impersonate/${userId}`),
+  end: () => api.post('/admin/impersonate/end'),
+};
+
+// Account Recovery (admin)
+export const accountRecoveryAPI = {
+  resetPassword: (userId: string) => api.post(`/register/admin/users/${userId}/reset-password`),
+  unlock: (userId: string) => api.post(`/register/admin/users/${userId}/unlock`),
+  resendVerification: (userId: string) => api.post(`/register/admin/users/${userId}/resend-verification`),
+  verifyEmail: (userId: string) => api.post(`/register/admin/users/${userId}/verify-email`),
+  reset2FA: (userId: string) => api.post(`/register/admin/users/${userId}/reset-2fa`),
+};
+
 export default api;

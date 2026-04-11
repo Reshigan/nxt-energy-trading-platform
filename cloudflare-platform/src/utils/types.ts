@@ -19,6 +19,9 @@ export interface AppBindings extends Record<string, unknown> {
 // Hono environment type
 export type HonoEnv = { Bindings: AppBindings; Variables: { user: JwtPayload } };
 
+// Admin hierarchy levels
+export type AdminLevel = 'superadmin' | 'admin' | 'support';
+
 // User roles
 export type Role = 'admin' | 'ipp' | 'ipp_developer' | 'generator' | 'trader' | 'carbon_fund' | 'offtaker' | 'lender' | 'grid' | 'regulator';
 
@@ -34,6 +37,7 @@ export interface JwtPayload {
   role: Role;
   company_name: string;
   kyc_status: KycStatus;
+  admin_level?: AdminLevel;
   iss: string;
   iat: number;
   exp: number;
