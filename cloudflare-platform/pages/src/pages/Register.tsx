@@ -67,7 +67,7 @@ export default function Register() {
           <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center mr-3 shadow-lg shadow-blue-500/25">
             <FiZap className="text-white w-5 h-5" />
           </div>
-          <h1 className={`text-2xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>NXT Energy</h1>
+          <h1 className={`text-2xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Voltex</h1>
         </div>
 
         <h2 className={`text-xl font-bold text-center mb-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>Create Account</h2>

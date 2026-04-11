@@ -9,12 +9,12 @@ import {
 } from '../components/icons';
 
 const faqs = [
-  { q: 'What is NXT Energy Trading Platform?', a: 'NXT is South Africa\'s first open-market energy trading platform, enabling generators, traders, offtakers, and IPP developers to trade energy, manage carbon credits, and close IPP deals digitally.' },
+  { q: 'What is Voltex Energy Exchange?', a: 'Voltex is South Africa\'s first open-market energy trading platform, enabling generators, traders, offtakers, and IPP developers to trade energy, manage carbon credits, and close IPP deals digitally.' },
   { q: 'Who can use the platform?', a: 'Any registered South African energy market participant — generators, traders, offtakers, IPP developers, lenders, regulators, and carbon fund managers.' },
   { q: 'Is the platform NERSA compliant?', a: 'Yes. NXT integrates with NERSA, FSCA, CIPC, SARS, and other regulatory bodies. All statutory checks are automated during registration.' },
   { q: 'How does carbon credit trading work?', a: 'You can buy, sell, retire, transfer, and tokenize carbon credits from Gold Standard and Verra-certified projects directly on the platform.' },
   { q: 'What are the trading fees?', a: 'Trading fees are 0.15% per trade value (min R500). Carbon registry transfers are R25/tCO2e. See our pricing page for full details.' },
-  { q: 'How secure is the platform?', a: 'NXT uses Cloudflare\'s global edge network with end-to-end encryption, JWT authentication, SHA-256 document hashing, and POPIA-compliant data handling.' },
+  { q: 'How secure is the platform?', a: 'Voltex uses Cloudflare\'s global edge network with end-to-end encryption, JWT authentication, SHA-256 document hashing, and POPIA-compliant data handling.' },
   { q: 'Can I try the platform before committing?', a: 'Yes! We offer a 14-day free trial on the Professional tier with full feature access. No credit card required to start.' },
   { q: 'How does digital contract signing work?', a: 'Upload your contract document, add signatories, and sign digitally. Each signature is SHA-256 hashed with a timestamp for legal validity.' },
   { q: 'Is there an API for integration?', a: 'Yes. NXT provides a full REST API with webhook support. Generate API keys from the Developer Portal and integrate with your existing systems.' },
@@ -56,7 +56,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <div className="flex items-center gap-2.5">
             <NXTLogo size={32} animated />
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">NXT Energy</span>
+            <span className="text-lg font-bold bg-gradient-to-r from-emerald-400 to-cyan-500 bg-clip-text text-transparent">Voltex</span>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={toggleTheme} className={`p-2 rounded-lg ${isDark ? 'text-amber-400 hover:bg-amber-400/10' : 'text-slate-500 hover:bg-slate-100'}`} aria-label="Toggle theme">
@@ -187,8 +187,8 @@ export default function Landing() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <NXTLogo size={28} animated={false} />
-                <span className="font-bold">NXT Energy</span>
+                                <NXTLogo size={28} animated={false} />
+                                <span className="font-bold">Voltex</span>
               </div>
               <p className={`text-sm ${textSec}`}>GONXT Technology (Pty) Ltd<br />Lanseria Corporate Park<br />reshigan@gonxt.tech</p>
             </div>

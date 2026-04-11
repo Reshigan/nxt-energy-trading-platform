@@ -108,7 +108,7 @@ export default function Cockpit() {
             {meta.label} Cockpit
           </h1>
           <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-            {data.participant.name || 'NXT Energy'}
+            {data.participant.name || 'Voltex'}
             {' — '}
             Last updated {lastRefresh.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}
           </p>
