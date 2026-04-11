@@ -118,7 +118,7 @@ payments.post('/', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), as
       id, body.trade_id ?? null, body.invoice_id ?? null,
       body.from_participant_id, body.to_participant_id,
       body.amount_cents, currency, paymentMethod,
-      'mock', result.provider_ref, result.status, now, now
+      result.provider, result.provider_ref, result.status, now, now
     ).run();
 
     // Audit log

@@ -216,11 +216,11 @@ CREATE INDEX IF NOT EXISTS idx_aml_alerts_status ON aml_alerts(status);
 CREATE INDEX IF NOT EXISTS idx_aml_alerts_severity ON aml_alerts(severity);
 
 INSERT OR IGNORE INTO aml_rules (id, rule_name, rule_type, parameters) VALUES
-  ('aml-r1','High Value Single Trade','threshold','{max_cents:50000000,window_hours:1}'),
-  ('aml-r2','Rapid Fire Orders','frequency','{max_orders:100,window_minutes:60}'),
-  ('aml-r3','Unusual Daily Volume','pattern','{std_dev_multiplier:3,lookback_days:30}'),
-  ('aml-r4','Potential Wash Trading','pattern','{min_roundtrips:3,window_hours:24}'),
-  ('aml-r5','Possible Structuring','structuring','{threshold_cents:10000000,max_splits:5,window_hours:24}');
+  ('aml-r1','High Value Single Trade','threshold','{"max_cents":50000000,"window_hours":1}'),
+  ('aml-r2','Rapid Fire Orders','frequency','{"max_orders":100,"window_minutes":60}'),
+  ('aml-r3','Unusual Daily Volume','pattern','{"std_dev_multiplier":3,"lookback_days":30}'),
+  ('aml-r4','Potential Wash Trading','pattern','{"min_roundtrips":3,"window_hours":24}'),
+  ('aml-r5','Possible Structuring','structuring','{"threshold_cents":10000000,"max_splits":5,"window_hours":24}');
 
 -- A11: Audit trail hash chain
 ALTER TABLE audit_log ADD COLUMN prev_hash TEXT;

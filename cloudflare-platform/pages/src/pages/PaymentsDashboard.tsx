@@ -183,7 +183,7 @@ export default function PaymentsDashboard() {
 
           {/* Status filter */}
           <div className="flex gap-2 mb-4">
-            {['all', 'pending', 'processing', 'completed', 'failed', 'refunded'].map(f => (
+            {['all', 'pending', 'processing', 'completed', 'failed', 'reversed'].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
