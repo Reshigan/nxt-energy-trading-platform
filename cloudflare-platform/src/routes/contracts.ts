@@ -1006,12 +1006,12 @@ contracts.post('/agreements', authMiddleware(), async (c) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id, body.contract_type, user.sub, body.counterparty_id,
-      body.project_id || null, body.document_id || null,
-      body.title, body.start_date || null, body.end_date || null,
-      body.value_cents || null, body.term_months || null,
-      body.notes || null, body.commercial_terms || null,
-      body.nersa_licence_ref || null, body.era_registration_ref || null,
-      body.bbbee_level_required || null
+      body.project_id ?? null, body.document_id ?? null,
+      body.title, body.start_date ?? null, body.end_date ?? null,
+      body.value_cents ?? null, body.term_months ?? null,
+      body.notes ?? null, body.commercial_terms ?? null,
+      body.nersa_licence_ref ?? null, body.era_registration_ref ?? null,
+      body.bbbee_level_required ?? null
     ).run();
 
     // Add creator and counterparty as default signers
