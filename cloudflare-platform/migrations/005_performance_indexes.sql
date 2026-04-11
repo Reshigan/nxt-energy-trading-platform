@@ -6,7 +6,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_participant ON orders(participant_id, stat
 CREATE INDEX IF NOT EXISTS idx_contracts_creator ON contract_documents(creator_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_phase ON contract_documents(phase);
 CREATE INDEX IF NOT EXISTS idx_statutory_entity ON statutory_checks(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_meter_readings_project ON meter_readings(project_id, reading_timestamp);
+CREATE INDEX IF NOT EXISTS idx_meter_readings_project ON meter_readings(project_id, timestamp);
 CREATE INDEX IF NOT EXISTS idx_notifications_participant ON notifications(participant_id, read);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_carbon_owner ON carbon_credits(owner_id, status);
