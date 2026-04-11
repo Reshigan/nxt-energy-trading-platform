@@ -26,7 +26,7 @@ p2p.post('/offers', async (c) => {
     const idempotencyKey = c.req.header('X-Idempotency-Key');
     if (idempotencyKey) {
       const cached = await c.env.KV.get(`idempotency:p2p:${idempotencyKey}`);
-      if (cached) return c.json(JSON.parse(cached));
+      if (cached) return c.json(JSON.parse(cached), 201);
     }
 
     // Item 23 + B1: KYC gates trading — reject unverified users; require manual KYC approval

@@ -298,7 +298,7 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
     const idempotencyKey = c.req.header('X-Idempotency-Key');
     if (idempotencyKey) {
       const cached = await c.env.KV.get(`idempotency:invoice:${idempotencyKey}`);
-      if (cached) return c.json(JSON.parse(cached));
+      if (cached) return c.json(JSON.parse(cached), 201);
     }
 
     const trade = await c.env.DB.prepare('SELECT * FROM trades WHERE id = ?').bind(body.trade_id).first();

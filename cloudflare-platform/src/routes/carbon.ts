@@ -62,7 +62,7 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
     const idempotencyKey = c.req.header('X-Idempotency-Key');
     if (idempotencyKey) {
       const cached = await c.env.KV.get(`idempotency:retire:${idempotencyKey}`);
-      if (cached) return c.json(JSON.parse(cached));
+      if (cached) return c.json(JSON.parse(cached), 200);
     }
 
     const credit = await c.env.DB.prepare(
@@ -83,7 +83,7 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
     const now = nowISO();
 
     // Item 20: Transaction atomicity — use db.batch() for credit retirement + audit
-    await c.env.DB.batch([
+    const retireBatchResults = await c.env.DB.batch([
       c.env.DB.prepare(`
         UPDATE carbon_credits SET available_quantity = ?, status = ?,
           retirement_purpose = ?, retirement_beneficiary = ?, retirement_date = ?, updated_at = ?
@@ -98,6 +98,11 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
         c.req.header('CF-Connecting-IP') || 'unknown'
       ),
     ]);
+
+    // Check if UPDATE actually affected rows (race condition guard)
+    if (!retireBatchResults[0].meta.changes || retireBatchResults[0].meta.changes === 0) {
+      return c.json({ success: false, error: 'Credit was modified concurrently. Please retry.' }, 409);
+    }
 
     // Fire cascade for credit retirement
     c.executionCtx.waitUntil(cascade(c.env, {
@@ -144,7 +149,7 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
     const idempotencyKey = c.req.header('X-Idempotency-Key');
     if (idempotencyKey) {
       const cached = await c.env.KV.get(`idempotency:transfer:${idempotencyKey}`);
-      if (cached) return c.json(JSON.parse(cached));
+      if (cached) return c.json(JSON.parse(cached), 200);
     }
 
     const credit = await c.env.DB.prepare(
@@ -166,7 +171,7 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
     // Item 20: Transaction atomicity — use db.batch() for transfer operations
     if (quantity === (credit.available_quantity as number)) {
       // Transfer entire credit atomically
-      await c.env.DB.batch([
+      const transferBatchResults = await c.env.DB.batch([
         c.env.DB.prepare(
           'UPDATE carbon_credits SET owner_id = ?, status = \'transferred\', updated_at = ? WHERE id = ? AND available_quantity >= ?'
         ).bind(to_participant_id, now, id, quantity),
@@ -175,10 +180,15 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
           VALUES (?, ?, 'transfer_credits', 'carbon_credit', ?, ?, ?)
         `).bind(auditId, user.sub, id, JSON.stringify({ quantity, to: to_participant_id }), c.req.header('CF-Connecting-IP') || 'unknown'),
       ]);
+
+      // Check if UPDATE actually affected rows (race condition guard)
+      if (!transferBatchResults[0].meta.changes || transferBatchResults[0].meta.changes === 0) {
+        return c.json({ success: false, error: 'Credit was modified concurrently. Please retry.' }, 409);
+      }
     } else {
       // Split: reduce original + create new credit atomically
       const newCreditId = generateId();
-      await c.env.DB.batch([
+      const splitBatchResults = await c.env.DB.batch([
         c.env.DB.prepare(
           'UPDATE carbon_credits SET available_quantity = available_quantity - ?, updated_at = ? WHERE id = ? AND available_quantity >= ?'
         ).bind(quantity, now, id, quantity),
@@ -197,6 +207,11 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
           VALUES (?, ?, 'transfer_credits', 'carbon_credit', ?, ?, ?)
         `).bind(auditId, user.sub, id, JSON.stringify({ quantity, to: to_participant_id }), c.req.header('CF-Connecting-IP') || 'unknown'),
       ]);
+
+      // Check if UPDATE actually affected rows (race condition guard)
+      if (!splitBatchResults[0].meta.changes || splitBatchResults[0].meta.changes === 0) {
+        return c.json({ success: false, error: 'Credit was modified concurrently. Please retry.' }, 409);
+      }
     }
 
     // Fire cascade for credit transfer
