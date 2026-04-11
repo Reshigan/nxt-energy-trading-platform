@@ -50,8 +50,8 @@ export default function MeteringAnalytics() {
       if (sumRes.status === 'fulfilled') setSummary(sumRes.value.data?.data ?? null);
       if (hrRes.status === 'fulfilled') setHourly(Array.isArray(hrRes.value.data?.data) ? hrRes.value.data.data : []);
       if (dyRes.status === 'fulfilled') setDaily(Array.isArray(dyRes.value.data?.data) ? dyRes.value.data.data : []);
-      if (cbRes.status === 'fulfilled') setCarbon(Array.isArray(cbRes.value.data?.data) ? cbRes.value.data.data : []);
-      if (tfRes.status === 'fulfilled') setTariff(Array.isArray(tfRes.value.data?.data) ? tfRes.value.data.data : []);
+      if (cbRes.status === 'fulfilled') setCarbon(Array.isArray(cbRes.value.data?.data?.daily_trend) ? cbRes.value.data.data.daily_trend : []);
+      if (tfRes.status === 'fulfilled') setTariff(Array.isArray(tfRes.value.data?.data?.breakdown) ? tfRes.value.data.data.breakdown : []);
       if ([sumRes, hrRes, dyRes, cbRes, tfRes].every(r => r.status === 'rejected')) setError('Failed to load ODSE analytics data.');
     } catch { setError('Failed to load analytics data.'); }
     setLoading(false);

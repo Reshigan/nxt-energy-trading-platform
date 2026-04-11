@@ -378,16 +378,15 @@ odse.get('/analytics/summary', authMiddleware(), async (c) => {
   }
 });
 
-// GET /odse/analytics/hourly — 24-hour consumption/generation profile
+// GET /odse/analytics/hourly — 24-hour consumption/generation profile (pivoted)
 odse.get('/analytics/hourly', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
-    const direction = c.req.query('direction') || 'generation';
     const days = parseInt(c.req.query('days') || '30', 10);
 
     let assetFilter = '';
-    const params: unknown[] = [direction];
+    const params: unknown[] = [];
 
     if (assetId) {
       assetFilter = 'AND t.asset_id = ?';
@@ -400,20 +399,17 @@ odse.get('/analytics/hourly', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(`
       SELECT
         CAST(strftime('%H', t.timestamp) AS INTEGER) as hour,
-        ROUND(AVG(t.kwh), 2) as avg_kwh,
-        ROUND(MIN(t.kwh), 2) as min_kwh,
-        ROUND(MAX(t.kwh), 2) as max_kwh,
+        ROUND(AVG(CASE WHEN t.direction = 'generation' THEN t.kwh END), 2) as generation,
+        ROUND(AVG(CASE WHEN t.direction = 'consumption' THEN t.kwh END), 2) as consumption,
         COUNT(*) as readings,
-        ROUND(AVG(t.pf), 3) as avg_pf,
-        ROUND(AVG(t.energy_charge_component), 4) as avg_charge
+        ROUND(AVG(t.pf), 3) as avg_pf
       FROM odse_timeseries t
-      WHERE t.direction = ? ${assetFilter}
-        AND t.timestamp >= datetime('now', '-${days} days')
+      WHERE t.timestamp >= datetime('now', '-${days} days') ${assetFilter}
       GROUP BY CAST(strftime('%H', t.timestamp) AS INTEGER)
       ORDER BY hour
     `).bind(...params).all();
 
-    return c.json({ success: true, data: results.results, direction, period_days: days });
+    return c.json({ success: true, data: results.results, period_days: days });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
@@ -448,16 +444,15 @@ odse.get('/analytics/daily', authMiddleware(), async (c) => {
     const results = await c.env.DB.prepare(`
       SELECT
         date(t.timestamp) as date,
-        t.direction,
-        ROUND(SUM(t.kwh), 2) as total_kwh,
-        ROUND(SUM(t.kwh) / 1000, 2) as total_mwh,
+        ROUND(SUM(CASE WHEN t.direction = 'generation' THEN t.kwh ELSE 0 END) / 1000, 2) as generation,
+        ROUND(SUM(CASE WHEN t.direction = 'consumption' THEN t.kwh ELSE 0 END) / 1000, 2) as consumption,
         COUNT(*) as readings,
         ROUND(AVG(t.pf), 3) as avg_pf,
         ROUND(SUM(t.energy_charge_component), 2) as total_charge,
         ROUND(AVG(t.carbon_intensity_gco2_per_kwh), 2) as avg_carbon_intensity
       FROM odse_timeseries t
       WHERE t.timestamp >= datetime('now', '-${days} days') ${assetFilter} ${dirFilter}
-      GROUP BY date(t.timestamp), t.direction
+      GROUP BY date(t.timestamp)
       ORDER BY date DESC
     `).bind(...params).all();
 
