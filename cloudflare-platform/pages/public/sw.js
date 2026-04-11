@@ -1,9 +1,9 @@
 // NXT Energy Trading Platform - Service Worker
 // Handles offline caching, push notifications, and background sync
 
-const CACHE_NAME = 'nxt-energy-v2';
-const STATIC_CACHE = 'nxt-static-v2';
-const API_CACHE = 'nxt-api-v2';
+// Item 19: Removed API_CACHE — financial data must never be served from stale cache
+const CACHE_NAME = 'nxt-energy-v3';
+const STATIC_CACHE = 'nxt-static-v3';
 
 const STATIC_ASSETS = [
   '/',
@@ -11,14 +11,9 @@ const STATIC_ASSETS = [
   '/manifest.json',
 ];
 
-const API_ROUTES = [
-  '/api/v1/market/insights',
-  '/api/v1/market/prices',
-  '/api/v1/carbon/credits',
-  '/api/v1/portfolio',
-];
+// Item 19: Removed API_ROUTES list — no API caching for financial endpoints
 
-// Install event - cache static assets
+// Install event - cache static assets only
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
@@ -27,12 +22,12 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate event - clean old caches
+// Activate event - clean old caches (including old API caches)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== STATIC_CACHE && key !== API_CACHE && key !== CACHE_NAME)
+        keys.filter((key) => key !== STATIC_CACHE && key !== CACHE_NAME)
           .map((key) => caches.delete(key))
       );
     }).then(() => self.clients.claim())
@@ -47,20 +42,10 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // API requests: network first, fallback to cache
+  // Item 19: API requests MUST NOT be cached — always go to network
+  // Financial data (trading, carbon, settlement) must never be stale
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const cloned = response.clone();
-            caches.open(API_CACHE).then((cache) => cache.put(request, cloned));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request))
-    );
-    return;
+    return; // Let the browser handle normally — no cache interception
   }
 
   // Static assets: cache first, fallback to network
@@ -144,61 +129,9 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Background sync for offline actions
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-trades') {
-    event.waitUntil(syncPendingTrades());
-  }
-  if (event.tag === 'sync-readings') {
-    event.waitUntil(syncPendingReadings());
-  }
-});
+// Item 19: Removed syncPendingTrades() and syncPendingReadings()
+// Financial data must never be synced from stale offline cache.
+// All trading/metering operations require live network connectivity.
 
-async function syncPendingTrades() {
-  try {
-    const cache = await caches.open('nxt-pending-v1');
-    const requests = await cache.keys();
-    const tradeRequests = requests.filter((r) => r.url.includes('/trades'));
-    for (const req of tradeRequests) {
-      const response = await cache.match(req);
-      if (response) {
-        const body = await response.json();
-        await fetch(req.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        await cache.delete(req);
-      }
-    }
-  } catch { /* retry on next sync */ }
-}
-
-async function syncPendingReadings() {
-  try {
-    const cache = await caches.open('nxt-pending-v1');
-    const requests = await cache.keys();
-    const readingRequests = requests.filter((r) => r.url.includes('/metering'));
-    for (const req of readingRequests) {
-      const response = await cache.match(req);
-      if (response) {
-        const body = await response.json();
-        await fetch(req.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        await cache.delete(req);
-      }
-    }
-  } catch { /* retry on next sync */ }
-}
-
-// Periodic background sync for market data
-self.addEventListener('periodicsync', (event) => {
-  if (event.tag === 'refresh-market-data') {
-    event.waitUntil(refreshMarketData());
-  }
-});
-
-async function refreshMarketData() {
-  try {
-    const response = await fetch('/api/v1/market/prices');
-    if (response.ok) {
-      const cache = await caches.open(API_CACHE);
-      await cache.put('/api/v1/market/prices', response);
-    }
-  } catch { /* silent fail */ }
-}
+// Item 19: Removed periodicsync for market data — stale price data
+// is dangerous for a financial trading platform.

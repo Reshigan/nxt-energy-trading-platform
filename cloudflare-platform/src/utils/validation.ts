@@ -51,7 +51,11 @@ export const RegisterSchema = z.object({
   role: z.enum(['ipp', 'trader', 'carbon_fund', 'offtaker', 'lender', 'grid']),
   contact_person: z.string().min(2).max(100),
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: z.string().min(8).max(128)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
   phone: z.string().min(10).max(20),
   physical_address: z.string().min(5).max(500),
   sa_id_number: z.string().optional(),

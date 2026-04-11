@@ -23,12 +23,21 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
 
     const data = parsed.data;
 
-    // B1: KYC gates trading — reject unverified users
+    // Item 22: Idempotency key check — prevent duplicate order submissions
+    const idempotencyKey = c.req.header('X-Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await c.env.KV.get(`idempotency:order:${idempotencyKey}`);
+      if (cached) {
+        return c.json(JSON.parse(cached), 201);
+      }
+    }
+
+    // Item 23 + B1: KYC gates trading — reject unverified users; require manual KYC approval
     const participant = await c.env.DB.prepare(
       'SELECT kyc_status, trading_enabled FROM participants WHERE id = ?'
     ).bind(user.sub).first<{ kyc_status: string; trading_enabled: number }>();
     if (!participant || participant.kyc_status !== 'verified' || participant.trading_enabled !== 1) {
-      return c.json({ success: false, error: 'KYC verification required before trading' }, 403);
+      return c.json({ success: false, error: 'KYC verification required before trading. Your account must be manually approved by an admin.' }, 403);
     }
 
     // B6: Margin check — query existing settled trade exposure to prevent over-leveraging
@@ -41,6 +50,28 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
     const marginLimitCents = 10000000; // Default R100k limit
     if (currentExposureCents + orderValueCents > marginLimitCents) {
       return c.json({ success: false, error: `Insufficient margin. Current exposure: R${(currentExposureCents / 100).toFixed(2)}, Order: R${(orderValueCents / 100).toFixed(2)}, Limit: R${(marginLimitCents / 100).toFixed(2)}` }, 400);
+    }
+
+    // Item 21: Market halt check — reject orders if market is halted
+    const marketHalt = await c.env.KV.get(`market_halt:${data.market}`);
+    if (marketHalt) {
+      return c.json({ success: false, error: `Market ${data.market} is currently halted. Trading is suspended.` }, 403);
+    }
+
+    // Item 21: Price band validation — reject orders deviating >20% from last trade price
+    if (data.price) {
+      const lastIndexStr = await c.env.KV.get(`index:${data.market}`);
+      if (lastIndexStr) {
+        const lastIndex = JSON.parse(lastIndexStr);
+        const lastPrice = lastIndex.price;
+        if (lastPrice > 0) {
+          const priceCentsCheck = Math.round(data.price * 100);
+          const deviation = Math.abs(priceCentsCheck - lastPrice) / lastPrice;
+          if (deviation > 0.20) {
+            return c.json({ success: false, error: `Price deviates ${(deviation * 100).toFixed(1)}% from last trade (${lastPrice / 100}). Maximum allowed deviation is 20%.` }, 400);
+          }
+        }
+      }
     }
 
     // Validate price for limit orders
@@ -167,14 +198,23 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
       }
     }
 
-    return c.json({
+    const responseBody = {
       success: true,
       data: {
         orderId,
         status: doResult.matches?.length ? (doResult.matches.reduce((s, m) => s + m.volume, 0) >= data.volume ? 'filled' : 'partial') : 'open',
         matches: doResult.matches || [],
       },
-    }, 201);
+    };
+
+    // Item 22: Store idempotency result in KV (24h TTL)
+    if (idempotencyKey) {
+      c.executionCtx.waitUntil(
+        c.env.KV.put(`idempotency:order:${idempotencyKey}`, JSON.stringify(responseBody), { expirationTtl: 86400 })
+      );
+    }
+
+    return c.json(responseBody, 201);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
@@ -391,6 +431,38 @@ trading.get('/markets/prices/:market', optionalAuth(), async (c) => {
         })),
       },
     });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// Item 21: POST /admin/markets/:market/halt — Halt/resume market trading
+trading.post('/admin/markets/:market/halt', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const { market } = c.req.param();
+    const body = await c.req.json() as { halt: boolean; reason?: string };
+    const user = c.get('user');
+
+    if (body.halt) {
+      await c.env.KV.put(`market_halt:${market}`, JSON.stringify({
+        halted_by: user.sub,
+        reason: body.reason || 'Administrative halt',
+        halted_at: nowISO(),
+      }));
+    } else {
+      await c.env.KV.delete(`market_halt:${market}`);
+    }
+
+    // Audit
+    await c.env.DB.prepare(
+      "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, 'market', ?, ?, ?)"
+    ).bind(
+      generateId(), user.sub, body.halt ? 'market.halted' : 'market.resumed',
+      market, JSON.stringify({ reason: body.reason }), c.req.header('CF-Connecting-IP') || 'unknown'
+    ).run();
+
+    return c.json({ success: true, data: { market, halted: body.halt } });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
