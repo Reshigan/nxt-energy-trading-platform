@@ -846,4 +846,17 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
 export default {
   fetch: app.fetch,
   scheduled,
+  async queue(batch: MessageBatch<unknown>, env: AppBindings) {
+    for (const msg of batch.messages) {
+      try {
+        const payload = msg.body as Record<string, unknown>;
+        const log = (level: string, action: string, details: Record<string, unknown>) =>
+          console.log(JSON.stringify({ level, action, ...details, ts: new Date().toISOString() }));
+        log('info', 'queue_event', { type: payload?.type, id: payload?.id });
+        msg.ack();
+      } catch {
+        msg.retry();
+      }
+    }
+  },
 };
