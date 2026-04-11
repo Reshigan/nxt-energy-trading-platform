@@ -324,7 +324,7 @@ odse.get('/analytics/summary', authMiddleware(), async (c) => {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
     const projectId = c.req.query('project_id');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -404,6 +404,7 @@ odse.get('/analytics/summary', authMiddleware(), async (c) => {
         net_kwh: Math.round((genKwh - conKwh) * 100) / 100,
         by_tariff_period: byTariff.results,
         by_direction: byDirection.results,
+        avoided_emissions_tco2: Math.round(genKwh * (conCarbon || 950) / 1000 / 1000 * 100) / 100,
         avg_power_factor: Math.round(((avgPF as Record<string, number>)?.avg_pf ?? 0) * 1000) / 1000,
         schema: 'odse/v1',
       },
@@ -419,7 +420,7 @@ odse.get('/analytics/hourly', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -458,7 +459,7 @@ odse.get('/analytics/daily', authMiddleware(), async (c) => {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
     const direction = c.req.query('direction');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -503,7 +504,7 @@ odse.get('/analytics/daily', authMiddleware(), async (c) => {
 odse.get('/analytics/carbon', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -580,7 +581,7 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const direction = c.req.query('direction') || 'consumption';
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     let denomAssetFilter = '';

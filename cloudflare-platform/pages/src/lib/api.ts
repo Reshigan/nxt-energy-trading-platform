@@ -376,6 +376,22 @@ export const cockpitAPI = {
   get: () => api.get('/cockpit'),
 };
 
+// Contract Agreements (digital workflow)
+export const contractAgreementsAPI = {
+  list: (params?: Record<string, string>) => api.get('/contracts/agreements', { params }),
+  get: (id: string) => api.get(`/contracts/agreements/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/contracts/agreements', data),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/contracts/agreements/${id}`, data),
+  saveFields: (id: string, fields: Array<{ field_key: string; field_value: string; field_type?: string; section?: string }>) =>
+    api.post(`/contracts/agreements/${id}/fields`, { fields }),
+  addSigners: (id: string, signers: Array<{ participant_id: string; signer_name: string; signer_email: string; signer_role?: string; signing_order?: number }>) =>
+    api.post(`/contracts/agreements/${id}/signers`, { signers }),
+  send: (id: string) => api.post(`/contracts/agreements/${id}/send`),
+  sign: (id: string) => api.post(`/contracts/agreements/${id}/sign`),
+  getActivity: (id: string) => api.get(`/contracts/agreements/${id}/activity`),
+  activityFeed: (params?: Record<string, string>) => api.get('/contracts/activity/feed', { params }),
+};
+
 // ODSE Metering Analytics
 export const odseAPI = {
   assets: (params?: Record<string, string>) => api.get('/odse/assets', { params }),
