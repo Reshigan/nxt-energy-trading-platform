@@ -47,7 +47,19 @@ tag = "v2"
 new_classes = ["P2PMatcherDO", "SmartContractDO", "RiskEngineDO"]
 
 [triggers]
-crons = ["0 6 * * *"]
+crons = ["0 * * * *", "0 6 * * *", "0 0 1 * *"]
+# Hourly: weather sync for active projects
+# Daily 06:00: statutory re-checks, market snapshots
+# Monthly 1st: REC auto-issuance
+
+[[queues.producers]]
+queue = "nxt-events"
+binding = "EVENTS_QUEUE"
+
+[[queues.consumers]]
+queue = "nxt-events"
+max_batch_size = 10
+max_retries = 3
 
 [observability]
 enabled = true
