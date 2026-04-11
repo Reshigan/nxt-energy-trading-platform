@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - energy-trading-platform-v1
 
 env:
   CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
@@ -131,7 +130,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           cd cloudflare-platform
-          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch production
+          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch main
 
   # ── Post-deploy health checks ───────────────────────────────
   verify:
