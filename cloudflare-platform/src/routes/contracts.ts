@@ -946,7 +946,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
     ).bind(id).all();
 
     const checks = await c.env.DB.prepare(
-      'SELECT * FROM statutory_checks WHERE document_id = ?'
+      "SELECT * FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
     ).bind(id).all();
 
     const html = generateContractPDF(
