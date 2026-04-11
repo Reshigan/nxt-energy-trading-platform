@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
+import { isTokenBlacklisted } from '../auth/jwt';
 import { generateId, nowISO } from '../utils/id';
 import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '../utils/pagination';
 import { captureException } from '../utils/sentry';
@@ -89,7 +90,7 @@ odse.post('/assets', authMiddleware({ roles: ['admin', 'ipp', 'ipp_developer', '
       id, body.asset_id, user.sub, body.project_id || null,
       body.asset_type, body.capacity_kw, body.oem, body.model || null,
       body.serial_number || null, body.commissioning_date || null,
-      body.ppa_id || null, body.latitude || null, body.longitude || null,
+      body.ppa_id || null, body.latitude ?? null, body.longitude ?? null,
       body.timezone || 'Africa/Johannesburg', body.region || null,
       body.country_code || 'ZA', body.grid_connection_point || null,
       body.voltage_level || null, body.meter_id || null
@@ -118,14 +119,17 @@ odse.post('/ingest', async (c) => {
       return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Authentication required (X-API-Key or Bearer token)'), 401);
     }
 
+    let authenticatedParticipantId: string | null = null;
+
     if (apiKey) {
       const encoder = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(apiKey));
       const keyHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
       const keyRecord = await c.env.DB.prepare(
         'SELECT id, participant_id FROM api_keys WHERE key_hash = ? AND revoked = 0'
-      ).bind(keyHash).first();
+      ).bind(keyHash).first<{ id: string; participant_id: string }>();
       if (!keyRecord) return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Invalid API key'), 401);
+      authenticatedParticipantId = keyRecord.participant_id;
     } else if (authHeader) {
       // Validate JWT token when using Bearer auth (not API key)
       if (!authHeader.startsWith('Bearer ')) {
@@ -154,6 +158,25 @@ odse.post('/ingest', async (c) => {
         if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
           return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token expired'), 401);
         }
+        // Check token blacklist (matches authMiddleware behavior)
+        try {
+          const blacklisted = await isTokenBlacklisted(c.env.KV, token);
+          if (blacklisted) {
+            return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token has been revoked'), 401);
+          }
+        } catch {
+          // If KV fails, allow through (consistent with authMiddleware)
+        }
+        // Check password-change invalidation
+        try {
+          const pwChanged = await c.env.KV.get(`pw_changed:${payload.sub}`);
+          if (pwChanged && payload.iat < Math.floor(new Date(pwChanged).getTime() / 1000)) {
+            return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token invalidated by password reset'), 401);
+          }
+        } catch {
+          // If KV fails, allow through
+        }
+        authenticatedParticipantId = payload.sub;
       } catch {
         return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token validation failed'), 401);
       }
@@ -198,6 +221,19 @@ odse.post('/ingest', async (c) => {
       const r = body.readings[i];
       if (!r.asset_id || !r.timestamp || r.kWh === undefined) {
         return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, `Reading ${i}: asset_id, timestamp, and kWh are required (ODSE spec)`), 400);
+      }
+    }
+
+    // Verify asset ownership — caller can only write to their own assets
+    if (authenticatedParticipantId) {
+      const uniqueAssetIds = [...new Set(body.readings.map((r) => r.asset_id))];
+      const ownedAssets = await c.env.DB.prepare(
+        `SELECT asset_id FROM odse_assets WHERE participant_id = ? AND asset_id IN (${uniqueAssetIds.map(() => '?').join(',')})`
+      ).bind(authenticatedParticipantId, ...uniqueAssetIds).all<{ asset_id: string }>();
+      const ownedSet = new Set((ownedAssets.results || []).map((a) => a.asset_id));
+      const unauthorized = uniqueAssetIds.filter((id) => !ownedSet.has(id));
+      if (unauthorized.length > 0) {
+        return c.json(errorResponse(ErrorCodes.AUTH_FAILED, `Not authorized to write data for assets: ${unauthorized.join(', ')}`), 403);
       }
     }
 
