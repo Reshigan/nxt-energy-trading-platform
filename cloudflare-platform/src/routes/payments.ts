@@ -50,13 +50,24 @@ payments.get('/stats', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
       c.env.DB.prepare("SELECT COALESCE(SUM(amount_cents),0) as total FROM payment_transactions WHERE status = 'completed'").first<{ total: number }>(),
     ]);
 
+    const pendingCount = pending?.c ?? 0;
+    const completedCount = completed?.c ?? 0;
+    const failedCount = failed?.c ?? 0;
+    const totalAmountCents = totalVolume?.total ?? 0;
+
     return c.json({
       success: true,
       data: {
-        pending: pending?.c ?? 0,
-        completed: completed?.c ?? 0,
-        failed: failed?.c ?? 0,
-        total_volume_cents: totalVolume?.total ?? 0,
+        total_count: pendingCount + completedCount + failedCount,
+        total_amount_cents: totalAmountCents,
+        pending_count: pendingCount,
+        completed_count: completedCount,
+        failed_count: failedCount,
+        // Legacy field names for backward compatibility
+        pending: pendingCount,
+        completed: completedCount,
+        failed: failedCount,
+        total_volume_cents: totalAmountCents,
       },
     });
   } catch {

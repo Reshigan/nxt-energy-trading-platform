@@ -14,8 +14,9 @@ aml.get('/alerts', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), as
     const limit = parseInt(c.req.query('limit') || '50', 10);
     const offset = parseInt(c.req.query('offset') || '0', 10);
 
-    let query = `SELECT a.*, p.email as participant_email, p.company_name
+    let query = `SELECT a.*, r.rule_name, r.severity as rule_severity, p.email as participant_email, p.company_name
       FROM aml_alerts a
+      LEFT JOIN aml_rules r ON a.rule_id = r.id
       LEFT JOIN participants p ON a.participant_id = p.id
       WHERE 1=1`;
     const binds: unknown[] = [];
@@ -83,7 +84,7 @@ aml.patch('/alerts/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' 
     const values: unknown[] = [];
 
     if (body.status) {
-      if (!['open', 'investigating', 'escalated', 'resolved', 'false_positive'].includes(body.status)) {
+      if (!['open', 'investigating', 'escalated', 'resolved', 'false_positive', 'dismissed'].includes(body.status)) {
         return c.json({ success: false, error: 'Invalid status' }, 400);
       }
       updates.push('status = ?');
@@ -149,14 +150,16 @@ aml.get('/rules', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), asy
 aml.patch('/rules/:id', authMiddleware({ roles: ['admin'], adminLevel: 'superadmin' }), async (c) => {
   try {
     const { id } = c.req.param();
-    const body = await c.req.json() as { active?: boolean; parameters?: string };
+    const body = await c.req.json() as { active?: boolean; enabled?: boolean; parameters?: string };
 
     const updates: string[] = [];
     const values: unknown[] = [];
 
-    if (body.active !== undefined) {
+    // Support both 'active' and 'enabled' field names from frontend
+    const activeValue = body.active ?? body.enabled;
+    if (activeValue !== undefined) {
       updates.push('active = ?');
-      values.push(body.active ? 1 : 0);
+      values.push(activeValue ? 1 : 0);
     }
     if (body.parameters !== undefined) {
       updates.push('parameters = ?');
