@@ -19,7 +19,7 @@ interface SummaryData {
 
 interface HourlyData { hour: number; generation: number; consumption: number }
 interface DailyData { date: string; generation: number; consumption: number }
-interface CarbonData { date: string; avg_intensity: number; total_emissions_tco2e: number; avoided_emissions_tco2e: number }
+interface CarbonData { date: string; carbon_intensity: number; total_emissions_tco2e: number; avoided_emissions_tco2e: number }
 interface TariffData { tariff_period: string; total_kwh: number; total_cost: number; readings: number }
 
 const TARIFF_COLORS: Record<string, string> = { peak: '#ef4444', standard: '#f59e0b', off_peak: '#10b981', critical_peak: '#8b5cf6' };
@@ -157,7 +157,7 @@ export default function MeteringAnalytics() {
                 <XAxis dataKey="date" tick={{ fontSize: 9, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} tickFormatter={v => v.slice(5)} />
                 <YAxis tick={{ fontSize: 10, fill: c('#64748b', '#94a3b8') }} axisLine={false} tickLine={false} width={35} unit=" g" />
                 <Tooltip contentStyle={{ background: c('#151F32', '#fff'), border: c('1px solid rgba(255,255,255,0.08)', '1px solid rgba(0,0,0,0.06)'), borderRadius: 12, fontSize: 12 }} />
-                <Line type="monotone" dataKey="avg_intensity" stroke="#f59e0b" strokeWidth={2} dot={false} name="gCO₂/kWh" />
+                <Line type="monotone" dataKey="carbon_intensity" stroke="#f59e0b" strokeWidth={2} dot={false} name="gCO₂/kWh" />
               </LineChart>
             </ResponsiveContainer>
           </div>

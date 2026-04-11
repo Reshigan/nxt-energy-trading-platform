@@ -7,13 +7,13 @@ interface NXTLogoProps {
 }
 
 /**
- * Voltex Energy Exchange — custom logo.
- * Stylized "V" lightning bolt inside a rounded badge with energy orbit ring.
- * Original design — no copyright or trademark conflicts.
+ * Ionvex Energy Exchange — official brand logo.
+ * Ion particle mark: three orbital paths around a glowing core.
+ * Provided by brand identity kit — no copyright or trademark conflicts.
  */
 export default function NXTLogo({ size = 40, animated = true, className = '' }: NXTLogoProps) {
   const s = size;
-  const id = `voltex-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `ionvex-${Math.random().toString(36).slice(2, 8)}`;
 
   return (
     <div className={`relative inline-flex items-center justify-center ${className}`} style={{ width: s, height: s }}>
@@ -22,9 +22,9 @@ export default function NXTLogo({ size = 40, animated = true, className = '' }: 
         <div
           className="absolute inset-0 rounded-2xl"
           style={{
-            background: 'linear-gradient(135deg, rgba(16,185,129,0.4), rgba(6,182,212,0.3), rgba(59,130,246,0.3))',
+            background: 'linear-gradient(135deg, rgba(0,229,204,0.4), rgba(0,184,212,0.3), rgba(0,119,255,0.3))',
             filter: 'blur(8px)',
-            animation: 'voltexGlow 3s ease-in-out infinite',
+            animation: 'ionvexGlow 3s ease-in-out infinite',
           }}
         />
       )}
@@ -32,41 +32,36 @@ export default function NXTLogo({ size = 40, animated = true, className = '' }: 
       <svg
         width={s}
         height={s}
-        viewBox="0 0 100 100"
+        viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         className="relative z-10"
       >
         <defs>
-          {/* Background gradient — deep teal to navy */}
-          <linearGradient id={`${id}-bg`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#0f3d3e" stopOpacity="0.95" />
-            <stop offset="50%" stopColor="#0a2e3d" stopOpacity="0.97" />
-            <stop offset="100%" stopColor="#071e2e" stopOpacity="1" />
+          <linearGradient id={`${id}-grad`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#00E5CC" />
+            <stop offset="50%" stopColor="#00B8D4" />
+            <stop offset="100%" stopColor="#0077FF" />
           </linearGradient>
-
-          {/* Glass shine */}
-          <linearGradient id={`${id}-shine`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="white" stopOpacity="0.2" />
-            <stop offset="40%" stopColor="white" stopOpacity="0.04" />
-            <stop offset="100%" stopColor="white" stopOpacity="0" />
+          <linearGradient id={`${id}-orb1`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#00E5CC" stopOpacity={0.05} />
+            <stop offset="50%" stopColor="#00E5CC" stopOpacity={0.9} />
+            <stop offset="100%" stopColor="#0077FF" stopOpacity={0.05} />
           </linearGradient>
-
-          {/* Bolt gradient — emerald to cyan */}
-          <linearGradient id={`${id}-bolt`} x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stopColor="#34d399" />
-            <stop offset="50%" stopColor="#06b6d4" />
-            <stop offset="100%" stopColor="#3b82f6" />
+          <linearGradient id={`${id}-orb2`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0077FF" stopOpacity={0.05} />
+            <stop offset="50%" stopColor="#0077FF" stopOpacity={0.7} />
+            <stop offset="100%" stopColor="#00E5CC" stopOpacity={0.05} />
           </linearGradient>
-
-          {/* Ring gradient */}
-          <linearGradient id={`${id}-ring`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#10b981" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.3" />
-          </linearGradient>
-
           <filter id={`${id}-glow`}>
-            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id={`${id}-coreGlow`}>
+            <feGaussianBlur stdDeviation="8" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -74,70 +69,50 @@ export default function NXTLogo({ size = 40, animated = true, className = '' }: 
           </filter>
         </defs>
 
-        {/* Rounded square base */}
-        <rect
-          x="2" y="2"
-          width="96" height="96"
-          rx="22"
-          fill={`url(#${id}-bg)`}
-          stroke={`url(#${id}-ring)`}
-          strokeWidth="1.5"
-        />
+        {/* Orbital ring 1 */}
+        <ellipse cx="100" cy="100" rx="72" ry="24" transform="rotate(-30 100 100)"
+          stroke={`url(#${id}-orb1)`} strokeWidth="2.5" fill="none"
+          className={animated ? 'ionvex-orbit' : ''} />
+        {/* Orbital ring 2 */}
+        <ellipse cx="100" cy="100" rx="72" ry="24" transform="rotate(30 100 100)"
+          stroke={`url(#${id}-orb2)`} strokeWidth="2.5" fill="none"
+          className={animated ? 'ionvex-orbit-reverse' : ''} />
+        {/* Orbital ring 3 — equatorial */}
+        <ellipse cx="100" cy="100" rx="72" ry="24"
+          stroke={`url(#${id}-orb1)`} strokeWidth="1.5" fill="none" opacity="0.35" />
 
-        {/* Glass overlay */}
-        <rect
-          x="4" y="4"
-          width="92" height="46"
-          rx="20"
-          fill={`url(#${id}-shine)`}
-        />
+        {/* Core */}
+        <circle cx="100" cy="100" r="18" fill={`url(#${id}-grad)`} filter={`url(#${id}-coreGlow)`} />
+        <circle cx="100" cy="100" r="9" fill="#ffffff" opacity="0.85" />
 
-        {/* Energy orbit ring */}
-        <circle
-          cx="50" cy="50" r="36"
-          fill="none"
-          stroke={`url(#${id}-ring)`}
-          strokeWidth="1.2"
-          strokeDasharray="18 8"
-          className={animated ? 'voltex-spin' : ''}
-        />
-
-        {/* "V" lightning bolt — the core mark */}
-        <path
-          d="M38 28 L50 56 L42 56 L50 72 L62 44 L54 44 L62 28 Z"
-          fill={`url(#${id}-bolt)`}
-          filter={`url(#${id}-glow)`}
-          className={animated ? 'voltex-pulse' : ''}
-        />
-
-        {/* Small energy dots */}
-        <circle cx="26" cy="50" r="2" fill="#34d399" opacity="0.6">
-          {animated && <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2s" repeatCount="indefinite" />}
+        {/* Electrons */}
+        <circle cx="165" cy="72" r="6" fill="#00E5CC" filter={`url(#${id}-glow)`}>
+          {animated && <animate attributeName="opacity" values="0.6;1;0.6" dur="2s" repeatCount="indefinite" />}
         </circle>
-        <circle cx="74" cy="50" r="2" fill="#06b6d4" opacity="0.6">
-          {animated && <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite" />}
+        <circle cx="40" cy="124" r="5" fill="#0077FF" filter={`url(#${id}-glow)`} opacity="0.75">
+          {animated && <animate attributeName="opacity" values="0.4;0.9;0.4" dur="2.5s" repeatCount="indefinite" />}
+        </circle>
+        <circle cx="130" cy="130" r="4" fill="#00B8D4" filter={`url(#${id}-glow)`} opacity="0.55">
+          {animated && <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite" />}
         </circle>
       </svg>
 
       <style>{`
-        @keyframes voltexGlow {
+        @keyframes ionvexGlow {
           0%, 100% { opacity: 0.5; transform: scale(0.95); }
           50% { opacity: 0.8; transform: scale(1.05); }
         }
-        .voltex-spin {
-          animation: voltexRingSpin 12s linear infinite;
+        .ionvex-orbit {
+          animation: ionvexOrbitSpin 20s linear infinite;
           transform-origin: center;
         }
-        @keyframes voltexRingSpin {
+        .ionvex-orbit-reverse {
+          animation: ionvexOrbitSpin 25s linear infinite reverse;
+          transform-origin: center;
+        }
+        @keyframes ionvexOrbitSpin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
-        }
-        .voltex-pulse {
-          animation: voltexBoltPulse 2s ease-in-out infinite;
-        }
-        @keyframes voltexBoltPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.85; }
         }
       `}</style>
     </div>

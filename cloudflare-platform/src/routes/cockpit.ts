@@ -212,8 +212,11 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.participant_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
     // ODSE: Generation MTD from ODSE timeseries
     db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s, COUNT(*) as c FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','start of month')").bind(pid).first<{ s: number; c: number }>(),
-    // ODSE: Capacity factor (actual gen / theoretical max)
-    db.prepare("SELECT COALESCE(SUM(t.kwh),0) as gen_kwh, COALESCE(SUM(a.capacity_kw),0) as cap_kw FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ gen_kwh: number; cap_kw: number }>(),
+    // ODSE: Capacity factor (actual gen / theoretical max) — separate subquery for capacity to avoid inflation by reading count
+    Promise.all([
+      db.prepare("SELECT COALESCE(SUM(t.kwh),0) as gen_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days')").bind(pid).first<{ gen_kwh: number }>(),
+      db.prepare("SELECT COALESCE(SUM(capacity_kw),0) as cap_kw FROM odse_assets WHERE participant_id = ?").bind(pid).first<{ cap_kw: number }>(),
+    ]).then(([gen, cap]) => ({ gen_kwh: gen?.gen_kwh ?? 0, cap_kw: cap?.cap_kw ?? 0 })),
     // ODSE: Hourly generation profile (for chart)
     db.prepare("SELECT CAST(strftime('%H', t.timestamp) AS INTEGER) as hour, ROUND(AVG(t.kwh),2) as avg_kwh FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','-30 days') GROUP BY hour ORDER BY hour").bind(pid).all(),
     // ODSE: Daily generation trend (for chart)
