@@ -51,10 +51,11 @@ register.post('/', async (c) => {
       sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled, email_verified)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0)
   `).bind(
-    id, data.company_name, data.registration_number, data.tax_number,
+    id, data.company_name, data.registration_number,
+    data.tax_number ? await encryptPII(data.tax_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
     data.vat_number || null, data.role, data.contact_person, data.email,
     hash, salt, data.phone, data.physical_address,
-    data.sa_id_number ? await encryptPII(data.sa_id_number, ((c.env as Record<string, unknown>).PII_SECRET as string) || 'default-pii-key') : null,
+    data.sa_id_number ? await encryptPII(data.sa_id_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
     data.bbbee_level || null,
     data.nersa_licence || null, data.fsca_licence || null
   ).run();

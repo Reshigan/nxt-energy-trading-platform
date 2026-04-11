@@ -847,7 +847,7 @@ api.post('/admin/impersonate/:userId', authMiddleware({ roles: ['admin'], adminL
       company_name: target.company_name,
       kyc_status: target.kyc_status as any,
       ...(target.admin_level ? { admin_level: target.admin_level as any } : {}),
-    }, secret);
+    }, secret, 1800);
 
     // Store impersonation info in KV for the banner
     await c.env.KV.put(`impersonate:${target.id}`, JSON.stringify({
@@ -928,7 +928,7 @@ api.patch('/admin/fees/:id', authMiddleware({ roles: ['admin'], adminLevel: 'adm
 });
 
 // Per-user rate limiting (after IP-based)
-api.use('/api/v1/*', async (c, next) => {
+api.use('/*', async (c, next) => {
   const authHeader = c.req.header('Authorization');
   if (authHeader?.startsWith('Bearer ')) {
     try {
