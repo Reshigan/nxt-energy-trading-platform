@@ -126,6 +126,37 @@ odse.post('/ingest', async (c) => {
         'SELECT id, participant_id FROM api_keys WHERE key_hash = ? AND revoked = 0'
       ).bind(keyHash).first();
       if (!keyRecord) return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Invalid API key'), 401);
+    } else if (authHeader) {
+      // Validate JWT token when using Bearer auth (not API key)
+      if (!authHeader.startsWith('Bearer ')) {
+        return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Invalid Authorization header format'), 401);
+      }
+      const token = authHeader.slice(7);
+      const secret = (c.env as Record<string, unknown>).JWT_SECRET as string;
+      if (!secret) {
+        return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'JWT secret not configured'), 500);
+      }
+      try {
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(secret);
+        const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+        const parts = token.split('.');
+        if (parts.length !== 3) {
+          return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Malformed token'), 401);
+        }
+        const sigInput = `${parts[0]}.${parts[1]}`;
+        const signature = Uint8Array.from(atob(parts[2].replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
+        const valid = await crypto.subtle.verify('HMAC', cryptoKey, signature, encoder.encode(sigInput));
+        if (!valid) {
+          return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Invalid token signature'), 401);
+        }
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+          return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token expired'), 401);
+        }
+      } catch {
+        return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token validation failed'), 401);
+      }
     }
 
     const body = await c.req.json() as {
@@ -178,13 +209,13 @@ odse.post('/ingest', async (c) => {
     const batch = body.readings.map((r) =>
       insertStmt.bind(
         generateId(), r.asset_id, r.timestamp, r.kWh,
-        r.error_type || 'normal', r.pf || null, r.kVArh || null, r.kVA || null,
+        r.error_type || 'normal', r.pf ?? null, r.kVArh ?? null, r.kVA ?? null,
         r.direction || 'generation', r.end_use || null,
-        r.tariff_period || null, r.energy_charge_component || null,
-        r.network_charge_component || null, r.carbon_intensity_gCO2_per_kWh || null,
+        r.tariff_period || null, r.energy_charge_component ?? null,
+        r.network_charge_component ?? null, r.carbon_intensity_gCO2_per_kWh ?? null,
         r.contract_reference || null, r.settlement_type || null,
         r.billing_period || null, r.billing_status || null,
-        r.curtailment_flag ? 1 : 0, r.curtailed_kWh || null,
+        r.curtailment_flag ? 1 : 0, r.curtailed_kWh ?? null,
         r.quality || 'actual', r.source || 'api'
       )
     );
@@ -210,6 +241,7 @@ odse.post('/ingest', async (c) => {
 // GET /odse/timeseries — Query ODSE timeseries with filters
 odse.get('/timeseries', authMiddleware(), async (c) => {
   try {
+    const user = c.get('user');
     const assetId = c.req.query('asset_id');
     const direction = c.req.query('direction');
     const from = c.req.query('from');
@@ -219,6 +251,12 @@ odse.get('/timeseries', authMiddleware(), async (c) => {
 
     let where = 'WHERE 1=1';
     const params: unknown[] = [];
+
+    // Role-based scoping: non-admin users only see their own assets
+    if (!['admin', 'regulator', 'grid'].includes(user.role)) {
+      where += ' AND t.asset_id IN (SELECT asset_id FROM odse_assets WHERE participant_id = ?)';
+      params.push(user.sub);
+    }
 
     if (assetId) { where += ' AND t.asset_id = ?'; params.push(assetId); }
     if (direction) { where += ' AND t.direction = ?'; params.push(direction); }
