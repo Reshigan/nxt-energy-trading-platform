@@ -1,0 +1,291 @@
+/**
+ * PDF Generation Engine — HTML-based document generation
+ * Generates styled HTML documents optimised for @media print / PDF rendering.
+ * Documents are stored in R2 and served as HTML with print-optimised CSS.
+ */
+
+interface ContractDoc {
+  id: string;
+  title: string;
+  document_type: string;
+  version: number;
+  phase: string;
+  creator_id: string;
+  counterparty_id: string;
+  document_hash?: string;
+}
+
+interface Signature {
+  signatory_name: string;
+  signatory_designation: string;
+  signed: boolean;
+  signed_at?: string;
+  ip_address?: string;
+}
+
+interface StatutoryCheck {
+  regulation: string;
+  status: string;
+}
+
+interface InvoiceData {
+  id: string;
+  invoice_number: string;
+  subtotal_cents: number;
+  vat_cents: number;
+  total_cents: number;
+  due_date: string;
+  line_items?: { description: string; quantity: number; unit_price_cents: number; total_cents: number }[];
+  trade_id?: string;
+}
+
+interface ParticipantInfo {
+  company_name: string;
+  email: string;
+  id: string;
+}
+
+interface CreditInfo {
+  id: string;
+  serial_number?: string;
+  registry?: string;
+  standard?: string;
+  vintage?: string;
+  quantity: number;
+  project_name?: string;
+}
+
+interface RetirementInfo {
+  retired_at: string;
+  beneficiary: string;
+  purpose: string;
+}
+
+/** Escape user-controlled strings to prevent stored XSS in generated HTML */
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+const COMMON_STYLES = `
+  @page { size: A4; margin: 20mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', 'Arial', sans-serif; font-size: 11pt; color: #333; line-height: 1.6; }
+  .cover { text-align: center; padding-top: 80px; margin-bottom: 40px; }
+  .logo { font-size: 28pt; font-weight: bold; color: #1a2e1a; letter-spacing: 2px; }
+  .logo-accent { color: #d4e157; }
+  .meta-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+  .meta-table td { padding: 10px 12px; border: 1px solid #e8e4dc; font-size: 10pt; }
+  .meta-table .label { background: #f0ece4; font-weight: 600; width: 200px; color: #1a2e1a; }
+  .sig-block { display: flex; gap: 40px; margin: 20px 0; flex-wrap: wrap; }
+  .sig-item { flex: 1; min-width: 200px; border-top: 2px solid #1a2e1a; padding-top: 12px; margin-bottom: 16px; }
+  .hash { font-family: monospace; font-size: 8pt; color: #999; word-break: break-all; }
+  .footer { text-align: center; font-size: 8pt; color: #999; margin-top: 40px; border-top: 1px solid #e8e4dc; padding-top: 16px; }
+  h1 { color: #1a2e1a; font-size: 18pt; margin: 10px 0; }
+  h2 { color: #1a2e1a; font-size: 14pt; margin: 24px 0 12px; border-bottom: 2px solid #d4e157; padding-bottom: 6px; }
+  .badge-pass { color: #4caf50; font-weight: bold; }
+  .badge-fail { color: #ef5350; font-weight: bold; }
+  .badge-pending { color: #ff9800; font-weight: bold; }
+  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+`;
+
+export function generateContractPDF(doc: ContractDoc, signatures: Signature[], checks: StatutoryCheck[]): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(doc.title)} — NXT Energy</title>
+  <style>${COMMON_STYLES}</style>
+</head>
+<body>
+  <div class="cover">
+    <div class="logo">NXT <span class="logo-accent">ENERGY</span></div>
+    <h1>${escapeHtml(doc.title)}</h1>
+    <p style="font-size: 12pt; color: #777;">Document Type: ${escapeHtml(doc.document_type)} | Version: ${doc.version}</p>
+    <p style="font-size: 12pt; color: #777;">Phase: ${escapeHtml(doc.phase)} | Date: ${new Date().toLocaleDateString('en-ZA')}</p>
+  </div>
+
+  <h2>Document Details</h2>
+  <table class="meta-table">
+    <tr><td class="label">Document ID</td><td>${escapeHtml(doc.id)}</td></tr>
+    <tr><td class="label">Creator</td><td>${escapeHtml(doc.creator_id)}</td></tr>
+    <tr><td class="label">Counterparty</td><td>${escapeHtml(doc.counterparty_id)}</td></tr>
+    <tr><td class="label">SHA-256 Hash</td><td class="hash">${escapeHtml(doc.document_hash) || 'Pending'}</td></tr>
+  </table>
+
+  <h2>Signatures</h2>
+  <div class="sig-block">
+    ${signatures.map(s => `
+      <div class="sig-item">
+        <strong>${escapeHtml(s.signatory_name)}</strong> — ${escapeHtml(s.signatory_designation)}<br>
+        ${s.signed ? `<span class="badge-pass">Signed: ${escapeHtml(s.signed_at)}</span> | IP: ${escapeHtml(s.ip_address)}` : '<span class="badge-pending">Pending</span>'}
+      </div>
+    `).join('')}
+  </div>
+
+  <h2>Statutory Compliance</h2>
+  ${checks.map(ch => `<p>${escapeHtml(ch.regulation)}: <span class="${ch.status === 'pass' ? 'badge-pass' : ch.status === 'fail' ? 'badge-fail' : 'badge-pending'}">${escapeHtml(ch.status).toUpperCase()}</span></p>`).join('')}
+
+  <div class="footer">
+    Generated by NXT Energy Trading Platform — et.vantax.co.za<br>
+    ${new Date().toISOString()}
+  </div>
+</body>
+</html>`;
+}
+
+export function generateInvoicePDF(invoice: InvoiceData, seller: ParticipantInfo, buyer: ParticipantInfo): string {
+  const subtotal = (invoice.subtotal_cents / 100).toFixed(2);
+  const vat = (invoice.vat_cents / 100).toFixed(2);
+  const total = (invoice.total_cents / 100).toFixed(2);
+
+  const lineItemsHtml = (invoice.line_items || []).map(item => `
+    <tr>
+      <td style="padding: 8px; border: 1px solid #e8e4dc;">${escapeHtml(item.description)}</td>
+      <td style="padding: 8px; border: 1px solid #e8e4dc; text-align: right;">${item.quantity}</td>
+      <td style="padding: 8px; border: 1px solid #e8e4dc; text-align: right;">R ${(item.unit_price_cents / 100).toFixed(2)}</td>
+      <td style="padding: 8px; border: 1px solid #e8e4dc; text-align: right;">R ${(item.total_cents / 100).toFixed(2)}</td>
+    </tr>
+  `).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice ${escapeHtml(invoice.invoice_number)} — NXT Energy</title>
+  <style>${COMMON_STYLES}
+    .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
+    .invoice-title { font-size: 24pt; color: #1a2e1a; font-weight: 800; }
+    .party-box { background: #f0ece4; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+    .totals-table { margin-left: auto; width: 300px; }
+    .totals-table td { padding: 6px 12px; }
+    .totals-table .total-row { font-weight: bold; font-size: 14pt; border-top: 2px solid #1a2e1a; }
+  </style>
+</head>
+<body>
+  <div class="invoice-header">
+    <div>
+      <div class="logo">NXT <span class="logo-accent">ENERGY</span></div>
+      <p style="color: #777; margin-top: 4px;">Energy Trading Platform</p>
+    </div>
+    <div style="text-align: right;">
+      <div class="invoice-title">TAX INVOICE</div>
+      <p><strong>${escapeHtml(invoice.invoice_number)}</strong></p>
+      <p>Date: ${new Date().toLocaleDateString('en-ZA')}</p>
+      <p>Due: ${invoice.due_date}</p>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 24px; margin-bottom: 24px;">
+    <div class="party-box" style="flex: 1;">
+      <strong>From (Seller)</strong><br>
+      ${escapeHtml(seller.company_name)}<br>
+      ${escapeHtml(seller.email)}<br>
+      ID: ${escapeHtml(seller.id)}
+    </div>
+    <div class="party-box" style="flex: 1;">
+      <strong>To (Buyer)</strong><br>
+      ${escapeHtml(buyer.company_name)}<br>
+      ${escapeHtml(buyer.email)}<br>
+      ID: ${escapeHtml(buyer.id)}
+    </div>
+  </div>
+
+  ${(invoice.line_items && invoice.line_items.length > 0) ? `
+  <h2>Line Items</h2>
+  <table class="meta-table">
+    <thead>
+      <tr style="background: #1a2e1a; color: white;">
+        <th style="padding: 10px; text-align: left;">Description</th>
+        <th style="padding: 10px; text-align: right;">Qty</th>
+        <th style="padding: 10px; text-align: right;">Unit Price</th>
+        <th style="padding: 10px; text-align: right;">Total</th>
+      </tr>
+    </thead>
+    <tbody>${lineItemsHtml}</tbody>
+  </table>
+  ` : `
+  <h2>Summary</h2>
+  <p>Trade reference: ${invoice.trade_id || 'N/A'}</p>
+  `}
+
+  <table class="totals-table">
+    <tr><td>Subtotal:</td><td style="text-align: right;">R ${subtotal}</td></tr>
+    <tr><td>VAT (15%):</td><td style="text-align: right;">R ${vat}</td></tr>
+    <tr class="total-row"><td>Total:</td><td style="text-align: right;">R ${total}</td></tr>
+  </table>
+
+  <h2>Banking Details</h2>
+  <table class="meta-table" style="width: 400px;">
+    <tr><td class="label">Bank</td><td>ABSA</td></tr>
+    <tr><td class="label">Account</td><td>NXT Energy Trading (Pty) Ltd</td></tr>
+    <tr><td class="label">Branch Code</td><td>632005</td></tr>
+    <tr><td class="label">Reference</td><td>${escapeHtml(invoice.invoice_number)}</td></tr>
+  </table>
+
+  <p style="margin-top: 20px; font-size: 9pt; color: #999;">
+    Payment terms: 30 days from date of invoice. Interest at 2% per month will be charged on overdue amounts.
+  </p>
+
+  <div class="footer">
+    Generated by NXT Energy Trading Platform — et.vantax.co.za<br>
+    ${new Date().toISOString()}
+  </div>
+</body>
+</html>`;
+}
+
+export function generateRetirementCertificate(credit: CreditInfo, retirement: RetirementInfo): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Carbon Credit Retirement Certificate — NXT Energy</title>
+  <style>${COMMON_STYLES}
+    .certificate { border: 3px solid #1a2e1a; padding: 40px; margin: 20px; text-align: center; }
+    .cert-title { font-size: 22pt; color: #1a2e1a; font-weight: 800; margin: 20px 0; }
+    .cert-detail { font-size: 12pt; margin: 8px 0; }
+    .cert-quantity { font-size: 36pt; color: #d4e157; font-weight: 800; margin: 20px 0; background: #1a2e1a; display: inline-block; padding: 10px 30px; border-radius: 8px; }
+    .qr-placeholder { width: 120px; height: 120px; border: 2px dashed #ccc; margin: 20px auto; display: flex; align-items: center; justify-content: center; color: #999; font-size: 9pt; }
+  </style>
+</head>
+<body>
+  <div class="certificate">
+    <div class="logo">NXT <span class="logo-accent">ENERGY</span></div>
+    <div class="cert-title">CARBON CREDIT RETIREMENT CERTIFICATE</div>
+
+    <div class="cert-quantity">${credit.quantity} tCO2e</div>
+
+    <table class="meta-table" style="width: 500px; margin: 20px auto; text-align: left;">
+      <tr><td class="label">Credit ID</td><td>${escapeHtml(credit.id)}</td></tr>
+      <tr><td class="label">Serial Number</td><td>${escapeHtml(credit.serial_number) || 'N/A'}</td></tr>
+      <tr><td class="label">Registry</td><td>${escapeHtml(credit.registry || credit.standard) || 'NXT'}</td></tr>
+      <tr><td class="label">Vintage</td><td>${escapeHtml(credit.vintage) || 'N/A'}</td></tr>
+      <tr><td class="label">Project</td><td>${escapeHtml(credit.project_name) || 'N/A'}</td></tr>
+      <tr><td class="label">Beneficiary</td><td>${escapeHtml(retirement.beneficiary)}</td></tr>
+      <tr><td class="label">Purpose</td><td>${escapeHtml(retirement.purpose)}</td></tr>
+      <tr><td class="label">Retired On</td><td>${escapeHtml(retirement.retired_at)}</td></tr>
+    </table>
+
+    <div class="qr-placeholder">
+      Verify at<br>et.vantax.co.za
+    </div>
+
+    <p style="font-size: 10pt; color: #666; margin-top: 20px;">
+      This certificate confirms that the above carbon credits have been permanently retired
+      and cannot be transferred, sold, or used for any other purpose.
+    </p>
+  </div>
+
+  <div class="footer">
+    Generated by NXT Energy Trading Platform — et.vantax.co.za<br>
+    ${new Date().toISOString()}
+  </div>
+</body>
+</html>`;
+}
