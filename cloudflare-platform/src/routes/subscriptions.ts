@@ -12,6 +12,97 @@ import { cascade } from '../utils/cascade';
 import { generateId as genId2 } from '../utils/id';
 
 const subscriptions = new Hono<HonoEnv>();
+
+// Stripe webhook must be registered BEFORE the global auth middleware
+// because Stripe sends its own signature header, not a JWT Bearer token.
+subscriptions.post('/webhook', async (c) => {
+  try {
+    const STRIPE_WEBHOOK_SECRET = (c.env as Record<string, string>).STRIPE_WEBHOOK_SECRET;
+    const body = await c.req.text();
+    const sig = c.req.header('stripe-signature');
+
+    // If webhook secret is configured, we should verify the signature
+    // For now we parse the event and process it (production should use stripe SDK for verification)
+    if (STRIPE_WEBHOOK_SECRET && !sig) {
+      return c.json({ error: 'Missing stripe-signature header' }, 400);
+    }
+
+    const event = JSON.parse(body) as { type: string; data: { object: Record<string, unknown> } };
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const participantId = (session.metadata as Record<string, string>)?.participant_id;
+        const planId = (session.metadata as Record<string, string>)?.plan_id;
+        const billingCycle = (session.metadata as Record<string, string>)?.billing_cycle || 'monthly';
+        const stripeCustomerId = session.customer as string || '';
+
+        if (participantId && planId) {
+          const priceMap: Record<string, number> = { starter: 99900, professional: 499900 };
+
+          // Deactivate old subscription for this specific participant
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE participant_id = ? AND status = 'active'"
+          ).bind(nowISO(), participantId).run();
+
+          const subId = generateId();
+          await c.env.DB.prepare(`
+            INSERT INTO subscriptions (id, participant_id, plan_id, status, billing_cycle, price_cents, started_at, next_billing_at, stripe_customer_id)
+            VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
+          `).bind(
+            subId, participantId, planId, billingCycle,
+            priceMap[planId] || 0,
+            nowISO(),
+            new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 86400000).toISOString(),
+            stripeCustomerId,
+          ).run();
+
+          c.executionCtx.waitUntil(cascade(c.env, {
+            type: 'subscription.created',
+            actor_id: participantId,
+            entity_type: 'subscription',
+            entity_id: subId,
+            data: { plan_id: planId, billing_cycle: billingCycle, stripe_session_id: session.id },
+            ip: c.req.header('CF-Connecting-IP') || 'unknown',
+            request_id: c.get('requestId'),
+          }));
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const stripeCustomerId = subscription.customer as string;
+        // Cancel subscription scoped to the specific Stripe customer
+        if (stripeCustomerId) {
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE stripe_customer_id = ? AND status = 'active'"
+          ).bind(nowISO(), stripeCustomerId).run();
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const customerId = invoice.customer as string;
+        // Mark subscription as past_due scoped to the specific Stripe customer
+        if (customerId) {
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'past_due', updated_at = ? WHERE stripe_customer_id = ? AND status = 'active'"
+          ).bind(nowISO(), customerId).run();
+        }
+        break;
+      }
+    }
+
+    return c.json({ received: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// Apply auth middleware to all routes AFTER the webhook route
 subscriptions.use('*', authMiddleware());
 
 // GET /subscriptions/plans — List available plans
@@ -281,90 +372,6 @@ subscriptions.post('/checkout', async (c) => {
   }
 });
 
-// POST /subscriptions/webhook — Handle Stripe webhook events
-subscriptions.post('/webhook', async (c) => {
-  try {
-    const STRIPE_WEBHOOK_SECRET = (c.env as Record<string, string>).STRIPE_WEBHOOK_SECRET;
-    const body = await c.req.text();
-    const sig = c.req.header('stripe-signature');
-
-    // If webhook secret is configured, we should verify the signature
-    // For now we parse the event and process it (production should use stripe SDK for verification)
-    if (STRIPE_WEBHOOK_SECRET && !sig) {
-      return c.json({ error: 'Missing stripe-signature header' }, 400);
-    }
-
-    const event = JSON.parse(body) as { type: string; data: { object: Record<string, unknown> } };
-
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        const participantId = (session.metadata as Record<string, string>)?.participant_id;
-        const planId = (session.metadata as Record<string, string>)?.plan_id;
-        const billingCycle = (session.metadata as Record<string, string>)?.billing_cycle || 'monthly';
-
-        if (participantId && planId) {
-          const priceMap: Record<string, number> = { starter: 99900, professional: 499900 };
-
-          // Deactivate old subscription
-          await c.env.DB.prepare(
-            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE participant_id = ? AND status = 'active'"
-          ).bind(nowISO(), participantId).run();
-
-          const subId = generateId();
-          await c.env.DB.prepare(`
-            INSERT INTO subscriptions (id, participant_id, plan_id, status, billing_cycle, price_cents, started_at, next_billing_at)
-            VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
-          `).bind(
-            subId, participantId, planId, billingCycle,
-            priceMap[planId] || 0,
-            nowISO(),
-            new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 86400000).toISOString(),
-          ).run();
-
-          c.executionCtx.waitUntil(cascade(c.env, {
-            type: 'subscription.created',
-            actor_id: participantId,
-            entity_type: 'subscription',
-            entity_id: subId,
-            data: { plan_id: planId, billing_cycle: billingCycle, stripe_session_id: session.id },
-            ip: c.req.header('CF-Connecting-IP') || 'unknown',
-            request_id: c.get('requestId'),
-          }));
-        }
-        break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object;
-        const stripeCustomerId = subscription.customer as string;
-        // Cancel subscription by stripe customer reference
-        if (stripeCustomerId) {
-          await c.env.DB.prepare(
-            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE status = 'active'"
-          ).bind(nowISO()).run();
-        }
-        break;
-      }
-
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object;
-        const customerId = invoice.customer as string;
-        // Mark subscription as past_due
-        if (customerId) {
-          await c.env.DB.prepare(
-            "UPDATE subscriptions SET status = 'past_due', updated_at = ? WHERE status = 'active'"
-          ).bind(nowISO()).run();
-        }
-        break;
-      }
-    }
-
-    return c.json({ received: true });
-  } catch (err) {
-    captureException(c, err);
-    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
-  }
-});
+// Webhook handler is registered above (before auth middleware) to allow Stripe calls without JWT
 
 export default subscriptions;
