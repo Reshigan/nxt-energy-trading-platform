@@ -251,7 +251,10 @@ demand.post('/profiles/:id/analyze', authMiddleware({ roles: ['admin', 'offtaker
     for (const proj of projects.results) {
       let score = 0;
       const projCapacityKwh = ((proj.capacity_mw as number) || 0) * 8760 * 1000 * 0.25; // 25% CF
-      const priceCentsKwh = Math.round(85 + Math.random() * 40); // simulated price from market
+      // Item 4: Use KV market index price instead of simulated random data
+      const marketIndex = await c.env.KV.get(`index:${(proj.technology as string || 'solar').toLowerCase()}`);
+      const parsedIndex = marketIndex ? JSON.parse(marketIndex) : null;
+      const priceCentsKwh = parsedIndex?.price ? Math.round(parsedIndex.price / 100) : 110; // fallback to default rate
 
       // Province match
       if ((proj.province as string || '').toLowerCase() === province.toLowerCase()) score += 30;

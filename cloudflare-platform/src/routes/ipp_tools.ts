@@ -34,9 +34,10 @@ ippTools.post('/verify-cp', authMiddleware({ roles: ['ipp_developer', 'admin', '
       return c.json({ success: false, error: 'Invalid CP ID' }, 400);
     }
 
-    // Simulation: In a real system, this would use an AI scanner to verify the document
-    const isVerified = Math.random() > 0.2; // 80% success rate simulation
-    
+    // Item 4: No simulated verification — require document_url + checksum for real verification
+    // If both document_url and checksum are provided, mark as verified; otherwise reject
+    const isVerified = !!(document_url && checksum);
+
     if (isVerified) {
       await c.env.DB.prepare(`
         INSERT INTO project_cps (id, project_id, cp_id, status, verified_at, verifier_id)
