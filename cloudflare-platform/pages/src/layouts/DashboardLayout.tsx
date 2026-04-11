@@ -21,6 +21,7 @@ import HelpPanel from '../components/HelpPanel';
 import { useAuthStore, useNotificationStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { getRoleConfig } from '../config/roles';
+import { useModules } from '../hooks/useModules';
 
 // ── Role-Specific Grouped Navigation ──────────────────────
 interface NavItem { name: string; href: string; icon: React.ComponentType<{ size?: number }> }
@@ -42,6 +43,8 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
       { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+      { name: 'Modules', href: '/modules', icon: IconAdmin },
+      { name: 'Changelog', href: '/changelog', icon: IconReports },
     ]},
   ],
   generator: [
@@ -200,6 +203,21 @@ const ALL_MORE_LINKS = [
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;
 
+// Map nav hrefs to module names for feature-flag filtering
+const HREF_TO_MODULE: Record<string, string> = {
+  '/trading': 'spot_trading',
+  '/carbon': 'carbon_credits',
+  '/p2p': 'p2p_trading',
+  '/settlement': 'settlement',
+  '/marketplace': 'marketplace',
+  '/metering': 'metering',
+  '/developer': 'api_gateway',
+  '/reports': 'report_builder',
+  '/ai': 'ai_optimisation',
+  '/recs': 'rec_tracking',
+  '/tokens': 'carbon_tokenisation',
+};
+
 const marketTicker = [
   { name: 'Solar', price: '847.20', change: '+8%', positive: true },
   { name: 'Wind', price: '623.50', change: '+4%', positive: true },
@@ -222,14 +240,22 @@ export default function DashboardLayout() {
 
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);
+  const { isEnabled: isModuleEnabled } = useModules();
   const roleGroups = ROLE_NAV[activeRole || 'trader'] || ROLE_NAV.trader;
-  // Primary tabs: first group items (cockpit + primary module)
-  const mainTabs = roleGroups[0]?.items || ALL_MAIN_TABS.filter(t => allowed.has(t.href));
-  // More links: remaining groups flattened + settings/notifications
-  const moreLinks = [
+
+  // Filter nav items by module status — hide items whose module is disabled
+  const filterByModule = (items: NavItem[]) =>
+    items.filter(item => {
+      const mod = HREF_TO_MODULE[item.href];
+      return !mod || isModuleEnabled(mod);
+    });
+  // Primary tabs: first group items (cockpit + primary module), filtered by module status
+  const mainTabs = filterByModule(roleGroups[0]?.items || ALL_MAIN_TABS.filter(t => allowed.has(t.href)));
+  // More links: remaining groups flattened + settings/notifications, filtered by module status
+  const moreLinks = filterByModule([
     ...roleGroups.slice(1).flatMap(g => g.items),
     ...ALL_MORE_LINKS.filter(l => allowed.has(l.href) && !roleGroups.flatMap(g => g.items).some(i => i.href === l.href)),
-  ].filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx);
+  ].filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx));
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';

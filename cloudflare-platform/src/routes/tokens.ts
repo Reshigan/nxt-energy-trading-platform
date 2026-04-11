@@ -18,7 +18,7 @@ tokens.post('/mint', async (c) => {
   if (body.source_type === 'carbon_credit') {
     source = await c.env.DB.prepare('SELECT * FROM carbon_credits WHERE id = ? AND owner_id = ?').bind(body.source_id, user.sub).first();
     if (!source) return c.json({ success: false, error: 'Credit not found or not owned by you' }, 404);
-    if (source.status !== 'available') return c.json({ success: false, error: 'Only available credits can be tokenized' }, 400);
+    if (source.status !== 'active') return c.json({ success: false, error: 'Only active credits can be tokenized' }, 400);
   } else if (body.source_type === 'rec') {
     source = await c.env.DB.prepare('SELECT * FROM recs WHERE id = ? AND owner_id = ?').bind(body.source_id, user.sub).first();
     if (!source) return c.json({ success: false, error: 'REC not found or not owned by you' }, 404);
@@ -95,6 +95,9 @@ tokens.post('/:id/transfer', async (c) => {
   const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE id = ? AND owner_id = ?').bind(id, user.sub).first();
   if (!token) return c.json({ success: false, error: 'Token not found' }, 404);
   if (token.status !== 'active') return c.json({ success: false, error: 'Only active tokens can be transferred' }, 400);
+
+  const recipient = await c.env.DB.prepare('SELECT id FROM participants WHERE id = ?').bind(body.to_participant_id).first();
+  if (!recipient) return c.json({ success: false, error: 'Recipient not found' }, 404);
 
   const now = nowISO();
   const provenance = JSON.parse(token.provenance_chain as string);
