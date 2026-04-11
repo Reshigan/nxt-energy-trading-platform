@@ -102,14 +102,15 @@ lender.post('/disbursements/:id/reject', async (c) => {
 lender.get('/covenants', async (c) => {
   try {
     const projects = await c.env.DB.prepare('SELECT id, name, phase FROM projects LIMIT 20').all();
+    // Item 4: No simulated data — return static placeholder values flagged as not-live
     const covenants = projects.results.map((p: Record<string, unknown>) => ({
       project_id: p.id,
       project_name: p.name,
-      dscr: { target: 1.3, actual: Number((1.2 + Math.random() * 0.6).toFixed(2)), status: 'compliant' },
-      llcr: { target: 1.2, actual: Number((1.1 + Math.random() * 0.5).toFixed(2)), status: 'compliant' },
-      debt_equity: { target: 70, actual: Math.round(55 + Math.random() * 20), status: 'compliant' },
-      insurance: { required: true, current: true, expiry: '2027-03-31' },
-      environmental: { required: true, current: true, last_audit: '2026-01-15' },
+      dscr: { target: 1.3, actual: 0, status: 'pending_data', is_live: false },
+      llcr: { target: 1.2, actual: 0, status: 'pending_data', is_live: false },
+      debt_equity: { target: 70, actual: 0, status: 'pending_data', is_live: false },
+      insurance: { required: true, current: false, expiry: null, is_live: false },
+      environmental: { required: true, current: false, last_audit: null, is_live: false },
     }));
     return c.json({ success: true, data: covenants });
   } catch (err) {

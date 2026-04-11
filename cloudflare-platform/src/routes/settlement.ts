@@ -294,6 +294,13 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
       penalty_rate_cents?: number;
     };
 
+    // Item 22: Idempotency key check
+    const idempotencyKey = c.req.header('X-Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await c.env.KV.get(`idempotency:invoice:${idempotencyKey}`);
+      if (cached) return c.json(JSON.parse(cached));
+    }
+
     const trade = await c.env.DB.prepare('SELECT * FROM trades WHERE id = ?').bind(body.trade_id).first();
     if (!trade) return c.json({ success: false, error: 'Trade not found' }, 404);
 
@@ -312,29 +319,31 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
 
     const invoiceId = generateId();
     const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+    const auditId = generateId();
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    await c.env.DB.prepare(`
-      INSERT INTO invoices (id, invoice_number, contract_doc_id, trade_id, from_participant_id,
-        to_participant_id, subtotal_cents, shortfall_penalty_cents, vat_cents, total_cents,
-        metered_volume, contracted_volume, unit_rate_cents, status, due_date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'outstanding', ?)
-    `).bind(
-      invoiceId, invoiceNumber, body.contract_doc_id || null, body.trade_id,
-      trade.seller_id, trade.buyer_id,
-      subtotalCents, shortfallPenaltyCents, vatCents, totalCents,
-      meteredVolume, contractedVolume, unitRate,
-      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
-    ).run();
-
-    // Audit
-    await c.env.DB.prepare(`
-      INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
-      VALUES (?, ?, 'generate_invoice', 'invoice', ?, ?, ?)
-    `).bind(
-      generateId(), user.sub, invoiceId,
-      JSON.stringify({ invoice_number: invoiceNumber, total_cents: totalCents }),
-      c.req.header('CF-Connecting-IP') || 'unknown'
-    ).run();
+    // Item 20: Transaction atomicity — use db.batch() for invoice creation + audit
+    await c.env.DB.batch([
+      c.env.DB.prepare(`
+        INSERT INTO invoices (id, invoice_number, contract_doc_id, trade_id, from_participant_id,
+          to_participant_id, subtotal_cents, shortfall_penalty_cents, vat_cents, total_cents,
+          metered_volume, contracted_volume, unit_rate_cents, status, due_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'outstanding', ?)
+      `).bind(
+        invoiceId, invoiceNumber, body.contract_doc_id || null, body.trade_id,
+        trade.seller_id, trade.buyer_id,
+        subtotalCents, shortfallPenaltyCents, vatCents, totalCents,
+        meteredVolume, contractedVolume, unitRate, dueDate
+      ),
+      c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'generate_invoice', 'invoice', ?, ?, ?)
+      `).bind(
+        auditId, user.sub, invoiceId,
+        JSON.stringify({ invoice_number: invoiceNumber, total_cents: totalCents }),
+        c.req.header('CF-Connecting-IP') || 'unknown'
+      ),
+    ]);
 
     // Fire cascade for invoice generation
     c.executionCtx.waitUntil(cascade(c.env, {
@@ -342,12 +351,12 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
       actor_id: user.sub,
       entity_type: 'invoice',
       entity_id: invoiceId,
-      data: { buyer_id: trade.buyer_id, seller_id: trade.seller_id, invoice_number: invoiceNumber, total_cents: totalCents, due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+      data: { buyer_id: trade.buyer_id, seller_id: trade.seller_id, invoice_number: invoiceNumber, total_cents: totalCents, due_date: dueDate },
       ip: c.req.header('CF-Connecting-IP') || 'unknown',
       request_id: c.get('requestId'),
     }));
 
-    return c.json({
+    const invoiceResponse = {
       success: true,
       data: {
         id: invoiceId,
@@ -357,7 +366,16 @@ settlement.post('/invoices/generate', authMiddleware(), async (c) => {
         vat_cents: vatCents,
         total_cents: totalCents,
       },
-    }, 201);
+    };
+
+    // Item 22: Store idempotency result
+    if (idempotencyKey) {
+      c.executionCtx.waitUntil(
+        c.env.KV.put(`idempotency:invoice:${idempotencyKey}`, JSON.stringify(invoiceResponse), { expirationTtl: 86400 })
+      );
+    }
+
+    return c.json(invoiceResponse, 201);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
