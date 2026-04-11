@@ -298,7 +298,7 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
               <NXTLogo size={36} animated />
-              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block group-hover:opacity-80 transition-opacity">Voltex</span>
+              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block group-hover:opacity-80 transition-opacity">Ionvex</span>
             </Link>
 
             {/* Tab Pills */}

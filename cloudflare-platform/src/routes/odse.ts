@@ -72,7 +72,7 @@ odse.post('/assets', authMiddleware({ roles: ['admin', 'ipp', 'ipp_developer', '
       meter_id?: string;
     };
 
-    if (!body.asset_id || !body.asset_type || !body.capacity_kw || !body.oem) {
+    if (!body.asset_id || !body.asset_type || body.capacity_kw === undefined || body.capacity_kw === null || !body.oem) {
       return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'asset_id, asset_type, capacity_kw, and oem are required'), 400);
     }
 
@@ -547,11 +547,19 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
     const days = parseInt(c.req.query('days') || '30', 10);
 
     let assetFilter = '';
+    let denomAssetFilter = '';
     const params: unknown[] = [direction];
 
     if (!['admin', 'regulator', 'grid'].includes(user.role)) {
       assetFilter = 'AND t.asset_id IN (SELECT asset_id FROM odse_assets WHERE participant_id = ?)';
+      denomAssetFilter = 'AND asset_id IN (SELECT asset_id FROM odse_assets WHERE participant_id = ?)';
       params.push(user.sub);
+    }
+
+    // Build denominator params: direction for the subquery, plus participant_id if scoped
+    const denomParams: unknown[] = [direction];
+    if (!['admin', 'regulator', 'grid'].includes(user.role)) {
+      denomParams.push(user.sub);
     }
 
     const [breakdown, dailyByTariff] = await Promise.all([
@@ -563,13 +571,13 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
           COUNT(*) as readings,
           ROUND(AVG(t.energy_charge_component), 4) as avg_rate,
           ROUND(SUM(t.energy_charge_component * t.kwh), 2) as total_cost_zar,
-          ROUND(SUM(t.kwh) * 100.0 / NULLIF((SELECT SUM(kwh) FROM odse_timeseries WHERE direction = ? AND timestamp >= datetime('now', '-${days} days')), 0), 1) as pct_of_total
+          ROUND(SUM(t.kwh) * 100.0 / NULLIF((SELECT SUM(kwh) FROM odse_timeseries WHERE direction = ? AND timestamp >= datetime('now', '-${days} days') ${denomAssetFilter}), 0), 1) as pct_of_total
         FROM odse_timeseries t
         WHERE t.direction = ? AND t.tariff_period IS NOT NULL
           AND t.timestamp >= datetime('now', '-${days} days') ${assetFilter}
         GROUP BY t.tariff_period
         ORDER BY total_kwh DESC
-      `).bind(direction, ...params).all(),
+      `).bind(...denomParams, ...params).all(),
       c.env.DB.prepare(`
         SELECT
           date(t.timestamp) as date,
