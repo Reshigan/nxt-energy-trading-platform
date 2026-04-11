@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../lib/api';
+import api from '../lib/api';
 
 interface ModuleState {
   id: string;
@@ -19,7 +19,7 @@ export function useModules() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/modules/status').then(res => {
+    api.get('/modules/status').then((res: { data: { data: ModuleState[] } }) => {
       const map: Record<string, boolean> = {};
       const list: ModuleState[] = [];
       for (const mod of res.data.data) {
