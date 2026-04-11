@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import ErrorBoundary from './components/ErrorBoundary';
+import CookieConsent from './components/CookieConsent';
 
 // Loading skeleton for lazy-loaded pages
 function LoadingSkeleton() {
@@ -23,6 +24,7 @@ function LoadingSkeleton() {
 
 // Lazy-loaded pages (code splitting)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Cockpit = lazy(() => import('./pages/Cockpit'));
 const Markets = lazy(() => import('./pages/Markets'));
 const Portfolio = lazy(() => import('./pages/Portfolio'));
 const Contracts = lazy(() => import('./pages/Contracts'));
@@ -71,6 +73,8 @@ const CarbonDeep = lazy(() => import('./pages/CarbonDeep'));
 const IPPDeep = lazy(() => import('./pages/IPPDeep'));
 const OfftakerDeep = lazy(() => import('./pages/OfftakerDeep'));
 const ReportingEngine = lazy(() => import('./pages/ReportingEngine'));
+const ModuleAdmin = lazy(() => import('./pages/ModuleAdmin'));
+const Changelog = lazy(() => import('./pages/Changelog'));
 
 function App() {
   return (
@@ -95,8 +99,9 @@ function App() {
 
       {/* Dashboard routes */}
       <Route element={<DashboardLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Cockpit />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/cockpit" element={<Cockpit />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/trading" element={<Trading />} />
         <Route path="/portfolio" element={<Portfolio />} />
@@ -132,11 +137,14 @@ function App() {
         <Route path="/ipp-deep" element={<IPPDeep />} />
         <Route path="/offtaker-deep" element={<OfftakerDeep />} />
         <Route path="/reporting-engine" element={<ReportingEngine />} />
+        <Route path="/modules" element={<ModuleAdmin />} />
+        <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
     </Suspense>
     </ErrorBoundary>
+    <CookieConsent />
   );
 }
 
