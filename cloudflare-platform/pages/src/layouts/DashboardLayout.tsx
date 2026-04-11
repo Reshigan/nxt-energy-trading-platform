@@ -15,6 +15,7 @@ import {
   IconCarbonDeep, IconIPPDeep, IconOfftakerDeep, IconReportingEngine,
 } from '../components/icons';
 import AIChatWidget from '../components/AIChatWidget';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import GuidedTour from '../components/GuidedTour';
 import KYCBanner from '../components/KYCBanner';
 import HelpPanel from '../components/HelpPanel';
@@ -38,6 +39,11 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+    ]},
+    { label: 'Staff', items: [
+      { name: 'Staff Management', href: '/staff', icon: IconAdmin },
+      { name: 'Support Dashboard', href: '/support-dashboard', icon: IconHelp },
+      { name: 'Platform Config', href: '/platform-config', icon: IconSettings },
     ]},
     { label: 'System', items: [
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
@@ -427,6 +433,7 @@ export default function DashboardLayout() {
       </AnimatePresence>
 
       {/* ── Main Content ─────────────────────────────── */}
+      <AnnouncementBanner />
       <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6" data-tour="dashboard">
         <KYCBanner />
         <Outlet />

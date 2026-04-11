@@ -46,6 +46,11 @@ import onboarding from './routes/onboarding';
 import sessionsRoute from './routes/sessions';
 import odseRoute from './routes/odse';
 import { requireModule } from './middleware/modules';
+import staffRoute from './routes/staff';
+import ticketsRoute from './routes/tickets';
+import announcementsRoute from './routes/announcements';
+import configRoute from './routes/config';
+import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -204,9 +209,9 @@ api.post('/auth/refresh', async (c) => {
   }
 
   const participant = await c.env.DB.prepare(
-    'SELECT id, email, role, company_name, kyc_status FROM participants WHERE id = ?'
+    'SELECT id, email, role, company_name, kyc_status, admin_level FROM participants WHERE id = ?'
   ).bind(decoded.sub).first<{
-    id: string; email: string; role: string; company_name: string; kyc_status: string;
+    id: string; email: string; role: string; company_name: string; kyc_status: string; admin_level: string | null;
   }>();
 
   if (!participant) {
@@ -222,6 +227,7 @@ api.post('/auth/refresh', async (c) => {
     role: participant.role as any,
     company_name: participant.company_name,
     kyc_status: participant.kyc_status as any,
+    ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
   }, secret);
   const newRefresh = await signRefreshToken(participant.id, secret);
 
@@ -272,6 +278,10 @@ api.route('/onboarding', onboarding);
 api.route('/sessions', sessionsRoute);
 
 api.route('/odse', odseRoute);
+api.route('/staff', staffRoute);
+api.route('/tickets', ticketsRoute);
+api.route('/announcements', announcementsRoute);
+api.route('/admin/config', configRoute);
 api.route('/iot', iot);
 api.route('/algo', algo);
 api.route('/esg-reporting', esgReporting);
@@ -813,6 +823,131 @@ api.post('/auth/2fa/disable', authMiddleware(), async (c) => {
   } catch {
     return c.json({ success: false, error: '2FA disable failed' }, 500);
   }
+});
+
+// ── User Impersonation (superadmin only) ─────────────────────
+api.post('/admin/impersonate/:userId', authMiddleware({ roles: ['admin'], adminLevel: 'superadmin' }), async (c) => {
+  try {
+    const { userId } = c.req.param();
+    const admin = c.get('user');
+
+    const target = await c.env.DB.prepare(
+      'SELECT id, email, role, company_name, kyc_status, admin_level FROM participants WHERE id = ?'
+    ).bind(userId).first<{
+      id: string; email: string; role: string; company_name: string; kyc_status: string; admin_level: string | null;
+    }>();
+    if (!target) return c.json({ success: false, error: 'User not found' }, 404);
+
+    const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+    // Create a short-lived impersonation token (30 min)
+    const impersonationToken = await signJwt({
+      sub: target.id,
+      email: target.email,
+      role: target.role as any,
+      company_name: target.company_name,
+      kyc_status: target.kyc_status as any,
+      ...(target.admin_level ? { admin_level: target.admin_level as any } : {}),
+    }, secret, 1800);
+
+    // Store impersonation info in KV for the banner
+    await c.env.KV.put(`impersonate:${target.id}`, JSON.stringify({
+      admin_id: admin.sub,
+      admin_email: admin.email,
+      started_at: nowISO(),
+    }), { expirationTtl: 1800 });
+
+    // Audit
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'impersonate_start', 'participant', ?, ?, ?)`
+    ).bind(generateId(), admin.sub, target.id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({
+      success: true,
+      data: {
+        token: impersonationToken,
+        participant: {
+          id: target.id,
+          email: target.email,
+          role: target.role,
+          company_name: target.company_name,
+        },
+        expires_in: 1800,
+      },
+    });
+  } catch {
+    return c.json({ success: false, error: 'Failed to impersonate user' }, 500);
+  }
+});
+
+api.post('/admin/impersonate/end', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    await c.env.KV.delete(`impersonate:${user.sub}`);
+    return c.json({ success: true, message: 'Impersonation ended' });
+  } catch {
+    return c.json({ success: false, error: 'Failed to end impersonation' }, 500);
+  }
+});
+
+// ── Fee Management (admin only) ──────────────────────────────
+api.get('/admin/fees', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const fees = await c.env.DB.prepare('SELECT * FROM fee_schedule ORDER BY market, role').all();
+    return c.json({ success: true, data: fees.results });
+  } catch {
+    return c.json({ success: true, data: [] });
+  }
+});
+
+api.patch('/admin/fees/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { maker_fee_bps?: number; taker_fee_bps?: number; active?: boolean };
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    if (body.maker_fee_bps !== undefined) { updates.push('maker_fee_bps = ?'); values.push(body.maker_fee_bps); }
+    if (body.taker_fee_bps !== undefined) { updates.push('taker_fee_bps = ?'); values.push(body.taker_fee_bps); }
+    if (body.active !== undefined) { updates.push('active = ?'); values.push(body.active ? 1 : 0); }
+    if (updates.length === 0) return c.json({ success: false, error: 'No valid fields' }, 400);
+
+    updates.push("updated_at = datetime('now')");
+    values.push(id);
+    await c.env.DB.prepare(`UPDATE fee_schedule SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+
+    // Audit
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'update_fee', 'fee_schedule', ?, ?, ?)`
+    ).bind(generateId(), user.sub, id, JSON.stringify(body), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({ success: true });
+  } catch {
+    return c.json({ success: false, error: 'Failed to update fee' }, 500);
+  }
+});
+
+// Per-user rate limiting (after IP-based)
+api.use('/*', async (c, next) => {
+  const authHeader = c.req.header('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.substring(7);
+      const secret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+      const payload = await verifyJwt(token, secret);
+      if (payload) {
+        const userKey = `ratelimit:user:${payload.sub}:${Math.floor(Date.now() / 60000)}`;
+        const current = parseInt(await c.env.KV.get(userKey) || '0', 10);
+        if (current >= 500) {
+          return c.json({ success: false, error: 'Per-user rate limit exceeded', code: 'RATE_LIMITED' }, 429);
+        }
+        await c.env.KV.put(userKey, String(current + 1), { expirationTtl: 60 });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+  return next();
 });
 
 // Mount API

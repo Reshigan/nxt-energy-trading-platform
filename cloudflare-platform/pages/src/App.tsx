@@ -76,6 +76,10 @@ const ReportingEngine = lazy(() => import('./pages/ReportingEngine'));
 const ModuleAdmin = lazy(() => import('./pages/ModuleAdmin'));
 const Changelog = lazy(() => import('./pages/Changelog'));
 const MeteringAnalytics = lazy(() => import('./pages/MeteringAnalytics'));
+const StaffManagement = lazy(() => import('./pages/StaffManagement'));
+const SupportTickets = lazy(() => import('./pages/SupportTickets'));
+const SupportDashboard = lazy(() => import('./pages/SupportDashboard'));
+const PlatformConfig = lazy(() => import('./pages/PlatformConfig'));
 
 function App() {
   return (
@@ -141,6 +145,10 @@ function App() {
         <Route path="/reporting-engine" element={<ReportingEngine />} />
         <Route path="/modules" element={<ModuleAdmin />} />
         <Route path="/metering-analytics" element={<MeteringAnalytics />} />
+        <Route path="/staff" element={<StaffManagement />} />
+        <Route path="/support" element={<SupportTickets />} />
+        <Route path="/support-dashboard" element={<SupportDashboard />} />
+        <Route path="/platform-config" element={<PlatformConfig />} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>

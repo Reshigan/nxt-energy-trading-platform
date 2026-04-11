@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono';
 import { verifyJwt, isTokenBlacklisted } from './jwt';
-import { Role, JwtPayload, HonoEnv } from '../utils/types';
-import { hasPermission, Permission } from './permissions';
+import { Role, AdminLevel, JwtPayload, HonoEnv } from '../utils/types';
+import { hasPermission, Permission, roleMatches } from './permissions';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -25,6 +25,7 @@ export function authMiddleware(options?: {
   roles?: Role[];
   permissions?: Permission[];
   requireKyc?: boolean;
+  adminLevel?: AdminLevel;
 }) {
   return async (c: Context<HonoEnv>, next: Next) => {
     const authHeader = c.req.header('Authorization');
@@ -70,7 +71,15 @@ export function authMiddleware(options?: {
     }
 
     if (options?.roles && !options.roles.includes(payload.role)) {
-      return c.json({ success: false, error: 'Insufficient permissions', code: 'AUTH_FAILED' }, 403);
+      // Allow staff (users with admin_level) to pass admin role checks
+      if (!(payload.admin_level && options.roles.includes('admin'))) {
+        return c.json({ success: false, error: 'Insufficient permissions', code: 'AUTH_FAILED' }, 403);
+      }
+    }
+
+    // Check admin_level hierarchy if required
+    if (options?.adminLevel && !roleMatches(payload.admin_level, options.adminLevel)) {
+      return c.json({ success: false, error: 'Insufficient admin privileges', code: 'AUTH_FAILED' }, 403);
     }
 
     if (options?.permissions) {

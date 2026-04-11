@@ -1,4 +1,4 @@
-import { Role } from '../utils/types';
+import { Role, AdminLevel } from '../utils/types';
 
 // Permission categories
 export type Permission =
@@ -8,6 +8,11 @@ export type Permission =
   | 'carbon:full' | 'carbon:view' | 'carbon:trade' | 'carbon:buy'
   | 'settlement:full' | 'settlement:own' | 'settlement:view' | 'settlement:metering'
   | 'admin:full'
+  | 'admin:manage_staff' | 'admin:delete_users' | 'admin:edit_fees'
+  | 'admin:manage_tenants' | 'admin:impersonate' | 'admin:halt_market'
+  | 'admin:announcements' | 'admin:platform_config'
+  | 'support:view_users' | 'support:reset_password' | 'support:unlock_account'
+  | 'support:view_tickets' | 'support:respond_tickets'
   | 'participants:manage' | 'participants:view'
   | 'compliance:manage' | 'compliance:view'
   | 'marketplace:full' | 'marketplace:own' | 'marketplace:view';
@@ -87,4 +92,49 @@ export function canManageParticipants(role: Role): boolean {
 // Check if a role can override statutory checks
 export function canOverrideStatutory(role: Role): boolean {
   return role === 'admin';
+}
+
+// Admin level hierarchy: superadmin > admin > support
+const ADMIN_LEVEL_RANK: Record<AdminLevel, number> = {
+  superadmin: 3,
+  admin: 2,
+  support: 1,
+};
+
+/**
+ * Check if a user's admin_level satisfies a required level.
+ * superadmin satisfies all levels, admin satisfies admin+support, support only satisfies support.
+ */
+export function roleMatches(userLevel: AdminLevel | undefined, requiredLevel: AdminLevel): boolean {
+  if (!userLevel) return false;
+  return (ADMIN_LEVEL_RANK[userLevel] ?? 0) >= (ADMIN_LEVEL_RANK[requiredLevel] ?? 0);
+}
+
+/** Permissions for admin hierarchy levels */
+const ADMIN_LEVEL_PERMISSIONS: Record<AdminLevel, Permission[]> = {
+  superadmin: [
+    'admin:full', 'admin:manage_staff', 'admin:delete_users', 'admin:edit_fees',
+    'admin:manage_tenants', 'admin:impersonate', 'admin:halt_market',
+    'admin:announcements', 'admin:platform_config',
+    'support:view_users', 'support:reset_password', 'support:unlock_account',
+    'support:view_tickets', 'support:respond_tickets',
+  ],
+  admin: [
+    'admin:full', 'admin:edit_fees', 'admin:announcements', 'admin:platform_config',
+    'support:view_users', 'support:reset_password', 'support:unlock_account',
+    'support:view_tickets', 'support:respond_tickets',
+  ],
+  support: [
+    'support:view_users', 'support:reset_password', 'support:unlock_account',
+    'support:view_tickets', 'support:respond_tickets',
+  ],
+};
+
+export function getAdminPermissions(level: AdminLevel): Permission[] {
+  return ADMIN_LEVEL_PERMISSIONS[level] ?? [];
+}
+
+export function hasAdminPermission(level: AdminLevel | undefined, permission: Permission): boolean {
+  if (!level) return false;
+  return ADMIN_LEVEL_PERMISSIONS[level]?.includes(permission) ?? false;
 }
