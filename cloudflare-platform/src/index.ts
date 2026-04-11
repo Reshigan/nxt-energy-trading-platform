@@ -38,6 +38,8 @@ import pricing from './routes/pricing';
 import vault from './routes/vault';
 import lender from './routes/lender';
 import surveillance from './routes/surveillance';
+import recs from './routes/recs';
+import tokens from './routes/tokens';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -218,6 +220,8 @@ api.route('/pricing', pricing);
 api.route('/vault', vault);
 api.route('/lender', lender);
 api.route('/surveillance', surveillance);
+api.route('/recs', recs);
+api.route('/tokens', tokens);
 
 api.route('/iot', iot);
 api.route('/algo', algo);

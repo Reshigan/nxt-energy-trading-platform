@@ -226,6 +226,7 @@ ai.post('/chat', async (c) => {
 
   Respond concisely with data-driven insights. Use numbers from the portfolio context. If asked about optimisation, explain the trade-offs between cost, carbon, and reliability.`;
 
+    let aiResponse = 'AI service is currently unavailable. Please try again later.';
     try {
       const response = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
         messages: [
@@ -234,26 +235,33 @@ ai.post('/chat', async (c) => {
         ],
         max_tokens: 512,
       });
-
-      return c.json({
-        success: true,
-        data: {
-          response: (response as { response: string }).response,
-          context: {
-            positions: positions.results.length,
-            carbon_credits: credits?.count || 0,
-          },
-        },
-      });
+      aiResponse = (response as { response: string }).response;
     } catch {
-      return c.json({
-        success: true,
-        data: {
-          response: 'AI service is currently unavailable. Please try again later.',
-          context: { positions: positions.results.length, carbon_credits: credits?.count || 0 },
-        },
-      });
+      // AI unavailable — use fallback response
     }
+
+    // Audit log the AI interaction
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
+         VALUES (?, ?, 'ai_chat', 'ai', ?, ?, ?, datetime('now'))`
+      ).bind(
+        generateId(), user.sub, user.sub,
+        JSON.stringify({ message: message.substring(0, 200), response_length: aiResponse.length }),
+        c.req.header('CF-Connecting-IP') || 'unknown',
+      ).run();
+    } catch { /* audit log failure should not block response */ }
+
+    return c.json({
+      success: true,
+      data: {
+        response: aiResponse,
+        context: {
+          positions: positions.results.length,
+          carbon_credits: credits?.count || 0,
+        },
+      },
+    });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
