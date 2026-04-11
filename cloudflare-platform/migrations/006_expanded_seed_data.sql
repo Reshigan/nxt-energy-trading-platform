@@ -5,25 +5,19 @@
 -- ============================================================
 -- 7 days of 15-minute meter readings (672 rows) for project p-solar-limpopo
 -- ============================================================
-INSERT OR IGNORE INTO meter_readings (id, project_id, timestamp, generation_kwh, export_kwh, import_kwh, frequency_hz, voltage_v, power_factor, meter_serial, source)
+INSERT OR IGNORE INTO meter_readings (id, project_id, meter_id, meter_type, timestamp, value_kwh, source, quality)
 SELECT
   'mr-' || hex(randomblob(8)),
   'p-solar-limpopo',
+  'MTR-SOLAR-001',
+  'solar_gen',
   datetime('now', '-' || (d * 96 + i) * 15 || ' minutes'),
   ROUND(CASE
     WHEN (i % 96) BETWEEN 24 AND 72 THEN 50 + ABS(RANDOM() % 30)
     ELSE 0
   END, 2),
-  ROUND(CASE
-    WHEN (i % 96) BETWEEN 24 AND 72 THEN 45 + ABS(RANDOM() % 25)
-    ELSE 0
-  END, 2),
-  ROUND(ABS(RANDOM() % 5), 2),
-  ROUND(49.95 + (ABS(RANDOM() % 10)) * 0.01, 2),
-  ROUND(220 + (ABS(RANDOM() % 20)) * 0.1, 1),
-  ROUND(0.95 + (ABS(RANDOM() % 5)) * 0.01, 3),
-  'MTR-SOLAR-001',
-  'iot'
+  'solaredge',
+  'validated'
 FROM (
   SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3
   UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6
@@ -58,27 +52,28 @@ CROSS JOIN (
 -- ============================================================
 -- 3 smart contract rules
 -- ============================================================
-INSERT OR IGNORE INTO smart_contract_rules (id, name, description, trigger_event, condition_logic, action_type, action_params, priority, status, created_by, created_at)
+-- Note: smart_contract_rules requires a valid contract_doc_id (FK to contract_documents).
+-- These seed rows reference a placeholder doc ID; they will silently fail with INSERT OR IGNORE
+-- if foreign keys are enforced and the referenced document does not exist.
+INSERT OR IGNORE INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, enabled, created_at)
 VALUES
-  ('scr-auto-settle', 'Auto-Settle on Delivery', 'Automatically settle trades when delivery is confirmed by meter readings', 'trade.delivered', '{"delivery_confirmed": true, "variance_pct_lt": 5}', 'settle', '{"method": "auto", "fee_bps": 15}', 1, 'active', 'system', datetime('now')),
-  ('scr-penalty-shortfall', 'Shortfall Penalty', 'Apply penalty when generation falls below 90% of PPA commitment', 'meter.reading_below_threshold', '{"threshold_pct": 90, "consecutive_hours": 4}', 'penalty', '{"rate_per_mwh_cents": 5000, "cap_pct": 10}', 2, 'active', 'system', datetime('now')),
-  ('scr-rec-auto-issue', 'REC Auto-Issuance', 'Automatically issue RECs when monthly generation exceeds 100 MWh', 'meter.monthly_summary', '{"min_generation_mwh": 100, "source": "renewable"}', 'issue_rec', '{"standard": "I-REC", "auto_register": true}', 3, 'active', 'system', datetime('now'));
+  ('scr-auto-settle', 'contract-seed-001', 'auto_settle', '{"event": "trade.delivered", "delivery_confirmed": true, "variance_pct_lt": 5}', '{"method": "auto", "fee_bps": 15}', 1, datetime('now')),
+  ('scr-penalty-shortfall', 'contract-seed-001', 'auto_penalty', '{"event": "meter.reading_below_threshold", "threshold_pct": 90, "consecutive_hours": 4}', '{"rate_per_mwh_cents": 5000, "cap_pct": 10}', 1, datetime('now')),
+  ('scr-rec-auto-issue', 'contract-seed-001', 'metering_trigger', '{"event": "meter.monthly_summary", "min_generation_mwh": 100, "source": "renewable"}', '{"action": "issue_rec", "standard": "I-REC", "auto_register": true}', 1, datetime('now'));
 
 -- ============================================================
 -- 1 tokenised asset with provenance
 -- ============================================================
-INSERT OR IGNORE INTO tokenised_assets (id, token_id, source_type, source_id, owner_id, quantity, unit, status, metadata, provenance_hash, created_at, updated_at)
+INSERT OR IGNORE INTO tokenised_assets (id, asset_type, source_id, token_id, token_hash, owner_id, provenance_chain, status, minted_at, created_at)
 VALUES (
   'ta-gold-standard-001',
-  'NXT-TKN-' || hex(randomblob(4)),
   'carbon_credit',
   'cc-gold-standard-batch',
-  'part-eskom-green',
-  1000,
-  'tCO2e',
-  'active',
-  '{"standard": "Gold Standard", "vintage": 2025, "project": "Cookstove Distribution SA", "methodology": "GS-VER-008", "serial_range": "GS-1000-1999"}',
+  'NXT-TKN-' || hex(randomblob(4)),
   'sha256:' || hex(randomblob(32)),
+  'part-eskom-green',
+  '[{"action": "minted", "actor": "system", "metadata": {"standard": "Gold Standard", "vintage": 2025, "project": "Cookstove Distribution SA", "methodology": "GS-VER-008", "serial_range": "GS-1000-1999"}}]',
+  'active',
   datetime('now', '-30 days'),
   datetime('now')
 );
@@ -86,10 +81,10 @@ VALUES (
 -- ============================================================
 -- 2 REC certificates
 -- ============================================================
-INSERT OR IGNORE INTO rec_certificates (id, project_id, period_start, period_end, volume_mwh, source, serial_number, status, issued_by, created_at)
+INSERT OR IGNORE INTO recs (id, project_id, certificate_number, standard, volume_mwh, vintage_year, status, owner_id)
 VALUES
-  ('rec-limpopo-2025-q1', 'p-solar-limpopo', '2025-01-01', '2025-03-31', 2450.75, 'solar', 'IREC-ZA-2025-000001', 'active', 'system', datetime('now', '-60 days')),
-  ('rec-ncape-wind-2025-q1', 'p-wind-northern-cape', '2025-01-01', '2025-03-31', 3120.50, 'wind', 'IREC-ZA-2025-000002', 'active', 'system', datetime('now', '-45 days'));
+  ('rec-limpopo-2025-q1', 'p-solar-limpopo', 'IREC-ZA-2025-000001', 'i_rec', 2450.75, 2025, 'active', 'part-eskom-green'),
+  ('rec-ncape-wind-2025-q1', 'p-wind-northern-cape', 'IREC-ZA-2025-000002', 'i_rec', 3120.50, 2025, 'active', 'part-eskom-green');
 
 -- ============================================================
 -- 5 audit log entries

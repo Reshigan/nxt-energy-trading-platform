@@ -13,6 +13,44 @@ import { generateId as genId2 } from '../utils/id';
 
 const subscriptions = new Hono<HonoEnv>();
 
+/**
+ * Verify Stripe webhook signature using HMAC-SHA256 (Web Crypto API).
+ * Returns true if the signature is valid and the timestamp is within tolerance.
+ */
+async function verifyStripeSignature(body: string, sig: string, secret: string, toleranceSec = 300): Promise<boolean> {
+  // Parse the stripe-signature header: "t=<ts>,v1=<sig1>,v1=<sig2>,..."
+  let timestamp = '';
+  const signatures: string[] = [];
+  for (const part of sig.split(',')) {
+    const [key, ...rest] = part.split('=');
+    const value = rest.join('=');
+    if (key === 't') timestamp = value;
+    if (key === 'v1') signatures.push(value);
+  }
+
+  if (!timestamp || signatures.length === 0) return false;
+
+  // Reject if timestamp is too old (replay protection)
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(timestamp, 10)) > toleranceSec) return false;
+
+  // Compute expected signature: HMAC-SHA256(secret, "<timestamp>.<body>")
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const signed = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`));
+  const expected = Array.from(new Uint8Array(signed)).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+  // Constant-time comparison
+  return signatures.some((s) => {
+    if (s.length !== expected.length) return false;
+    let diff = 0;
+    for (let i = 0; i < s.length; i++) diff |= s.charCodeAt(i) ^ expected.charCodeAt(i);
+    return diff === 0;
+  });
+}
+
 // Stripe webhook must be registered BEFORE the global auth middleware
 // because Stripe sends its own signature header, not a JWT Bearer token.
 subscriptions.post('/webhook', async (c) => {
@@ -21,10 +59,15 @@ subscriptions.post('/webhook', async (c) => {
     const body = await c.req.text();
     const sig = c.req.header('stripe-signature');
 
-    // If webhook secret is configured, we should verify the signature
-    // For now we parse the event and process it (production should use stripe SDK for verification)
-    if (STRIPE_WEBHOOK_SECRET && !sig) {
-      return c.json({ error: 'Missing stripe-signature header' }, 400);
+    // Verify Stripe webhook signature when secret is configured
+    if (STRIPE_WEBHOOK_SECRET) {
+      if (!sig) {
+        return c.json({ error: 'Missing stripe-signature header' }, 400);
+      }
+      const valid = await verifyStripeSignature(body, sig, STRIPE_WEBHOOK_SECRET);
+      if (!valid) {
+        return c.json({ error: 'Invalid webhook signature' }, 401);
+      }
     }
 
     const event = JSON.parse(body) as { type: string; data: { object: Record<string, unknown> } };
