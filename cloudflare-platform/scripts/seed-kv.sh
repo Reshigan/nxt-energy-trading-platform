@@ -8,12 +8,13 @@
 set -euo pipefail
 
 ENV_FLAG="${1:-}"
+ENV_NAME="${2:-production}"
 
 put_kv() {
   local key="$1"
   local value="$2"
-  if [ "$ENV_FLAG" = "--env" ] && [ -n "${2:-}" ]; then
-    npx wrangler kv:key put --binding KV "$key" "$value" --env "${3:-production}"
+  if [ "$ENV_FLAG" = "--env" ] && [ -n "$ENV_NAME" ]; then
+    npx wrangler kv:key put --binding KV "$key" "$value" --env "$ENV_NAME"
   else
     npx wrangler kv:key put --binding KV "$key" "$value"
   fi

@@ -341,24 +341,30 @@ export class OrderBookDO implements DurableObject {
    */
   private checkConditionalOrders(): Match[] {
     const triggered: Match[] = [];
-    const toRemove: string[] = [];
 
+    // First pass: collect all triggered orders (snapshot copies)
+    const triggeredOrders: Order[] = [];
     for (const book of [this.bids, this.asks]) {
       for (const order of book) {
         if ((order.orderType === 'stop_loss' || order.orderType === 'take_profit') && this.checkTrigger(order)) {
-          toRemove.push(order.id);
-          // Convert to market order and match
-          order.orderType = 'market';
-          const matches = this.matchOrder(order);
-          triggered.push(...matches);
+          triggeredOrders.push({ ...order });
         }
       }
     }
 
-    // Remove triggered orders from book
-    if (toRemove.length > 0) {
-      this.bids = this.bids.filter((o) => !toRemove.includes(o.id));
-      this.asks = this.asks.filter((o) => !toRemove.includes(o.id));
+    if (triggeredOrders.length === 0) return triggered;
+
+    // Remove triggered orders from both books BEFORE matching
+    // to prevent zombie orders from being matched by subsequent triggered orders
+    const triggeredIds = new Set(triggeredOrders.map((o) => o.id));
+    this.bids = this.bids.filter((o) => !triggeredIds.has(o.id));
+    this.asks = this.asks.filter((o) => !triggeredIds.has(o.id));
+
+    // Second pass: convert each triggered order to market and match
+    for (const order of triggeredOrders) {
+      order.orderType = 'market';
+      const matches = this.matchOrder(order);
+      triggered.push(...matches);
     }
 
     return triggered;
