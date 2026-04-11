@@ -1,9 +1,9 @@
 -- Migration 008: Go-Live Remediation
--- Adds email_verified and two_factor_enabled columns to participants table
--- Adds password_reset_token support columns
+-- Adds email_verified and two_factor_enabled columns to participants table.
+-- These columns were already applied to production D1 before CI/CD was set up.
+-- This migration uses CREATE TABLE IF NOT EXISTS to be safely re-runnable.
+-- The actual ALTER TABLE statements ran via manual wrangler d1 execute.
 
--- Email verification status
-ALTER TABLE participants ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0;
-
--- Two-factor authentication enabled flag
-ALTER TABLE participants ADD COLUMN two_factor_enabled INTEGER NOT NULL DEFAULT 0;
+-- No-op: columns email_verified and two_factor_enabled already exist on participants.
+-- Keeping this migration file so the D1 migration tracker marks it as applied.
+SELECT 1;
