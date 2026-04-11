@@ -149,6 +149,12 @@ export class OrderBookDO implements DurableObject {
       this.insertToBook(order);
     }
 
+    // After trades execute, check if any resting conditional orders should now trigger
+    if (matches.length > 0) {
+      const conditionalMatches = this.checkConditionalOrders();
+      matches.push(...conditionalMatches);
+    }
+
     await this.persistState();
 
     // Broadcast updates

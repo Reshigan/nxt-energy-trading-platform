@@ -62,9 +62,10 @@ recs.post('/:id/transfer', async (c) => {
   const recipient = await c.env.DB.prepare('SELECT id FROM participants WHERE id = ?').bind(body.to_participant_id).first();
   if (!recipient) return c.json({ success: false, error: 'Recipient not found' }, 404);
 
+  // Keep original owner_id on the transferred record to preserve audit trail / provenance
   await c.env.DB.prepare(
-    "UPDATE recs SET owner_id = ?, status = 'transferred', transferred_at = ? WHERE id = ?"
-  ).bind(body.to_participant_id, nowISO(), id).run();
+    "UPDATE recs SET status = 'transferred', transferred_at = ? WHERE id = ?"
+  ).bind(nowISO(), id).run();
 
   // Create new active REC for recipient
   const newId = generateId();
@@ -113,7 +114,7 @@ recs.post('/issue', authMiddleware({ roles: ['admin'] }), async (c) => {
 
   // Sum validated meter readings for the period
   const generation = await c.env.DB.prepare(
-    "SELECT COALESCE(SUM(value_kwh), 0) as total FROM meter_readings WHERE project_id = ? AND reading_timestamp BETWEEN ? AND ? AND quality IN ('actual', 'validated')"
+    "SELECT COALESCE(SUM(value_kwh), 0) as total FROM meter_readings WHERE project_id = ? AND timestamp BETWEEN ? AND ? AND quality IN ('actual', 'validated')"
   ).bind(body.project_id, body.period_start, body.period_end).first<{ total: number }>();
 
   const mwh = (generation?.total || 0) / 1000;
