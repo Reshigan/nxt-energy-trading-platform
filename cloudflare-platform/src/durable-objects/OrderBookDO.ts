@@ -41,6 +41,7 @@ const FEE_BPS = 15;
 export class OrderBookDO implements DurableObject {
   private bids: Order[] = []; // sorted descending by price, then ascending by time
   private asks: Order[] = []; // sorted ascending by price, then ascending by time
+  private conditionalOrders: Order[] = []; // resting stop-loss/take-profit orders (not in main book)
   private trades: Match[] = [];
   private sessions: Map<string, WebSocket> = new Map();
   private state: DurableObjectState;
@@ -52,6 +53,7 @@ export class OrderBookDO implements DurableObject {
     this.state.blockConcurrencyWhile(async () => {
       this.bids = (await this.state.storage.get<Order[]>('bids')) || [];
       this.asks = (await this.state.storage.get<Order[]>('asks')) || [];
+      this.conditionalOrders = (await this.state.storage.get<Order[]>('conditionalOrders')) || [];
       this.lastTradePrice = (await this.state.storage.get<number>('lastTradePrice')) || 0;
     });
   }
@@ -132,8 +134,9 @@ export class OrderBookDO implements DurableObject {
     if (order.orderType === 'stop_loss' || order.orderType === 'take_profit') {
       const triggered = this.checkTrigger(order);
       if (!triggered) {
-        // Not yet triggered — add to book as resting conditional order
-        this.insertToBook(order);
+        // Not yet triggered — store in separate conditional orders list (NOT in main book)
+        // to prevent matching at price 0 by incoming market orders
+        this.conditionalOrders.push(order);
         await this.persistState();
         this.broadcastUpdate();
         return Response.json({ success: true, order, matches: [], triggered: false });
@@ -244,10 +247,18 @@ export class OrderBookDO implements DurableObject {
     const { orderId } = await request.json() as { orderId: string };
 
     let found = false;
-    this.bids = this.bids.filter((o) => {
+    // Check conditional orders first
+    const condLen = this.conditionalOrders.length;
+    this.conditionalOrders = this.conditionalOrders.filter((o) => {
       if (o.id === orderId) { found = true; return false; }
       return true;
     });
+    if (!found) {
+      this.bids = this.bids.filter((o) => {
+        if (o.id === orderId) { found = true; return false; }
+        return true;
+      });
+    }
     if (!found) {
       this.asks = this.asks.filter((o) => {
         if (o.id === orderId) { found = true; return false; }
@@ -343,25 +354,23 @@ export class OrderBookDO implements DurableObject {
   private checkConditionalOrders(): Match[] {
     const triggered: Match[] = [];
 
-    // First pass: collect all triggered orders (snapshot copies)
+    // Check conditional orders list for triggered orders
     const triggeredOrders: Order[] = [];
-    for (const book of [this.bids, this.asks]) {
-      for (const order of book) {
-        if ((order.orderType === 'stop_loss' || order.orderType === 'take_profit') && this.checkTrigger(order)) {
-          triggeredOrders.push({ ...order });
-        }
+    const remaining: Order[] = [];
+    for (const order of this.conditionalOrders) {
+      if (this.checkTrigger(order)) {
+        triggeredOrders.push({ ...order });
+      } else {
+        remaining.push(order);
       }
     }
 
     if (triggeredOrders.length === 0) return triggered;
 
-    // Remove triggered orders from both books BEFORE matching
-    // to prevent zombie orders from being matched by subsequent triggered orders
-    const triggeredIds = new Set(triggeredOrders.map((o) => o.id));
-    this.bids = this.bids.filter((o) => !triggeredIds.has(o.id));
-    this.asks = this.asks.filter((o) => !triggeredIds.has(o.id));
+    // Remove triggered orders from the conditional list
+    this.conditionalOrders = remaining;
 
-    // Second pass: convert each triggered order to market and match
+    // Convert each triggered order to market and match
     for (const order of triggeredOrders) {
       order.orderType = 'market';
       const matches = this.matchOrder(order);
@@ -374,6 +383,7 @@ export class OrderBookDO implements DurableObject {
   private async persistState(): Promise<void> {
     await this.state.storage.put('bids', this.bids);
     await this.state.storage.put('asks', this.asks);
+    await this.state.storage.put('conditionalOrders', this.conditionalOrders);
     await this.state.storage.put('lastTradePrice', this.lastTradePrice);
   }
 }

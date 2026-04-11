@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import ErrorBoundary from './components/ErrorBoundary';
+import CookieConsent from './components/CookieConsent';
 
 // Loading skeleton for lazy-loaded pages
 function LoadingSkeleton() {
@@ -72,6 +73,8 @@ const CarbonDeep = lazy(() => import('./pages/CarbonDeep'));
 const IPPDeep = lazy(() => import('./pages/IPPDeep'));
 const OfftakerDeep = lazy(() => import('./pages/OfftakerDeep'));
 const ReportingEngine = lazy(() => import('./pages/ReportingEngine'));
+const ModuleAdmin = lazy(() => import('./pages/ModuleAdmin'));
+const Changelog = lazy(() => import('./pages/Changelog'));
 
 function App() {
   return (
@@ -134,11 +137,14 @@ function App() {
         <Route path="/ipp-deep" element={<IPPDeep />} />
         <Route path="/offtaker-deep" element={<OfftakerDeep />} />
         <Route path="/reporting-engine" element={<ReportingEngine />} />
+        <Route path="/modules" element={<ModuleAdmin />} />
+        <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>
     </Suspense>
     </ErrorBoundary>
+    <CookieConsent />
   );
 }
 

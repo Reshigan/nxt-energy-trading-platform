@@ -121,10 +121,12 @@ recs.post('/issue', authMiddleware({ roles: ['admin'] }), async (c) => {
   if (mwh < 1) return c.json({ success: false, error: `Only ${mwh.toFixed(2)} MWh generated — minimum 1 MWh for REC issuance` }, 400);
 
   // Generate certificate number using vintage year from period start
+  // Include a random suffix to prevent race condition duplicates under concurrent requests
   const vintageYear = new Date(body.period_start).getFullYear();
   const seqResult = await c.env.DB.prepare("SELECT COUNT(*) as c FROM recs WHERE certificate_number LIKE ?").bind(`ZA-IREC-${vintageYear}-%`).first<{ c: number }>();
   const seq = String((seqResult?.c || 0) + 1).padStart(5, '0');
-  const certNumber = `ZA-IREC-${vintageYear}-${seq}`;
+  const suffix = generateId().slice(0, 6).toUpperCase();
+  const certNumber = `ZA-IREC-${vintageYear}-${seq}-${suffix}`;
 
   const id = generateId();
   await c.env.DB.prepare(
