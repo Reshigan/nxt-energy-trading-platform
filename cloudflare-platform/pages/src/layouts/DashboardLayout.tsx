@@ -214,6 +214,7 @@ const ALL_MORE_LINKS = [
   { name: 'IPP Deep', href: '/ipp-deep', icon: IconIPPDeep },
   { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
   { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
+  { name: 'Support', href: '/support', icon: IconNotifications },
 ];
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;

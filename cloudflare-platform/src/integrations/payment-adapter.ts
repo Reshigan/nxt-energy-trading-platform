@@ -12,6 +12,7 @@ export interface PaymentRequest {
 export interface PaymentResult {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   provider_ref: string | null;
+  provider: string;
   error?: string;
 }
 
@@ -32,12 +33,13 @@ async function mockPayment(req: PaymentRequest): Promise<PaymentResult> {
   return {
     status: 'pending',
     provider_ref: `MOCK-${Date.now()}-${req.reference}`,
+    provider: 'mock',
   };
 }
 
 async function stitchPayment(env: AppBindings, req: PaymentRequest): Promise<PaymentResult> {
   const apiKey = env.STITCH_API_KEY as string | undefined;
-  if (!apiKey) return { status: 'failed', provider_ref: null, error: 'Stitch API key not configured' };
+  if (!apiKey) return { status: 'failed', provider_ref: null, provider: 'stitch', error: 'Stitch API key not configured' };
 
   try {
     const response = await fetch('https://api.stitch.money/v1/payments', {
@@ -51,17 +53,17 @@ async function stitchPayment(env: AppBindings, req: PaymentRequest): Promise<Pay
       }),
     });
     const data = await response.json() as { id?: string; status?: string; error?: string };
-    if (!response.ok) return { status: 'failed', provider_ref: null, error: data.error || 'Stitch API error' };
-    return { status: 'processing', provider_ref: data.id ?? null };
+    if (!response.ok) return { status: 'failed', provider_ref: null, provider: 'stitch', error: data.error || 'Stitch API error' };
+    return { status: 'processing', provider_ref: data.id ?? null, provider: 'stitch' };
   } catch (err) {
-    return { status: 'failed', provider_ref: null, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { status: 'failed', provider_ref: null, provider: 'stitch', error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
 
 async function ozowPayment(env: AppBindings, req: PaymentRequest): Promise<PaymentResult> {
   const apiKey = env.OZOW_API_KEY as string | undefined;
   const siteCode = env.OZOW_SITE_CODE as string | undefined;
-  if (!apiKey || !siteCode) return { status: 'failed', provider_ref: null, error: 'Ozow credentials not configured' };
+  if (!apiKey || !siteCode) return { status: 'failed', provider_ref: null, provider: 'ozow', error: 'Ozow credentials not configured' };
 
   try {
     const response = await fetch('https://api.ozow.com/PostPaymentRequest', {
@@ -76,9 +78,9 @@ async function ozowPayment(env: AppBindings, req: PaymentRequest): Promise<Payme
       }),
     });
     const data = await response.json() as { paymentRequestId?: string; errorMessage?: string };
-    if (!response.ok) return { status: 'failed', provider_ref: null, error: data.errorMessage || 'Ozow API error' };
-    return { status: 'processing', provider_ref: data.paymentRequestId ?? null };
+    if (!response.ok) return { status: 'failed', provider_ref: null, provider: 'ozow', error: data.errorMessage || 'Ozow API error' };
+    return { status: 'processing', provider_ref: data.paymentRequestId ?? null, provider: 'ozow' };
   } catch (err) {
-    return { status: 'failed', provider_ref: null, error: err instanceof Error ? err.message : 'Unknown error' };
+    return { status: 'failed', provider_ref: null, provider: 'ozow', error: err instanceof Error ? err.message : 'Unknown error' };
   }
 }
