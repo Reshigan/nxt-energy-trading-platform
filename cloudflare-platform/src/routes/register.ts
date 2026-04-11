@@ -465,11 +465,15 @@ register.post('/auth/login', async (c) => {
   }, jwtSecret);
   const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
-  // Audit
+  // Audit — store token so session revocation can blacklist it
   await c.env.DB.prepare(`
-    INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, ip_address)
-    VALUES (?, ?, 'login', 'participant', ?, ?)
-  `).bind(generateId(), participant.id, participant.id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+    INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+    VALUES (?, ?, 'login', 'participant', ?, ?, ?)
+  `).bind(
+    generateId(), participant.id, participant.id,
+    JSON.stringify({ token, user_agent: c.req.header('User-Agent') || 'Unknown' }),
+    c.req.header('CF-Connecting-IP') || 'unknown'
+  ).run();
 
   return c.json({
     success: true,
