@@ -102,3 +102,4 @@ export const FiGrid = (p: P) => svg(p, <><rect x="3" y="3" width="7" height="7" 
 export const FiShare2 = (p: P) => svg(p, <><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></>);
 export const FiCheckSquare = (p: P) => svg(p, <><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>);
 export const FiTarget = (p: P) => svg(p, <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>);
+export const FiMinus = (p: P) => svg(p, <line x1="5" y1="12" x2="19" y2="12" />);
