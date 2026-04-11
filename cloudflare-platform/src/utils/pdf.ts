@@ -262,14 +262,14 @@ export function generateRetirementCertificate(credit: CreditInfo, retirement: Re
     <div class="cert-quantity">${credit.quantity} tCO2e</div>
 
     <table class="meta-table" style="width: 500px; margin: 20px auto; text-align: left;">
-      <tr><td class="label">Credit ID</td><td>${credit.id}</td></tr>
+      <tr><td class="label">Credit ID</td><td>${escapeHtml(credit.id)}</td></tr>
       <tr><td class="label">Serial Number</td><td>${escapeHtml(credit.serial_number) || 'N/A'}</td></tr>
       <tr><td class="label">Registry</td><td>${escapeHtml(credit.registry || credit.standard) || 'NXT'}</td></tr>
       <tr><td class="label">Vintage</td><td>${escapeHtml(credit.vintage) || 'N/A'}</td></tr>
       <tr><td class="label">Project</td><td>${escapeHtml(credit.project_name) || 'N/A'}</td></tr>
       <tr><td class="label">Beneficiary</td><td>${escapeHtml(retirement.beneficiary)}</td></tr>
       <tr><td class="label">Purpose</td><td>${escapeHtml(retirement.purpose)}</td></tr>
-      <tr><td class="label">Retired On</td><td>${retirement.retired_at}</td></tr>
+      <tr><td class="label">Retired On</td><td>${escapeHtml(retirement.retired_at)}</td></tr>
     </table>
 
     <div class="qr-placeholder">
