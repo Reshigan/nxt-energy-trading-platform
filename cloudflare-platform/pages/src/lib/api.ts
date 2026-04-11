@@ -376,4 +376,16 @@ export const cockpitAPI = {
   get: () => api.get('/cockpit'),
 };
 
+// ODSE Metering Analytics
+export const odseAPI = {
+  assets: (params?: Record<string, string>) => api.get('/odse/assets', { params }),
+  summary: (params?: { days?: number; asset_id?: string; project_id?: string }) => api.get('/odse/analytics/summary', { params }),
+  hourly: (params?: { days?: number; asset_id?: string }) => api.get('/odse/analytics/hourly', { params }),
+  daily: (params?: { days?: number; asset_id?: string }) => api.get('/odse/analytics/daily', { params }),
+  carbon: (params?: { days?: number; asset_id?: string }) => api.get('/odse/analytics/carbon', { params }),
+  tariff: (params?: { days?: number; asset_id?: string }) => api.get('/odse/analytics/tariff', { params }),
+  timeseries: (params?: Record<string, string>) => api.get('/odse/timeseries', { params }),
+  ingest: (data: { readings: Array<Record<string, unknown>> }) => api.post('/odse/ingest', data),
+};
+
 export default api;

@@ -55,6 +55,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Energy', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Analytics (ODSE)', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
     ]},
     { label: 'Finance', items: [
@@ -70,6 +71,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Development', items: [
       { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Analytics (ODSE)', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
     ]},
@@ -88,6 +90,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
       { name: 'Risk', href: '/risk', icon: IconRisk },
+      { name: 'Energy Analytics', href: '/metering-analytics', icon: IconAnalytics },
     ]},
     { label: 'Carbon & Finance', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
@@ -102,6 +105,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Carbon', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Carbon Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Markets', href: '/markets', icon: IconMarkets },
     ]},
@@ -118,6 +122,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Supply', items: [
       { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
+      { name: 'Consumption Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
     ]},
@@ -293,7 +298,7 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-6">
             <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
               <NXTLogo size={36} animated />
-              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block group-hover:opacity-80 transition-opacity">NXT Energy</span>
+              <span className="text-lg font-bold tracking-tight gradient-text hidden sm:block group-hover:opacity-80 transition-opacity">Voltex</span>
             </Link>
 
             {/* Tab Pills */}

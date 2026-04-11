@@ -44,6 +44,7 @@ import cockpit from './routes/cockpit';
 import modulesRoute from './routes/modules';
 import onboarding from './routes/onboarding';
 import sessionsRoute from './routes/sessions';
+import odseRoute from './routes/odse';
 import { requireModule } from './middleware/modules';
 
 // Durable Object exports
@@ -110,7 +111,7 @@ app.use('*', async (c, next) => {
   const env = (c.env as Record<string, unknown>).ENVIRONMENT as string || 'development';
   const origins: string[] = ['https://et.vantax.co.za'];
   if (env !== 'production') {
-    origins.push('http://localhost:5173', 'http://localhost:8788');
+    origins.push('http://localhost:5173', 'http://localhost:8788', 'http://localhost:3011');
   }
   return cors({
     origin: origins,
@@ -144,7 +145,7 @@ app.use('*', async (c, next) => {
 // Welcome
 app.get('/', (c) => {
   return c.json({
-    message: 'NXT Energy Trading Platform API',
+    message: 'Voltex Energy Exchange API',
     version: '2.0.0',
     status: 'running',
     platform: 'Cloudflare Workers',
@@ -270,6 +271,7 @@ api.route('/modules', modulesRoute);
 api.route('/onboarding', onboarding);
 api.route('/sessions', sessionsRoute);
 
+api.route('/odse', odseRoute);
 api.route('/iot', iot);
 api.route('/algo', algo);
 api.route('/esg-reporting', esgReporting);
