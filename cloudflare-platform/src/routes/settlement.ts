@@ -7,6 +7,7 @@ import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '.
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
 import { cascade } from '../utils/cascade';
+import { generateInvoicePDF } from '../utils/pdf';
 
 const settlement = new Hono<HonoEnv>();
 
@@ -689,6 +690,49 @@ settlement.post('/netting', authMiddleware({ roles: ['admin'] }), async (c) => {
           netting_savings_percent: savingsPercent,
           executed: !!body.execute,
         },
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /invoices/:id/pdf — Generate invoice PDF (HTML-based)
+settlement.get('/invoices/:id/pdf', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+
+    const invoice = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
+    if (!invoice) return c.json({ success: false, error: 'Invoice not found' }, 404);
+
+    // Authorization: non-admin users can only view invoices where they are buyer or seller
+    const user = c.get('user');
+    if (user.role !== 'admin') {
+      const pid = user.sub;
+      if (invoice.from_participant_id !== pid && invoice.to_participant_id !== pid) {
+        return c.json({ success: false, error: 'Not authorized to view this invoice' }, 403);
+      }
+    }
+
+    const seller = await c.env.DB.prepare(
+      'SELECT id, company_name, email FROM participants WHERE id = ?'
+    ).bind(invoice.from_participant_id).first();
+
+    const buyer = await c.env.DB.prepare(
+      'SELECT id, company_name, email FROM participants WHERE id = ?'
+    ).bind(invoice.to_participant_id).first();
+
+    const html = generateInvoicePDF(
+      invoice as unknown as Parameters<typeof generateInvoicePDF>[0],
+      (seller || { id: '', company_name: 'Unknown Seller', email: '' }) as unknown as Parameters<typeof generateInvoicePDF>[1],
+      (buyer || { id: '', company_name: 'Unknown Buyer', email: '' }) as unknown as Parameters<typeof generateInvoicePDF>[2],
+    );
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `inline; filename="invoice-${invoice.invoice_number || id}.html"`,
       },
     });
   } catch (err) {

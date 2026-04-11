@@ -465,11 +465,15 @@ register.post('/auth/login', async (c) => {
   }, jwtSecret);
   const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
-  // Audit
+  // Audit — store token so session revocation can blacklist it
   await c.env.DB.prepare(`
-    INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, ip_address)
-    VALUES (?, ?, 'login', 'participant', ?, ?)
-  `).bind(generateId(), participant.id, participant.id, c.req.header('CF-Connecting-IP') || 'unknown').run();
+    INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+    VALUES (?, ?, 'login', 'participant', ?, ?, ?)
+  `).bind(
+    generateId(), participant.id, participant.id,
+    JSON.stringify({ token, user_agent: c.req.header('User-Agent') || 'Unknown' }),
+    c.req.header('CF-Connecting-IP') || 'unknown'
+  ).run();
 
   return c.json({
     success: true,
@@ -489,6 +493,185 @@ register.post('/auth/login', async (c) => {
   } catch (err) {
     captureException(c, err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
+  }
+});
+
+// ── POPIA Data Export ─────────────────────────────────────────
+register.get('/me/export', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const pid = user.sub;
+
+    const [participant, trades, orders, credits, contracts, invoices, notifications, auditLog] = await Promise.all([
+      c.env.DB.prepare('SELECT id, email, role, company_name, contact_person, phone, physical_address, kyc_status, created_at FROM participants WHERE id = ?').bind(pid).first(),
+      c.env.DB.prepare('SELECT id, market, direction, volume_mwh, price_cents, total_cents, status, created_at FROM trades WHERE buyer_id = ? OR seller_id = ? ORDER BY created_at DESC').bind(pid, pid).all(),
+      c.env.DB.prepare('SELECT id, market, direction, order_type, volume_mwh, price_cents, status, created_at FROM orders WHERE participant_id = ? ORDER BY created_at DESC').bind(pid).all(),
+      c.env.DB.prepare('SELECT id, amount_tonnes, standard, status, created_at FROM carbon_credits WHERE owner_id = ? ORDER BY created_at DESC').bind(pid).all(),
+      c.env.DB.prepare("SELECT cd.id, cd.title, cd.doc_type, cd.phase, cd.created_at FROM contract_documents cd JOIN document_signatories ds ON cd.id = ds.document_id WHERE ds.participant_id = ? ORDER BY cd.created_at DESC").bind(pid).all(),
+      c.env.DB.prepare('SELECT id, invoice_number, total_cents, status, due_date, created_at FROM invoices WHERE from_participant_id = ? OR to_participant_id = ? ORDER BY created_at DESC').bind(pid, pid).all(),
+      c.env.DB.prepare('SELECT id, title, body, type, created_at FROM notifications WHERE participant_id = ? ORDER BY created_at DESC LIMIT 100').bind(pid).all(),
+      c.env.DB.prepare("SELECT id, action, entity_type, entity_id, created_at FROM audit_log WHERE actor_id = ? ORDER BY created_at DESC LIMIT 200").bind(pid).all(),
+    ]);
+
+    return c.json({
+      success: true,
+      data: {
+        export_date: nowISO(),
+        format: 'POPIA_COMPLIANT_EXPORT',
+        participant,
+        trades: trades.results,
+        orders: orders.results,
+        carbon_credits: credits.results,
+        contracts: contracts.results,
+        invoices: invoices.results,
+        notifications: notifications.results,
+        audit_log: auditLog.results,
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Export failed' }, 500);
+  }
+});
+
+// ── Account Deletion Request ─────────────────────────────────
+register.post('/me/delete-request', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json().catch(() => ({})) as { reason?: string };
+
+    // Check for existing pending request
+    const existing = await c.env.DB.prepare(
+      "SELECT id FROM deletion_requests WHERE participant_id = ? AND status = 'pending'"
+    ).bind(user.sub).first();
+    if (existing) {
+      return c.json({ success: false, error: 'A deletion request is already pending' }, 409);
+    }
+
+    const id = generateId();
+    const processAfter = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+
+    await c.env.DB.prepare(
+      'INSERT INTO deletion_requests (id, participant_id, reason, status, requested_at, process_after) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, user.sub, body.reason || null, 'pending', nowISO(), processAfter).run();
+
+    // Audit log
+    await c.env.DB.prepare(
+      `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+       VALUES (?, ?, 'deletion_request', 'participant', ?, ?, ?)`
+    ).bind(generateId(), user.sub, user.sub, JSON.stringify({ reason: body.reason }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    return c.json({
+      success: true,
+      data: {
+        id,
+        process_after: processAfter,
+        message: 'Your account deletion request has been submitted. It will be processed after a 30-day cooling-off period. You may cancel this request at any time.',
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Failed to submit deletion request' }, 500);
+  }
+});
+
+// Cancel deletion request
+register.post('/me/cancel-deletion', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    await c.env.DB.prepare(
+      "UPDATE deletion_requests SET status = 'cancelled' WHERE participant_id = ? AND status = 'pending'"
+    ).bind(user.sub).run();
+    return c.json({ success: true, message: 'Deletion request cancelled' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Failed to cancel deletion request' }, 500);
+  }
+});
+
+// ── Notification Preferences ─────────────────────────────────
+register.get('/me/preferences', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    let prefs = await c.env.DB.prepare(
+      'SELECT * FROM notification_preferences WHERE participant_id = ?'
+    ).bind(user.sub).first();
+
+    if (!prefs) {
+      // Return defaults
+      prefs = {
+        email_trade_confirmations: 1,
+        email_contract_signatures: 1,
+        email_cp_deadlines: 1,
+        email_invoice_generated: 1,
+        email_monthly_summary: 1,
+        push_trade_executions: 1,
+        push_price_alerts: 1,
+        push_cp_deadlines: 1,
+      };
+    }
+
+    return c.json({ success: true, data: prefs });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Failed to load preferences' }, 500);
+  }
+});
+
+register.post('/me/preferences', authMiddleware({ requireKyc: false }), async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as Record<string, unknown>;
+
+    const allowedKeys = [
+      'email_trade_confirmations', 'email_contract_signatures', 'email_cp_deadlines',
+      'email_invoice_generated', 'email_monthly_summary',
+      'push_trade_executions', 'push_price_alerts', 'push_cp_deadlines',
+    ];
+
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM notification_preferences WHERE participant_id = ?'
+    ).bind(user.sub).first();
+
+    if (existing) {
+      const updates: string[] = [];
+      const values: unknown[] = [];
+      for (const key of allowedKeys) {
+        if (body[key] !== undefined) {
+          updates.push(`${key} = ?`);
+          values.push(body[key] ? 1 : 0);
+        }
+      }
+      if (updates.length > 0) {
+        updates.push('updated_at = ?');
+        values.push(nowISO());
+        values.push(user.sub);
+        await c.env.DB.prepare(
+          `UPDATE notification_preferences SET ${updates.join(', ')} WHERE participant_id = ?`
+        ).bind(...values).run();
+      }
+    } else {
+      const id = generateId();
+      const vals: Record<string, number> = {};
+      for (const key of allowedKeys) {
+        vals[key] = body[key] !== undefined ? (body[key] ? 1 : 0) : 1;
+      }
+      await c.env.DB.prepare(
+        `INSERT INTO notification_preferences (id, participant_id, email_trade_confirmations, email_contract_signatures, email_cp_deadlines, email_invoice_generated, email_monthly_summary, push_trade_executions, push_price_alerts, push_cp_deadlines, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        id, user.sub,
+        vals.email_trade_confirmations, vals.email_contract_signatures, vals.email_cp_deadlines,
+        vals.email_invoice_generated, vals.email_monthly_summary,
+        vals.push_trade_executions, vals.push_price_alerts, vals.push_cp_deadlines,
+        nowISO()
+      ).run();
+    }
+
+    return c.json({ success: true, message: 'Preferences updated' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Failed to update preferences' }, 500);
   }
 });
 

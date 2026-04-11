@@ -155,7 +155,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'cross_module',
       execute: async (env, event) => {
         const { buyer_id, seller_id, market, volume, price_cents } = event.data;
-        const totalCents = Math.round(volume * Number(price_cents));
+        const totalCents = Math.round(Number(volume) * Number(price_cents));
         
         // Auto-issue carbon credits for renewable energy trades (solar, wind, hydro)
         const renewableMarkets = ['solar', 'wind', 'hydro'];
@@ -824,6 +824,87 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
           `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at)
            VALUES (?, ?, 'popia_erasure_request', 'participant', ?, ?, ?, datetime('now'))`
         ).bind(crypto.randomUUID(), event.actor_id, event.actor_id, JSON.stringify(event.data), event.ip).run();
+      },
+    },
+  ],
+
+  // ── RECs ─────────────────────────────────────────────────────────────────
+
+  'rec.transferred': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { to_participant_id, volume_mwh } = event.data;
+        await notifyParticipant(env.DB, event.actor_id, 'REC Transferred', `${volume_mwh} MWh REC transferred.`, 'rec', 'rec', event.entity_id);
+        await notifyParticipant(env.DB, to_participant_id as string, 'REC Received', `${volume_mwh} MWh REC received.`, 'rec', 'rec', event.entity_id);
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'rec.transferred', { rec_id: event.entity_id, ...event.data });
+      },
+    },
+  ],
+
+  'rec.redeemed': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { volume_mwh, purpose, beneficiary } = event.data;
+        await notifyParticipant(env.DB, event.actor_id, 'REC Redeemed', `${volume_mwh} MWh redeemed for ${purpose} (${beneficiary}).`, 'rec', 'rec', event.entity_id);
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'rec.redeemed', { rec_id: event.entity_id, ...event.data });
+      },
+    },
+  ],
+
+  // ── Tokens ──────────────────────────────────────────────────────────────
+
+  'token.minted': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { token_id, source_type, quantity, unit } = event.data;
+        await notifyParticipant(env.DB, event.actor_id, 'Token Minted', `Token ${token_id} minted: ${quantity} ${unit} from ${source_type}.`, 'token', 'token', event.entity_id);
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'token.minted', { token_id: event.entity_id, ...event.data });
+      },
+    },
+  ],
+
+  // ── Projects ────────────────────────────────────────────────────────────
+
+  'project.financial_close': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { project_name } = event.data;
+        await notifyParticipant(env.DB, event.actor_id, 'Financial Close Declared', `Project "${project_name}" has reached financial close and moved to construction.`, 'project', 'project', event.entity_id);
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'project.financial_close', { project_id: event.entity_id, ...event.data });
+      },
+    },
+    {
+      type: 'email',
+      execute: async (env, event) => {
+        const { project_name } = event.data;
+        const email = await getParticipantEmail(env.DB, event.actor_id);
+        if (email) {
+          await sendEmail(env, { to: email, subject: `Financial Close: ${project_name}`, html: `<p>Congratulations! Project "${project_name}" has achieved financial close and is now in the construction phase.</p>` });
+        }
       },
     },
   ],

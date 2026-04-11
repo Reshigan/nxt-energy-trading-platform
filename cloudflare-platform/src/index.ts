@@ -38,6 +38,13 @@ import pricing from './routes/pricing';
 import vault from './routes/vault';
 import lender from './routes/lender';
 import surveillance from './routes/surveillance';
+import recs from './routes/recs';
+import tokens from './routes/tokens';
+import cockpit from './routes/cockpit';
+import modulesRoute from './routes/modules';
+import onboarding from './routes/onboarding';
+import sessionsRoute from './routes/sessions';
+import { requireModule } from './middleware/modules';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -106,9 +113,25 @@ app.use('*', cors({
   maxAge: 86400,
 }));
 
-// Phase 1.2: Rate limiting
+// Phase 1.2: Role-based rate limiting
+// Higher limits for trading-heavy roles, lower for read-heavy roles
 app.use('/api/v1/trading/*', rateLimiter({ maxRequests: 300, windowSeconds: 60 }));
-app.use('/api/v1/*', rateLimiter({ maxRequests: 100, windowSeconds: 60 }));
+app.use('/api/v1/carbon/*', rateLimiter({ maxRequests: 200, windowSeconds: 60 }));
+// General rate limit — skip paths that already have a specific limiter above
+app.use('/api/v1/*', async (c, next) => {
+  const p = c.req.path;
+  if (p.startsWith('/api/v1/trading/') || p.startsWith('/api/v1/carbon/')) {
+    return next();
+  }
+  return rateLimiter({ maxRequests: 100, windowSeconds: 60 })(c, next);
+});
+
+// API versioning headers on all responses
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-NXT-Version', '2.0.0');
+  c.header('X-NXT-Environment', (c.env as Record<string, unknown>).ENVIRONMENT as string || 'development');
+});
 
 // Welcome
 app.get('/', (c) => {
@@ -196,20 +219,32 @@ api.post('/auth/refresh', async (c) => {
   return c.json({ success: true, data: { token: newToken, refreshToken: newRefresh } });
 });
 
-// Core routes
+// Core routes (no module guard — always available)
 api.route('/participants', participants);
 api.route('/contracts', contracts);
+api.route('/compliance', compliance);
+
+// Module-gated routes
+api.use('/trading/*', requireModule('spot_trading'));
 api.route('/trading', trading);
+api.use('/carbon/*', requireModule('carbon_credits'));
 api.route('/carbon', carbon);
 api.route('/projects', projectsRoute);
+api.use('/settlement/*', requireModule('settlement'));
 api.route('/settlement', settlement);
-api.route('/compliance', compliance);
+api.use('/marketplace/*', requireModule('marketplace'));
 api.route('/marketplace', marketplace);
+api.use('/ai/*', requireModule('ai_portfolio'));
 api.route('/ai', aiRoutes);
+api.use('/reports/*', requireModule('report_builder'));
 api.route('/reports', reports);
+api.use('/tenants/*', requireModule('multi_tenant'));
 api.route('/tenants', tenantsRoute);
+api.use('/developer/*', requireModule('developer_api'));
 api.route('/developer', developer);
+api.use('/metering/*', requireModule('metering'));
 api.route('/metering', metering);
+api.use('/p2p/*', requireModule('p2p_trading'));
 api.route('/p2p', p2p);
 api.route('/popia', popia);
 api.route('/demand', demand);
@@ -218,6 +253,14 @@ api.route('/pricing', pricing);
 api.route('/vault', vault);
 api.route('/lender', lender);
 api.route('/surveillance', surveillance);
+api.use('/recs/*', requireModule('recs'));
+api.route('/recs', recs);
+api.use('/tokens/*', requireModule('tokenization'));
+api.route('/tokens', tokens);
+api.route('/cockpit', cockpit);
+api.route('/modules', modulesRoute);
+api.route('/onboarding', onboarding);
+api.route('/sessions', sessionsRoute);
 
 api.route('/iot', iot);
 api.route('/algo', algo);
@@ -810,4 +853,17 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
 export default {
   fetch: app.fetch,
   scheduled,
+  async queue(batch: MessageBatch<unknown>, env: AppBindings) {
+    for (const msg of batch.messages) {
+      try {
+        const payload = msg.body as Record<string, unknown>;
+        const log = (level: string, action: string, details: Record<string, unknown>) =>
+          console.log(JSON.stringify({ level, action, ...details, ts: new Date().toISOString() }));
+        log('info', 'queue_event', { type: payload?.type, id: payload?.id });
+        msg.ack();
+      } catch {
+        msg.retry();
+      }
+    }
+  },
 };
