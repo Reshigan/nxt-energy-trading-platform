@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS aml_alerts (
   severity TEXT NOT NULL CHECK (severity IN ('low','medium','high','critical')),
   description TEXT NOT NULL,
   related_trade_ids TEXT,
-  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','investigating','escalated','resolved','false_positive')),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','investigating','escalated','resolved','false_positive','dismissed')),
   assigned_to TEXT,
   resolution_notes TEXT,
   resolved_at TEXT,
