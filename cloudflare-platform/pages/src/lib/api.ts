@@ -371,4 +371,9 @@ export const tokensAPI = {
   retire: (id: string, data: { reason: string; beneficiary?: string }) => api.post(`/tokens/${id}/retire`, data),
 };
 
+// Cockpit
+export const cockpitAPI = {
+  get: () => api.get('/cockpit'),
+};
+
 export default api;

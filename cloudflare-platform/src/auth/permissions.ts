@@ -76,7 +76,7 @@ export function getPermissions(role: Role): Permission[] {
 
 // Check if a role can access trading
 export function canTrade(role: Role): boolean {
-  return ['admin', 'trader', 'carbon_fund', 'offtaker'].includes(role);
+  return ['admin', 'trader', 'carbon_fund', 'offtaker', 'generator', 'ipp_developer'].includes(role);
 }
 
 // Check if a role can manage participants
