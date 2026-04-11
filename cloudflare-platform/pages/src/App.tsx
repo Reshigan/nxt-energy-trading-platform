@@ -23,6 +23,7 @@ function LoadingSkeleton() {
 
 // Lazy-loaded pages (code splitting)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Cockpit = lazy(() => import('./pages/Cockpit'));
 const Markets = lazy(() => import('./pages/Markets'));
 const Portfolio = lazy(() => import('./pages/Portfolio'));
 const Contracts = lazy(() => import('./pages/Contracts'));
@@ -95,8 +96,9 @@ function App() {
 
       {/* Dashboard routes */}
       <Route element={<DashboardLayout />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<Cockpit />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/cockpit" element={<Cockpit />} />
         <Route path="/markets" element={<Markets />} />
         <Route path="/trading" element={<Trading />} />
         <Route path="/portfolio" element={<Portfolio />} />

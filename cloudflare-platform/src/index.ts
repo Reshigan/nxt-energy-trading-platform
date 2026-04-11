@@ -40,6 +40,7 @@ import lender from './routes/lender';
 import surveillance from './routes/surveillance';
 import recs from './routes/recs';
 import tokens from './routes/tokens';
+import cockpit from './routes/cockpit';
 
 // Durable Object exports
 export { OrderBookDO } from './durable-objects/OrderBookDO';
@@ -222,6 +223,7 @@ api.route('/lender', lender);
 api.route('/surveillance', surveillance);
 api.route('/recs', recs);
 api.route('/tokens', tokens);
+api.route('/cockpit', cockpit);
 
 api.route('/iot', iot);
 api.route('/algo', algo);

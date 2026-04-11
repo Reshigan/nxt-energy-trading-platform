@@ -706,6 +706,15 @@ settlement.get('/invoices/:id/pdf', authMiddleware(), async (c) => {
     const invoice = await c.env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
     if (!invoice) return c.json({ success: false, error: 'Invoice not found' }, 404);
 
+    // Authorization: non-admin users can only view invoices where they are buyer or seller
+    const user = c.get('user');
+    if (user.role !== 'admin') {
+      const pid = user.sub;
+      if (invoice.from_participant_id !== pid && invoice.to_participant_id !== pid) {
+        return c.json({ success: false, error: 'Not authorized to view this invoice' }, 403);
+      }
+    }
+
     const seller = await c.env.DB.prepare(
       'SELECT id, company_name, email FROM participants WHERE id = ?'
     ).bind(invoice.from_participant_id).first();
