@@ -139,6 +139,10 @@ jobs:
         run: |
           cd cloudflare-platform
           npx wrangler deploy
+        # NOTE: JWT_SECRET must be set as a Worker secret via:
+        #   cd cloudflare-platform && npx wrangler secret put JWT_SECRET
+        # Without it, all auth endpoints return 500 (Internal server error).
+        # This was identified during live testing of PR #50 (April 2026).
 
   # ── Item 12: Build & deploy frontend (correct build path) ───
   deploy-frontend:
