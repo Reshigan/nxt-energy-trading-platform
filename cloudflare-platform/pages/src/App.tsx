@@ -80,6 +80,8 @@ const StaffManagement = lazy(() => import('./pages/StaffManagement'));
 const SupportTickets = lazy(() => import('./pages/SupportTickets'));
 const SupportDashboard = lazy(() => import('./pages/SupportDashboard'));
 const PlatformConfig = lazy(() => import('./pages/PlatformConfig'));
+const AMLDashboard = lazy(() => import('./pages/AMLDashboard'));
+const PaymentsDashboard = lazy(() => import('./pages/PaymentsDashboard'));
 
 function App() {
   return (
@@ -149,6 +151,8 @@ function App() {
         <Route path="/support" element={<SupportTickets />} />
         <Route path="/support-dashboard" element={<SupportDashboard />} />
         <Route path="/platform-config" element={<PlatformConfig />} />
+        <Route path="/aml-dashboard" element={<AMLDashboard />} />
+        <Route path="/payments" element={<PaymentsDashboard />} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>

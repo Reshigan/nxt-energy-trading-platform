@@ -45,6 +45,10 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Support Dashboard', href: '/support-dashboard', icon: IconHelp },
       { name: 'Platform Config', href: '/platform-config', icon: IconSettings },
     ]},
+    { label: 'Finance & Compliance', items: [
+      { name: 'Payments', href: '/payments', icon: IconInvoices },
+      { name: 'AML Monitoring', href: '/aml-dashboard', icon: IconSurveillance },
+    ]},
     { label: 'System', items: [
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
@@ -210,6 +214,7 @@ const ALL_MORE_LINKS = [
   { name: 'IPP Deep', href: '/ipp-deep', icon: IconIPPDeep },
   { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
   { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
+  { name: 'Support', href: '/support', icon: IconNotifications },
 ];
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;
