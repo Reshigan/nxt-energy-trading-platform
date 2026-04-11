@@ -123,10 +123,12 @@ pricing.get('/market-rates', async (c) => {
     for (const market of markets) {
       const indexStr = await c.env.KV.get(`index:${market}`);
       const index = indexStr ? JSON.parse(indexStr) : null;
+      // Item 4: No simulated data — return DB/KV values or explicit zero/null
       rates[market] = {
-        current_price_cents: index?.price || Math.round(80 + Math.random() * 60),
-        change_24h_pct: index?.change_24h || Math.round((Math.random() - 0.5) * 10 * 100) / 100,
-        volume_24h_mwh: index?.volume_24h || Math.round(Math.random() * 5000),
+        current_price_cents: index?.price || 0,
+        change_24h_pct: index?.change_24h || 0,
+        volume_24h_mwh: index?.volume_24h || 0,
+        is_live: !!index,
       };
     }
 

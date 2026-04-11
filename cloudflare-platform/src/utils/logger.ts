@@ -32,7 +32,7 @@ export async function storeError(kv: KVNamespace, action: string, error: unknown
       stack: error instanceof Error ? error.stack : undefined,
       requestId,
     };
-    const key = `error:${Date.now()}:${Math.random().toString(36).substring(2, 8)}`;
+    const key = `error:${Date.now()}:${crypto.randomUUID().substring(0, 8)}`;
     await kv.put(key, JSON.stringify(entry), { expirationTtl: 86400 * 7 });
   } catch {
     // Don't let logging failures affect the request

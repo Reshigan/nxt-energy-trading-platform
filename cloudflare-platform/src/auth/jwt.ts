@@ -15,11 +15,13 @@ function base64urlDecode(str: string): Uint8Array {
 }
 
 async function getSigningKey(secret?: string): Promise<CryptoKey> {
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not configured. All auth endpoints are unavailable.');
+  }
   const encoder = new TextEncoder();
-  const keyStr = secret || 'nxt-energy-platform-jwt-secret-key-2024';
   return crypto.subtle.importKey(
     'raw',
-    encoder.encode(keyStr),
+    encoder.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign', 'verify']

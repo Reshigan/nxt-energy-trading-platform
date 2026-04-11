@@ -58,6 +58,13 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
 
     const { quantity, retirement_purpose, retirement_beneficiary } = parsed.data;
 
+    // Item 22: Idempotency key check
+    const idempotencyKey = c.req.header('X-Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await c.env.KV.get(`idempotency:retire:${idempotencyKey}`);
+      if (cached) return c.json(JSON.parse(cached));
+    }
+
     const credit = await c.env.DB.prepare(
       'SELECT * FROM carbon_credits WHERE id = ? AND owner_id = ?'
     ).bind(id, user.sub).first();
@@ -72,22 +79,25 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
 
     const newAvailable = (credit.available_quantity as number) - quantity;
     const newStatus = newAvailable === 0 ? 'retired' : 'active';
+    const auditId = generateId();
+    const now = nowISO();
 
-    await c.env.DB.prepare(`
-      UPDATE carbon_credits SET available_quantity = ?, status = ?,
-        retirement_purpose = ?, retirement_beneficiary = ?, retirement_date = ?, updated_at = ?
-      WHERE id = ?
-    `).bind(newAvailable, newStatus, retirement_purpose, retirement_beneficiary, nowISO(), nowISO(), id).run();
-
-    // Audit
-    await c.env.DB.prepare(`
-      INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
-      VALUES (?, ?, 'retire_credits', 'carbon_credit', ?, ?, ?)
-    `).bind(
-      generateId(), user.sub, id,
-      JSON.stringify({ quantity, purpose: retirement_purpose, beneficiary: retirement_beneficiary }),
-      c.req.header('CF-Connecting-IP') || 'unknown'
-    ).run();
+    // Item 20: Transaction atomicity — use db.batch() for credit retirement + audit
+    await c.env.DB.batch([
+      c.env.DB.prepare(`
+        UPDATE carbon_credits SET available_quantity = ?, status = ?,
+          retirement_purpose = ?, retirement_beneficiary = ?, retirement_date = ?, updated_at = ?
+        WHERE id = ? AND available_quantity >= ?
+      `).bind(newAvailable, newStatus, retirement_purpose, retirement_beneficiary, now, now, id, quantity),
+      c.env.DB.prepare(`
+        INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+        VALUES (?, ?, 'retire_credits', 'carbon_credit', ?, ?, ?)
+      `).bind(
+        auditId, user.sub, id,
+        JSON.stringify({ quantity, purpose: retirement_purpose, beneficiary: retirement_beneficiary }),
+        c.req.header('CF-Connecting-IP') || 'unknown'
+      ),
+    ]);
 
     // Fire cascade for credit retirement
     c.executionCtx.waitUntil(cascade(c.env, {
@@ -100,7 +110,16 @@ carbon.post('/credits/:id/retire', authMiddleware(), async (c) => {
       request_id: c.get('requestId'),
     }));
 
-    return c.json({ success: true, data: { retired_quantity: quantity, remaining: newAvailable } });
+    const retireResponse = { success: true, data: { retired_quantity: quantity, remaining: newAvailable } };
+
+    // Item 22: Store idempotency result
+    if (idempotencyKey) {
+      c.executionCtx.waitUntil(
+        c.env.KV.put(`idempotency:retire:${idempotencyKey}`, JSON.stringify(retireResponse), { expirationTtl: 86400 })
+      );
+    }
+
+    return c.json(retireResponse);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
@@ -121,6 +140,13 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
 
     const { quantity, to_participant_id } = parsed.data;
 
+    // Item 22: Idempotency key check
+    const idempotencyKey = c.req.header('X-Idempotency-Key');
+    if (idempotencyKey) {
+      const cached = await c.env.KV.get(`idempotency:transfer:${idempotencyKey}`);
+      if (cached) return c.json(JSON.parse(cached));
+    }
+
     const credit = await c.env.DB.prepare(
       'SELECT * FROM carbon_credits WHERE id = ? AND owner_id = ?'
     ).bind(id, user.sub).first();
@@ -134,39 +160,44 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
     const recipient = await c.env.DB.prepare('SELECT id FROM participants WHERE id = ?').bind(to_participant_id).first();
     if (!recipient) return c.json({ success: false, error: 'Recipient not found' }, 404);
 
+    const now = nowISO();
+    const auditId = generateId();
+
+    // Item 20: Transaction atomicity — use db.batch() for transfer operations
     if (quantity === (credit.available_quantity as number)) {
-      // Transfer entire credit
-      await c.env.DB.prepare(
-        'UPDATE carbon_credits SET owner_id = ?, status = \'transferred\', updated_at = ? WHERE id = ?'
-      ).bind(to_participant_id, nowISO(), id).run();
+      // Transfer entire credit atomically
+      await c.env.DB.batch([
+        c.env.DB.prepare(
+          'UPDATE carbon_credits SET owner_id = ?, status = \'transferred\', updated_at = ? WHERE id = ? AND available_quantity >= ?'
+        ).bind(to_participant_id, now, id, quantity),
+        c.env.DB.prepare(`
+          INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+          VALUES (?, ?, 'transfer_credits', 'carbon_credit', ?, ?, ?)
+        `).bind(auditId, user.sub, id, JSON.stringify({ quantity, to: to_participant_id }), c.req.header('CF-Connecting-IP') || 'unknown'),
+      ]);
     } else {
-      // Split: reduce original, create new credit for recipient
-      await c.env.DB.prepare(
-        'UPDATE carbon_credits SET available_quantity = available_quantity - ?, updated_at = ? WHERE id = ?'
-      ).bind(quantity, nowISO(), id).run();
-
+      // Split: reduce original + create new credit atomically
       const newCreditId = generateId();
-      await c.env.DB.prepare(`
-        INSERT INTO carbon_credits (id, serial_number, project_name, registry, vintage, quantity,
-          available_quantity, price_cents, status, owner_id, sdg_goals, methodology, country)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
-      `).bind(
-        newCreditId, `${credit.serial_number}-T${Date.now()}`,
-        credit.project_name, credit.registry, credit.vintage,
-        quantity, quantity, credit.price_cents, to_participant_id,
-        credit.sdg_goals, credit.methodology, credit.country
-      ).run();
+      await c.env.DB.batch([
+        c.env.DB.prepare(
+          'UPDATE carbon_credits SET available_quantity = available_quantity - ?, updated_at = ? WHERE id = ? AND available_quantity >= ?'
+        ).bind(quantity, now, id, quantity),
+        c.env.DB.prepare(`
+          INSERT INTO carbon_credits (id, serial_number, project_name, registry, vintage, quantity,
+            available_quantity, price_cents, status, owner_id, sdg_goals, methodology, country)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+        `).bind(
+          newCreditId, `${credit.serial_number}-T${Date.now()}`,
+          credit.project_name, credit.registry, credit.vintage,
+          quantity, quantity, credit.price_cents, to_participant_id,
+          credit.sdg_goals, credit.methodology, credit.country
+        ),
+        c.env.DB.prepare(`
+          INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
+          VALUES (?, ?, 'transfer_credits', 'carbon_credit', ?, ?, ?)
+        `).bind(auditId, user.sub, id, JSON.stringify({ quantity, to: to_participant_id }), c.req.header('CF-Connecting-IP') || 'unknown'),
+      ]);
     }
-
-    // Audit
-    await c.env.DB.prepare(`
-      INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address)
-      VALUES (?, ?, 'transfer_credits', 'carbon_credit', ?, ?, ?)
-    `).bind(
-      generateId(), user.sub, id,
-      JSON.stringify({ quantity, to: to_participant_id }),
-      c.req.header('CF-Connecting-IP') || 'unknown'
-    ).run();
 
     // Fire cascade for credit transfer
     c.executionCtx.waitUntil(cascade(c.env, {
@@ -179,7 +210,16 @@ carbon.post('/credits/:id/transfer', authMiddleware(), async (c) => {
       request_id: c.get('requestId'),
     }));
 
-    return c.json({ success: true, data: { transferred_quantity: quantity, to: to_participant_id } });
+    const transferResponse = { success: true, data: { transferred_quantity: quantity, to: to_participant_id } };
+
+    // Item 22: Store idempotency result
+    if (idempotencyKey) {
+      c.executionCtx.waitUntil(
+        c.env.KV.put(`idempotency:transfer:${idempotencyKey}`, JSON.stringify(transferResponse), { expirationTtl: 86400 })
+      );
+    }
+
+    return c.json(transferResponse);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
