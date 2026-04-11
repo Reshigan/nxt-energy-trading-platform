@@ -932,6 +932,15 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
     ).bind(id).first();
     if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
+    // Authorization: non-admin users can only view documents where they are creator or counterparty
+    const user = c.get('user');
+    if (user.role !== 'admin') {
+      const pid = user.sub;
+      if (doc.creator_id !== pid && doc.counterparty_id !== pid) {
+        return c.json({ success: false, error: 'Not authorized to view this document' }, 403);
+      }
+    }
+
     const sigs = await c.env.DB.prepare(
       'SELECT * FROM document_signatories WHERE document_id = ?'
     ).bind(id).all();

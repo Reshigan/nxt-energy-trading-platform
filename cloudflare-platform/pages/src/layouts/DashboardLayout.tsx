@@ -22,8 +22,143 @@ import { useAuthStore, useNotificationStore } from '../lib/store';
 import { useTheme } from '../contexts/ThemeContext';
 import { getRoleConfig } from '../config/roles';
 
+// ── Role-Specific Grouped Navigation ──────────────────────
+interface NavItem { name: string; href: string; icon: React.ComponentType<{ size?: number }> }
+interface NavGroup { label: string; items: NavItem[] }
+
+const ROLE_NAV: Record<string, NavGroup[]> = {
+  admin: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Dashboard', href: '/dashboard', icon: IconAnalytics },
+      { name: 'Admin', href: '/admin', icon: IconAdmin },
+    ]},
+    { label: 'Operations', items: [
+      { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+    ]},
+    { label: 'System', items: [
+      { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
+      { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
+      { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+    ]},
+  ],
+  generator: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+    ]},
+    { label: 'Energy', items: [
+      { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+    ]},
+    { label: 'Finance', items: [
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+    ]},
+  ],
+  ipp_developer: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+    ]},
+    { label: 'Development', items: [
+      { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+    ]},
+    { label: 'Finance', items: [
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+    ]},
+  ],
+  trader: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Markets', href: '/markets', icon: IconMarkets },
+    ]},
+    { label: 'Trading', items: [
+      { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
+      { name: 'Risk', href: '/risk', icon: IconRisk },
+    ]},
+    { label: 'Carbon & Finance', items: [
+      { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+    ]},
+  ],
+  carbon_fund: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
+    ]},
+    { label: 'Carbon', items: [
+      { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Markets', href: '/markets', icon: IconMarkets },
+    ]},
+    { label: 'Finance', items: [
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+    ]},
+  ],
+  offtaker: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Demand', href: '/demand', icon: IconDemand },
+    ]},
+    { label: 'Supply', items: [
+      { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
+      { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+    ]},
+    { label: 'Finance', items: [
+      { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+    ]},
+  ],
+  lender: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Lender', href: '/lender', icon: IconLender },
+    ]},
+    { label: 'Portfolio', items: [
+      { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+    ]},
+    { label: 'Finance', items: [
+      { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+    ]},
+  ],
+  regulator: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+    ]},
+    { label: 'Compliance', items: [
+      { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+      { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
+    ]},
+    { label: 'Market', items: [
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+      { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Reports', href: '/reports', icon: IconReports },
+    ]},
+  ],
+};
+
+// Fallback flat lists for roles without grouped nav
 const ALL_MAIN_TABS = [
-  { name: 'Dashboard', href: '/', icon: IconDashboard },
+  { name: 'Cockpit', href: '/', icon: IconDashboard },
   { name: 'Trading', href: '/trading', icon: IconTrading },
   { name: 'Carbon', href: '/carbon', icon: IconCarbon },
   { name: 'Contracts', href: '/contracts', icon: IconContracts },
@@ -63,7 +198,7 @@ const ALL_MORE_LINKS = [
   { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
 ];
 
-const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender'] as const;
+const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;
 
 const marketTicker = [
   { name: 'Solar', price: '847.20', change: '+8%', positive: true },
@@ -87,8 +222,14 @@ export default function DashboardLayout() {
 
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);
-  const mainTabs = ALL_MAIN_TABS.filter(t => allowed.has(t.href));
-  const moreLinks = ALL_MORE_LINKS.filter(l => allowed.has(l.href));
+  const roleGroups = ROLE_NAV[activeRole || 'trader'] || ROLE_NAV.trader;
+  // Primary tabs: first group items (cockpit + primary module)
+  const mainTabs = roleGroups[0]?.items || ALL_MAIN_TABS.filter(t => allowed.has(t.href));
+  // More links: remaining groups flattened + settings/notifications
+  const moreLinks = [
+    ...roleGroups.slice(1).flatMap(g => g.items),
+    ...ALL_MORE_LINKS.filter(l => allowed.has(l.href) && !roleGroups.flatMap(g => g.items).some(i => i.href === l.href)),
+  ].filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx);
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';

@@ -52,6 +52,7 @@ export class OrderBookDO implements DurableObject {
     this.state.blockConcurrencyWhile(async () => {
       this.bids = (await this.state.storage.get<Order[]>('bids')) || [];
       this.asks = (await this.state.storage.get<Order[]>('asks')) || [];
+      this.lastTradePrice = (await this.state.storage.get<number>('lastTradePrice')) || 0;
     });
   }
 
@@ -373,5 +374,6 @@ export class OrderBookDO implements DurableObject {
   private async persistState(): Promise<void> {
     await this.state.storage.put('bids', this.bids);
     await this.state.storage.put('asks', this.asks);
+    await this.state.storage.put('lastTradePrice', this.lastTradePrice);
   }
 }
