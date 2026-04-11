@@ -131,7 +131,7 @@ jobs:
       - name: Deploy to Cloudflare Pages
         run: |
           cd cloudflare-platform
-          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch production
+          npx wrangler pages deploy dist --project-name nxt-energy-trading-platform --branch energy-trading-platform-v1
 
   # ── Post-deploy health checks ───────────────────────────────
   verify:
