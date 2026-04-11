@@ -940,7 +940,10 @@ api.post('/admin/reset-password/:id', authMiddleware({ roles: ['admin'], adminLe
     const tempPassword = `Temp${Date.now().toString(36)}!`;
     const { hash, salt } = await hashPassword(tempPassword);
 
-    await c.env.DB.prepare('UPDATE participants SET password_hash = ?, password_salt = ? WHERE id = ?').bind(hash, salt, id).run();
+    await c.env.DB.prepare('UPDATE participants SET password_hash = ?, password_salt = ?, updated_at = ? WHERE id = ?').bind(hash, salt, nowISO(), id).run();
+
+    // Invalidate existing tokens so pre-reset sessions are rejected
+    await c.env.KV.put(`pw_changed:${id}`, nowISO(), { expirationTtl: 86400 });
 
     await c.env.DB.prepare(
       `INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?,?,'reset_password','participant',?,?,?)`
