@@ -213,6 +213,7 @@ subscriptions.post('/', async (c) => {
         price_cents INTEGER NOT NULL DEFAULT 0,
         started_at TEXT,
         next_billing_at TEXT,
+        stripe_customer_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now'))
       )
