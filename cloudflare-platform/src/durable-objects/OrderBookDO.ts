@@ -26,6 +26,7 @@ interface Match {
   price: number;
   market: string;
   timestamp: string;
+  feeCents?: number;
 }
 
 interface BookLevel {
@@ -34,12 +35,16 @@ interface BookLevel {
   orderCount: number;
 }
 
+// Trading fee: 0.15% (15 basis points)
+const FEE_BPS = 15;
+
 export class OrderBookDO implements DurableObject {
   private bids: Order[] = []; // sorted descending by price, then ascending by time
   private asks: Order[] = []; // sorted ascending by price, then ascending by time
   private trades: Match[] = [];
   private sessions: Map<string, WebSocket> = new Map();
   private state: DurableObjectState;
+  private lastTradePrice: number = 0;
 
   constructor(state: DurableObjectState, _env: unknown) {
     this.state = state;
@@ -122,12 +127,18 @@ export class OrderBookDO implements DurableObject {
       triggerPrice: body.triggerPrice,
     };
 
-    // Handle stop/take-profit orders — just add to book, they trigger when price hits level
+    // Handle stop/take-profit orders — check if trigger conditions are met
     if (order.orderType === 'stop_loss' || order.orderType === 'take_profit') {
-      this.insertToBook(order);
-      await this.persistState();
-      this.broadcastUpdate();
-      return Response.json({ success: true, order, matches: [] });
+      const triggered = this.checkTrigger(order);
+      if (!triggered) {
+        // Not yet triggered — add to book as resting conditional order
+        this.insertToBook(order);
+        await this.persistState();
+        this.broadcastUpdate();
+        return Response.json({ success: true, order, matches: [], triggered: false });
+      }
+      // Triggered — convert to market order for execution
+      order.orderType = 'market';
     }
 
     // Match the order
@@ -170,6 +181,9 @@ export class OrderBookDO implements DurableObject {
       const buyOrderId = incoming.direction === 'buy' ? incoming.id : best.id;
       const sellOrderId = incoming.direction === 'sell' ? incoming.id : best.id;
 
+      // Compute trading fee (0.15%)
+      const feeCents = Math.round(fillQty * fillPrice * FEE_BPS / 10000);
+
       matches.push({
         tradeId: generateId(),
         buyerId,
@@ -180,7 +194,11 @@ export class OrderBookDO implements DurableObject {
         price: fillPrice,
         market: incoming.market,
         timestamp: nowISO(),
+        feeCents,
       });
+
+      // Update last trade price for conditional order triggers
+      this.lastTradePrice = fillPrice;
 
       incoming.remainingQty -= fillQty;
       best.remainingQty -= fillQty;
@@ -286,6 +304,58 @@ export class OrderBookDO implements DurableObject {
     for (const ws of this.sessions.values()) {
       try { ws.send(message); } catch { /* client disconnected */ }
     }
+  }
+
+  /**
+   * Check if a conditional (stop-loss/take-profit) order should be triggered
+   * based on the last trade price.
+   */
+  private checkTrigger(order: Order): boolean {
+    if (!order.triggerPrice || this.lastTradePrice === 0) return false;
+
+    if (order.orderType === 'stop_loss') {
+      // Stop-loss: triggers when price drops to or below trigger price (for sells)
+      // or rises to or above trigger price (for buys)
+      if (order.direction === 'sell') return this.lastTradePrice <= order.triggerPrice;
+      return this.lastTradePrice >= order.triggerPrice;
+    }
+
+    if (order.orderType === 'take_profit') {
+      // Take-profit: triggers when price rises to or above trigger price (for sells)
+      // or drops to or below trigger price (for buys)
+      if (order.direction === 'sell') return this.lastTradePrice >= order.triggerPrice;
+      return this.lastTradePrice <= order.triggerPrice;
+    }
+
+    return false;
+  }
+
+  /**
+   * After each trade, check if any resting conditional orders should now trigger.
+   */
+  private checkConditionalOrders(): Match[] {
+    const triggered: Match[] = [];
+    const toRemove: string[] = [];
+
+    for (const book of [this.bids, this.asks]) {
+      for (const order of book) {
+        if ((order.orderType === 'stop_loss' || order.orderType === 'take_profit') && this.checkTrigger(order)) {
+          toRemove.push(order.id);
+          // Convert to market order and match
+          order.orderType = 'market';
+          const matches = this.matchOrder(order);
+          triggered.push(...matches);
+        }
+      }
+    }
+
+    // Remove triggered orders from book
+    if (toRemove.length > 0) {
+      this.bids = this.bids.filter((o) => !toRemove.includes(o.id));
+      this.asks = this.asks.filter((o) => !toRemove.includes(o.id));
+    }
+
+    return triggered;
   }
 
   private async persistState(): Promise<void> {

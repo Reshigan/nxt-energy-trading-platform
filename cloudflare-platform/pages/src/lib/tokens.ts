@@ -13,6 +13,17 @@ export const colors = {
   emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' },
   amber: { 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' },
   rose: { 400: '#fb7185', 500: '#f43f5e', 600: '#e11d48' },
+  // NXT Brand
+  nxt: {
+    sidebar: '#1a2e1a',
+    accent: '#d4e157',
+    bg: '#f0ece4',
+    card: '#ffffff',
+    border: '#e8e4dc',
+    accentDark: '#c0ca33',
+    sidebarHover: '#2a4a2a',
+    textOnSidebar: '#e8e4dc',
+  },
   // Surface (dark)
   dark: {
     bg: '#0B1120',
@@ -22,10 +33,10 @@ export const colors = {
   },
   // Surface (light)
   light: {
-    bg: '#EEF1F6',
-    surface: '#FFFFFF',
-    surfaceAlt: '#F8FAFC',
-    border: 'rgba(0,0,0,0.06)',
+    bg: '#f0ece4',
+    surface: '#ffffff',
+    surfaceAlt: '#f8f6f2',
+    border: '#e8e4dc',
   },
 } as const;
 
@@ -45,7 +56,7 @@ export const shadows = {
 } as const;
 
 export const typography = {
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
   heading: { xs: '1.125rem', sm: '1.25rem', md: '1.5rem', lg: '2rem', xl: '2.625rem' },
   body: { xs: '0.6875rem', sm: '0.75rem', md: '0.875rem', lg: '1rem' },
 } as const;

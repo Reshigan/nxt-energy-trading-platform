@@ -353,4 +353,22 @@ export const surveillanceAPI = {
   getRiskMonitor: () => api.get('/surveillance/risk-monitor'),
 };
 
+// RECs (Renewable Energy Certificates)
+export const recsAPI = {
+  list: (params?: Record<string, string>) => api.get('/recs', { params }),
+  summary: () => api.get('/recs/summary'),
+  transfer: (id: string, data: { to_participant_id: string; volume_mwh?: number }) => api.post(`/recs/${id}/transfer`, data),
+  redeem: (id: string, data: { purpose: string; beneficiary: string }) => api.post(`/recs/${id}/redeem`, data),
+  issue: (data: { project_id: string; period_start: string; period_end: string }) => api.post('/recs/issue', data),
+};
+
+// Carbon Tokens
+export const tokensAPI = {
+  list: (params?: Record<string, string>) => api.get('/tokens', { params }),
+  mint: (data: { source_type: string; source_id: string; quantity: number; unit: string; metadata?: Record<string, unknown> }) => api.post('/tokens/mint', data),
+  verify: (tokenId: string) => api.get(`/tokens/${tokenId}/verify`),
+  transfer: (id: string, data: { to_participant_id: string }) => api.post(`/tokens/${id}/transfer`, data),
+  retire: (id: string, data: { reason: string; beneficiary?: string }) => api.post(`/tokens/${id}/retire`, data),
+};
+
 export default api;
