@@ -145,7 +145,7 @@ app.use('*', async (c, next) => {
 // Welcome
 app.get('/', (c) => {
   return c.json({
-    message: 'Voltex Energy Exchange API',
+    message: 'Ionvex Energy Exchange API',
     version: '2.0.0',
     status: 'running',
     platform: 'Cloudflare Workers',
