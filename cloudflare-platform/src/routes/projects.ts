@@ -440,4 +440,56 @@ projects.post('/:id/disbursements/:disbursementId/approve', authMiddleware({ rol
   }
 });
 
+// POST /projects/:id/declare-fc — Declare financial close
+projects.post('/:id/declare-fc', authMiddleware({ roles: ['admin', 'ipp'] }), async (c) => {
+  try {
+    const user = c.get('user');
+    const { id } = c.req.param();
+
+    const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(id).first();
+    if (!project) return c.json({ success: false, error: 'Project not found' }, 404);
+    if (project.phase !== 'financial_close') return c.json({ success: false, error: 'Project must be in financial_close phase' }, 400);
+
+    // Check ALL CPs are satisfied or waived
+    const outstanding = await c.env.DB.prepare(
+      "SELECT * FROM conditions_precedent WHERE project_id = ? AND status = 'outstanding'"
+    ).bind(id).all();
+
+    if (outstanding.results.length > 0) {
+      return c.json({
+        success: false,
+        error: `${outstanding.results.length} conditions precedent still outstanding`,
+        outstanding_cps: outstanding.results.map((cp: Record<string, unknown>) => ({ id: cp.id, description: cp.description, category: cp.category })),
+      }, 400);
+    }
+
+    const now = nowISO();
+    // Update project phase to construction
+    await c.env.DB.prepare(
+      "UPDATE projects SET phase = 'construction', financial_close_date = ?, progress = 100, updated_at = ? WHERE id = ?"
+    ).bind(now, now, id).run();
+
+    // Activate pending disbursements
+    await c.env.DB.prepare(
+      "UPDATE disbursements SET status = 'pending' WHERE project_id = ? AND status = 'pending_fc'"
+    ).bind(id).run();
+
+    // Cascade event
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'project.financial_close',
+      actor_id: user.sub,
+      entity_type: 'project',
+      entity_id: id,
+      data: { project_name: project.name || project.project_name, financial_close_date: now },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
+    return c.json({ success: true, message: 'Financial close declared. Project moved to construction phase.' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default projects;

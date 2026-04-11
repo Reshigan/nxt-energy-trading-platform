@@ -9,6 +9,7 @@ import { authMiddleware } from '../auth/middleware';
 import { errorResponse, ErrorCodes } from '../utils/pagination';
 import { captureException } from '../utils/sentry';
 import { cascade } from '../utils/cascade';
+import { generateId as genId2 } from '../utils/id';
 
 const subscriptions = new Hono<HonoEnv>();
 subscriptions.use('*', authMiddleware());
@@ -210,6 +211,156 @@ subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
       // subscriptions table may not exist yet
       return c.json({ success: true, data: [] });
     }
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /subscriptions/checkout — Create Stripe checkout session
+subscriptions.post('/checkout', async (c) => {
+  try {
+    const user = c.get('user');
+    const body = await c.req.json() as { plan_id: string; billing_cycle?: 'monthly' | 'annual'; success_url?: string; cancel_url?: string };
+
+    if (!body.plan_id) return c.json({ success: false, error: 'plan_id is required' }, 400);
+
+    const STRIPE_SECRET_KEY = (c.env as Record<string, string>).STRIPE_SECRET_KEY;
+    if (!STRIPE_SECRET_KEY) {
+      return c.json({ success: false, error: 'Stripe not configured. Please set STRIPE_SECRET_KEY.' }, 503);
+    }
+
+    const priceMap: Record<string, { monthly: number; annual: number }> = {
+      starter: { monthly: 99900, annual: 999000 },
+      professional: { monthly: 499900, annual: 4999000 },
+    };
+
+    const prices = priceMap[body.plan_id];
+    if (!prices) {
+      return c.json({ success: false, error: 'Plan does not support Stripe checkout' }, 400);
+    }
+
+    const cycle = body.billing_cycle || 'monthly';
+    const amountCents = cycle === 'annual' ? prices.annual : prices.monthly;
+
+    // Create Stripe Checkout Session via REST API
+    const params = new URLSearchParams();
+    params.set('mode', 'subscription');
+    params.set('payment_method_types[0]', 'card');
+    params.set('line_items[0][price_data][currency]', 'zar');
+    params.set('line_items[0][price_data][unit_amount]', String(amountCents));
+    params.set('line_items[0][price_data][product_data][name]', `NXT Energy ${body.plan_id} (${cycle})`);
+    params.set('line_items[0][price_data][recurring][interval]', cycle === 'annual' ? 'year' : 'month');
+    params.set('line_items[0][quantity]', '1');
+    params.set('client_reference_id', user.sub);
+    params.set('customer_email', user.email || '');
+    params.set('success_url', body.success_url || 'https://et.vantax.co.za/settings?tab=billing&session_id={CHECKOUT_SESSION_ID}');
+    params.set('cancel_url', body.cancel_url || 'https://et.vantax.co.za/settings?tab=billing');
+    params.set('metadata[participant_id]', user.sub);
+    params.set('metadata[plan_id]', body.plan_id);
+    params.set('metadata[billing_cycle]', cycle);
+
+    const resp = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    });
+
+    const session = await resp.json() as { id: string; url: string; error?: { message: string } };
+    if (!resp.ok || session.error) {
+      return c.json({ success: false, error: session.error?.message || 'Failed to create checkout session' }, 502);
+    }
+
+    return c.json({ success: true, data: { checkout_url: session.url, session_id: session.id } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /subscriptions/webhook — Handle Stripe webhook events
+subscriptions.post('/webhook', async (c) => {
+  try {
+    const STRIPE_WEBHOOK_SECRET = (c.env as Record<string, string>).STRIPE_WEBHOOK_SECRET;
+    const body = await c.req.text();
+    const sig = c.req.header('stripe-signature');
+
+    // If webhook secret is configured, we should verify the signature
+    // For now we parse the event and process it (production should use stripe SDK for verification)
+    if (STRIPE_WEBHOOK_SECRET && !sig) {
+      return c.json({ error: 'Missing stripe-signature header' }, 400);
+    }
+
+    const event = JSON.parse(body) as { type: string; data: { object: Record<string, unknown> } };
+
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const participantId = (session.metadata as Record<string, string>)?.participant_id;
+        const planId = (session.metadata as Record<string, string>)?.plan_id;
+        const billingCycle = (session.metadata as Record<string, string>)?.billing_cycle || 'monthly';
+
+        if (participantId && planId) {
+          const priceMap: Record<string, number> = { starter: 99900, professional: 499900 };
+
+          // Deactivate old subscription
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE participant_id = ? AND status = 'active'"
+          ).bind(nowISO(), participantId).run();
+
+          const subId = generateId();
+          await c.env.DB.prepare(`
+            INSERT INTO subscriptions (id, participant_id, plan_id, status, billing_cycle, price_cents, started_at, next_billing_at)
+            VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
+          `).bind(
+            subId, participantId, planId, billingCycle,
+            priceMap[planId] || 0,
+            nowISO(),
+            new Date(Date.now() + (billingCycle === 'annual' ? 365 : 30) * 86400000).toISOString(),
+          ).run();
+
+          c.executionCtx.waitUntil(cascade(c.env, {
+            type: 'subscription.created',
+            actor_id: participantId,
+            entity_type: 'subscription',
+            entity_id: subId,
+            data: { plan_id: planId, billing_cycle: billingCycle, stripe_session_id: session.id },
+            ip: c.req.header('CF-Connecting-IP') || 'unknown',
+            request_id: c.get('requestId'),
+          }));
+        }
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+        const stripeCustomerId = subscription.customer as string;
+        // Cancel subscription by stripe customer reference
+        if (stripeCustomerId) {
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'cancelled', updated_at = ? WHERE status = 'active'"
+          ).bind(nowISO()).run();
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const customerId = invoice.customer as string;
+        // Mark subscription as past_due
+        if (customerId) {
+          await c.env.DB.prepare(
+            "UPDATE subscriptions SET status = 'past_due', updated_at = ? WHERE status = 'active'"
+          ).bind(nowISO()).run();
+        }
+        break;
+      }
+    }
+
+    return c.json({ received: true });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

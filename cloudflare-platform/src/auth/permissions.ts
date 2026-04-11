@@ -54,6 +54,16 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'settlement:view', 'participants:view', 'compliance:manage',
     'marketplace:view',
   ],
+  ipp_developer: [
+    'trading:view', 'contracts:own', 'ipp:full', 'carbon:view',
+    'settlement:own', 'participants:view', 'compliance:view',
+    'marketplace:own',
+  ],
+  generator: [
+    'trading:full', 'contracts:own', 'ipp:full', 'carbon:view',
+    'settlement:metering', 'participants:view', 'compliance:view',
+    'marketplace:own',
+  ],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {

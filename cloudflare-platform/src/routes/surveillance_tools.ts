@@ -31,7 +31,7 @@ surveillance.post('/analyze-volatility', authMiddleware({ roles: ['regulator', '
 
     if (trades.results.length < 2) return c.json({ success: true, data: { alert: false, message: 'Insufficient data' } });
 
-    const prices = trades.results.map(t => t.price_cents);
+    const prices = trades.results.map(t => Number(t.price_cents));
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
     const spike = (maxPrice - minPrice) / minPrice;

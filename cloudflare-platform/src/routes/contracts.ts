@@ -10,6 +10,7 @@ import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '.
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
 import { cascade } from '../utils/cascade';
+import { generateContractPDF } from '../utils/pdf';
 
 const contracts = new Hono<HonoEnv>();
 
@@ -915,6 +916,42 @@ contracts.post('/documents/:id/verify-2fa', authMiddleware(), async (c) => {
     await c.env.KV.put(`signing_2fa:${id}:${user.sub}`, 'verified', { expirationTtl: 900 });
 
     return c.json({ success: true, data: { verified: true, valid_for_minutes: 15 } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /contracts/documents/:id/pdf — Generate contract PDF (HTML-based)
+contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+
+    const doc = await c.env.DB.prepare(
+      'SELECT * FROM contract_documents WHERE id = ?'
+    ).bind(id).first();
+    if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
+
+    const sigs = await c.env.DB.prepare(
+      'SELECT * FROM document_signatories WHERE document_id = ?'
+    ).bind(id).all();
+
+    const checks = await c.env.DB.prepare(
+      'SELECT * FROM statutory_checks WHERE document_id = ?'
+    ).bind(id).all();
+
+    const html = generateContractPDF(
+      doc as unknown as Parameters<typeof generateContractPDF>[0],
+      sigs.results as unknown as Parameters<typeof generateContractPDF>[1],
+      checks.results as unknown as Parameters<typeof generateContractPDF>[2],
+    );
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `inline; filename="contract-${id}.html"`,
+      },
+    });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

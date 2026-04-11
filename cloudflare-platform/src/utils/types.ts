@@ -9,6 +9,7 @@ export interface AppBindings extends Record<string, unknown> {
   P2P_MATCHER: DurableObjectNamespace;
   SMART_CONTRACT: DurableObjectNamespace;
   RISK_ENGINE: DurableObjectNamespace;
+  EVENTS_QUEUE: Queue;
   ENVIRONMENT: string;
   JWT_ISSUER: string;
   API_BASE_URL: string;
@@ -19,9 +20,9 @@ export interface AppBindings extends Record<string, unknown> {
 export type HonoEnv = { Bindings: AppBindings; Variables: { user: JwtPayload } };
 
 // User roles
-export type Role = 'admin' | 'ipp' | 'trader' | 'carbon_fund' | 'offtaker' | 'lender' | 'grid' | 'regulator';
+export type Role = 'admin' | 'ipp' | 'ipp_developer' | 'generator' | 'trader' | 'carbon_fund' | 'offtaker' | 'lender' | 'grid' | 'regulator';
 
-export const ROLES: Role[] = ['admin', 'ipp', 'trader', 'carbon_fund', 'offtaker', 'lender', 'grid', 'regulator'];
+export const ROLES: Role[] = ['admin', 'ipp', 'ipp_developer', 'generator', 'trader', 'carbon_fund', 'offtaker', 'lender', 'grid', 'regulator'];
 
 // KYC status
 export type KycStatus = 'pending' | 'in_review' | 'verified' | 'rejected' | 'suspended';
