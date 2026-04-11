@@ -5,24 +5,26 @@ import { amlAPI } from '../lib/api';
 interface AMLAlert {
   id: string;
   participant_id: string;
-  rule_id: string;
-  rule_name: string;
+  alert_type: string;
   severity: string;
+  description: string;
   status: string;
-  details: string;
   assigned_to: string | null;
+  resolution_notes: string | null;
   resolved_at: string | null;
+  related_trade_ids: string | null;
+  participant_email: string | null;
+  company_name: string | null;
   created_at: string;
 }
 
 interface AMLRule {
   id: string;
-  name: string;
+  rule_name: string;
   rule_type: string;
-  severity: string;
-  enabled: number;
   parameters: string;
-  description: string | null;
+  active: number;
+  created_at: string;
 }
 
 export default function AMLDashboard() {
@@ -71,9 +73,9 @@ export default function AMLDashboard() {
     }
   };
 
-  const handleToggleRule = async (id: string, enabled: boolean) => {
+  const handleToggleRule = async (id: string, active: boolean) => {
     try {
-      await amlAPI.updateRule(id, { enabled });
+      await amlAPI.updateRule(id, { active });
       fetchRules();
     } catch {
       setError('Failed to update rule');
@@ -229,7 +231,7 @@ export default function AMLDashboard() {
                         {alert.status}
                       </span>
                       <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        {alert.rule_name || alert.rule_id}
+                        {alert.alert_type.replace(/_/g, ' ')}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -268,9 +270,9 @@ export default function AMLDashboard() {
                   <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                     Participant: {alert.participant_id.slice(0, 12)}... &middot; {new Date(alert.created_at).toLocaleString()}
                   </p>
-                  {alert.details && (
+                  {alert.description && (
                     <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                      {typeof alert.details === 'string' ? alert.details : JSON.stringify(alert.details)}
+                      {alert.description}
                     </p>
                   )}
                 </div>
@@ -293,27 +295,21 @@ export default function AMLDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{rule.name}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${severityColor(rule.severity)}`}>
-                        {rule.severity}
-                      </span>
+                      <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>{rule.rule_name}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>
                         {rule.rule_type}
                       </span>
                     </div>
-                    {rule.description && (
-                      <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{rule.description}</p>
-                    )}
                   </div>
                   <button
-                    onClick={() => handleToggleRule(rule.id, !rule.enabled)}
+                    onClick={() => handleToggleRule(rule.id, !rule.active)}
                     className={`px-3 py-1 rounded-lg text-xs font-medium ${
-                      rule.enabled
+                      rule.active
                         ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'
                         : 'bg-slate-600/20 text-slate-400 hover:bg-slate-600/30'
                     }`}
                   >
-                    {rule.enabled ? 'Enabled' : 'Disabled'}
+                    {rule.active ? 'Enabled' : 'Disabled'}
                   </button>
                 </div>
               </div>

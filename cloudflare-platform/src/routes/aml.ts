@@ -14,9 +14,8 @@ aml.get('/alerts', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), as
     const limit = parseInt(c.req.query('limit') || '50', 10);
     const offset = parseInt(c.req.query('offset') || '0', 10);
 
-    let query = `SELECT a.*, r.rule_name, r.severity as rule_severity, p.email as participant_email, p.company_name
+    let query = `SELECT a.*, p.email as participant_email, p.company_name
       FROM aml_alerts a
-      LEFT JOIN aml_rules r ON a.rule_id = r.id
       LEFT JOIN participants p ON a.participant_id = p.id
       WHERE 1=1`;
     const binds: unknown[] = [];
