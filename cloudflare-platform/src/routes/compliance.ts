@@ -81,6 +81,49 @@ compliance.post('/kyc/:id/verify', authMiddleware({ roles: ['admin'] }), async (
   }
 });
 
+// POST /compliance/kyc/:id/reject — Reject KYC document (admin)
+compliance.post('/kyc/:id/reject', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { reason: string };
+
+    if (!body.reason) return c.json({ success: false, error: 'Rejection reason required' }, 400);
+
+    const doc = await c.env.DB.prepare('SELECT participant_id FROM kyc_documents WHERE id = ?').bind(id).first<{ participant_id: string }>();
+    if (!doc) return c.json({ success: false, error: 'KYC document not found' }, 404);
+
+    await c.env.DB.prepare(
+      'UPDATE kyc_documents SET verified = 0, rejection_reason = ?, verified_by = ?, verified_at = ? WHERE id = ?'
+    ).bind(body.reason, user.sub, nowISO(), id).run();
+
+    await c.env.DB.prepare(
+      "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'reject_kyc_document', 'kyc_document', ?, ?, ?)"
+    ).bind(generateId(), user.sub, id, JSON.stringify({ reason: body.reason }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id) VALUES (?, ?, 'KYC Document Rejected', ?, 'warning', 'kyc_document', ?)"
+      ).bind(generateId(), doc.participant_id, `Your KYC document has been rejected: ${body.reason}`, id).run();
+    } catch { /* notification best-effort */ }
+
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'kyc.rejected',
+      actor_id: user.sub,
+      entity_type: 'kyc_document',
+      entity_id: id,
+      data: { participant_id: doc.participant_id, reason: body.reason },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
+    return c.json({ success: true, message: 'KYC document rejected' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 // GET /compliance/licences — List licences
 compliance.get('/licences', authMiddleware(), async (c) => {
   try {
