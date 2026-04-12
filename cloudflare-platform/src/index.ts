@@ -795,7 +795,7 @@ api.post('/auth/2fa/enable', authMiddleware(), async (c) => {
     const user = c.get('user');
     const secret = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
     await c.env.KV.put(`2fa:${user.sub}`, secret, { expirationTtl: 86400 * 365 });
-    return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/NXT%20Energy:${user.email}?secret=${secret}&issuer=NXT%20Energy` } });
+    return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/Ionvex:${user.email}?secret=${secret}&issuer=Ionvex` } });
   } catch {
     return c.json({ success: false, error: '2FA setup failed' }, 500);
   }
@@ -1121,15 +1121,18 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
       SELECT l.id, l.participant_id, l.type, l.expiry_date FROM licences l
       WHERE l.status = 'active' AND l.expiry_date <= date('now', '+90 days') AND l.expiry_date > date('now')
     `).all();
-    for (const licence of expiringLicences.results) {
-      await env.DB.prepare(`
-        INSERT OR IGNORE INTO notifications (id, participant_id, title, body, type, entity_type, entity_id)
-        VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)
-      `).bind(
-        generateId(), licence.participant_id,
-        'Your ' + licence.type + ' licence expires on ' + licence.expiry_date + '. Please renew.',
-        licence.id
-      ).run();
+    // Batch insert licence notifications to avoid N+1
+    if (expiringLicences.results.length > 0) {
+      const batch = expiringLicences.results.map((licence) =>
+        env.DB.prepare(
+          "INSERT OR IGNORE INTO notifications (id, participant_id, title, body, type, entity_type, entity_id) VALUES (?, ?, 'Licence Expiring Soon', ?, 'compliance', 'licence', ?)"
+        ).bind(
+          generateId(), licence.participant_id,
+          'Your ' + licence.type + ' licence expires on ' + licence.expiry_date + '. Please renew.',
+          licence.id
+        )
+      );
+      await env.DB.batch(batch);
     }
 
     // 2. Mark overdue invoices
@@ -1208,11 +1211,10 @@ export default {
     for (const msg of batch.messages) {
       try {
         const payload = msg.body as Record<string, unknown>;
-        const log = (level: string, action: string, details: Record<string, unknown>) =>
-          console.log(JSON.stringify({ level, action, ...details, ts: new Date().toISOString() }));
         log('info', 'queue_event', { type: payload?.type, id: payload?.id });
         msg.ack();
-      } catch {
+      } catch (err) {
+        log('error', 'queue_event_failed', { error: err instanceof Error ? err.message : String(err) });
         msg.retry();
       }
     }

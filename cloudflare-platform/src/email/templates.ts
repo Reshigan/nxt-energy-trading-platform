@@ -9,15 +9,15 @@ function esc(str: string | number): string {
 
 export const EMAIL_TEMPLATES = {
   welcome: {
-    subject: 'Welcome to NXT Energy Platform',
+    subject: 'Welcome to Ionvex Platform',
     template: (data: { name: string; company: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Welcome, ${esc(data.name)}!</h2>
-          <p style="color:#475569">Your account for <strong>${esc(data.company)}</strong> has been created on the NXT Energy Trading Platform.</p>
+          <p style="color:#475569">Your account for <strong>${esc(data.company)}</strong> has been created on the Ionvex Trading Platform.</p>
           <p style="color:#475569">Next steps:</p>
           <ol style="color:#475569">
             <li>Verify your email address</li>
@@ -34,11 +34,11 @@ export const EMAIL_TEMPLATES = {
   },
 
   verification: {
-    subject: 'Your NXT verification code: {OTP}',
+    subject: 'Your Ionvex verification code: {OTP}',
     template: (data: { otp: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff;text-align:center">
           <h2 style="color:#0f172a">Email Verification</h2>
@@ -58,7 +58,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { trade_type: string; volume: string; price: string; market: string; settlement_date: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Trade Confirmation</h2>
@@ -83,7 +83,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { invoice_number: string; total: string; due_date: string; seller: string; buyer: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Invoice Generated</h2>
@@ -108,7 +108,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { document_title: string; requester: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Signature Required</h2>
@@ -128,7 +128,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { passed: number; total: number; checks: Array<{name: string; status: string}> }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Registration Update</h2>
@@ -150,7 +150,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { cp_description: string; days: number; project_name: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">CP Deadline Approaching</h2>
@@ -173,7 +173,7 @@ export const EMAIL_TEMPLATES = {
     template: (data: { dispute_id: string; reason: string; deadline: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Dispute Filed</h2>
@@ -193,11 +193,11 @@ export const EMAIL_TEMPLATES = {
   },
 
   monthly_summary: {
-    subject: 'Your NXT Monthly Summary — {month}',
+    subject: 'Your Ionvex Monthly Summary — {month}',
     template: (data: { month: string; trading_volume: string; pnl: string; carbon_position: string; compliance_status: string }) => `
       <div style="max-width:600px;margin:0 auto;font-family:Inter,sans-serif">
         <div style="background:#0a1628;padding:24px;text-align:center">
-          <h1 style="color:#3b82f6;margin:0">NXT Energy</h1>
+          <h1 style="color:#3b82f6;margin:0">Ionvex</h1>
         </div>
         <div style="padding:32px;background:#fff">
           <h2 style="color:#0f172a">Monthly Summary — ${esc(data.month)}</h2>
