@@ -7,35 +7,40 @@ const sessions = new Hono<HonoEnv>();
 sessions.use('*', authMiddleware());
 
 // GET /auth/sessions — List active sessions for current user
-sessions.get('/', async (c) => {
-  const user = c.get('user');
+sessions.get('/', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
 
-  // List all sessions from KV (prefix scan not available in KV, so we track in DB via audit_log)
-  // We approximate by looking at recent login audit events
-  const logins = await c.env.DB.prepare(`
-    SELECT id, details, ip_address, created_at
-    FROM audit_log
-    WHERE actor_id = ? AND action = 'login'
-    ORDER BY created_at DESC
-    LIMIT 10
-  `).bind(user.sub).all();
+    // List all sessions from KV (prefix scan not available in KV, so we track in DB via audit_log)
+    // We approximate by looking at recent login audit events
+    const logins = await c.env.DB.prepare(`
+      SELECT id, details, ip_address, created_at
+      FROM audit_log
+      WHERE actor_id = ? AND action = 'login'
+      ORDER BY created_at DESC
+      LIMIT 10
+    `).bind(user.sub).all();
 
-  const sessionList = logins.results.map((login) => {
-    const details = login.details ? JSON.parse(login.details as string) : {};
-    return {
-      id: login.id,
-      ip: login.ip_address,
-      device: details.user_agent || 'Unknown',
-      created_at: login.created_at,
-      current: false, // We can't definitively know which is current without token comparison
-    };
-  });
+    const sessionList = logins.results.map((login) => {
+      const details = login.details ? JSON.parse(login.details as string) : {};
+      return {
+        id: login.id,
+        ip: login.ip_address,
+        device: details.user_agent || 'Unknown',
+        created_at: login.created_at,
+        current: false,
+      };
+    });
 
-  return c.json({ success: true, data: sessionList });
+    return c.json({ success: true, data: sessionList });
+  } catch (err) {
+    console.error('Sessions list error:', err);
+    return c.json({ success: false, error: 'Failed to load sessions' }, 500);
+  }
 });
 
 // DELETE /auth/sessions/:id — Revoke a specific session
-sessions.delete('/:id', async (c) => {
+sessions.delete('/:id', authMiddleware(), async (c) => {
   const user = c.get('user');
   const { id } = c.req.param();
 
@@ -60,7 +65,7 @@ sessions.delete('/:id', async (c) => {
 });
 
 // POST /auth/sessions/revoke-all — Revoke all sessions except current
-sessions.post('/revoke-all', async (c) => {
+sessions.post('/revoke-all', authMiddleware(), async (c) => {
   const user = c.get('user');
   const currentToken = c.req.header('Authorization')?.substring(7);
 

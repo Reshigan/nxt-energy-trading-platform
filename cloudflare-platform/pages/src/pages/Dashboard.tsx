@@ -3,6 +3,12 @@ import { FiTrendingUp, FiTrendingDown, FiArrowRight, FiLoader, FiZap, FiSun, FiB
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import SemiGauge from '../components/SemiGauge';
 import QuickActions from '../components/QuickActions';
+import AIPoweredInsights from '../components/AIPoweredInsights';
+import MarketOverview from '../components/MarketOverview';
+import PortfolioPills from '../components/PortfolioPills';
+import PortfolioSummary from '../components/PortfolioSummary';
+import SpendingOverview from '../components/SpendingOverview';
+import TransfersList from '../components/TransfersList';
 import { useAuthStore } from '../lib/store';
 import { getRoleConfig, type PlatformRole } from '../config/roles';
 import { useTheme } from '../contexts/ThemeContext';
@@ -206,6 +212,21 @@ function TraderDashboard({ summary, isDark, config }: { summary: DashboardSummar
           <QuickActions actions={config.actions} accentHex={config.accentHex} />
         </div>
       </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2"><AIPoweredInsights /></div>
+        <PortfolioSummary />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MarketOverview />
+        <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 800ms both' }}>
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Portfolio Breakdown</h3>
+          <PortfolioPills />
+        </div>
+      </div>
+      <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 900ms both' }}>
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Recent Transfers</h3>
+        <TransfersList />
+      </div>
     </>
   );
 }
@@ -290,6 +311,10 @@ function OfftakerDashboard({ summary, isDark, config }: { summary: DashboardSumm
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Offtaker Actions</h3>
           <QuickActions actions={config.actions} accentHex={config.accentHex} />
         </div>
+      </div>
+      <div className={cardClass(isDark)} style={{ animation: 'cardFadeUp 500ms ease 700ms both' }}>
+        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Spending Allocation</h3>
+        <SpendingOverview />
       </div>
     </>
   );

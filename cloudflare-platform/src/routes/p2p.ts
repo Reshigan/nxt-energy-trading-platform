@@ -11,7 +11,7 @@ const p2p = new Hono<HonoEnv>();
 p2p.use('*', authMiddleware());
 
 // POST /p2p/offers — Create P2P offer
-p2p.post('/offers', async (c) => {
+p2p.post('/offers', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as {
@@ -103,7 +103,7 @@ p2p.post('/offers', async (c) => {
 });
 
 // GET /p2p/offers — List P2P offers
-p2p.get('/offers', async (c) => {
+p2p.get('/offers', authMiddleware(), async (c) => {
   try {
     const zone = c.req.query('zone');
     const status = c.req.query('status') || 'open';
@@ -126,7 +126,7 @@ p2p.get('/offers', async (c) => {
 });
 
 // POST /p2p/offers/:id/accept — Accept a P2P offer (match)
-p2p.post('/offers/:id/accept', async (c) => {
+p2p.post('/offers/:id/accept', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -231,7 +231,7 @@ p2p.post('/offers/:id/settle', authMiddleware({ roles: ['admin', 'grid'] }), asy
 });
 
 // DELETE /p2p/offers/:id — Cancel own offer
-p2p.delete('/offers/:id', async (c) => {
+p2p.delete('/offers/:id', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -253,7 +253,7 @@ p2p.delete('/offers/:id', async (c) => {
 });
 
 // GET /p2p/zones — List available distribution zones
-p2p.get('/zones', async (c) => {
+p2p.get('/zones', authMiddleware(), async (c) => {
   try {
     const zones = await c.env.DB.prepare(
       "SELECT DISTINCT distribution_zone, COUNT(*) as offer_count FROM p2p_trades WHERE status = 'open' GROUP BY distribution_zone ORDER BY offer_count DESC"
@@ -266,7 +266,7 @@ p2p.get('/zones', async (c) => {
 });
 
 // GET /p2p/my — My P2P trades
-p2p.get('/my', async (c) => {
+p2p.get('/my', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(

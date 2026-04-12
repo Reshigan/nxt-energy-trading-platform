@@ -40,7 +40,8 @@ export function authMiddleware(options?: {
       if (blacklisted) {
         return c.json({ success: false, error: 'Token has been revoked', code: 'AUTH_FAILED' }, 401);
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       // If KV fails, allow through
     }
 
@@ -56,7 +57,8 @@ export function authMiddleware(options?: {
       if (pwChanged && payload.iat < Math.floor(new Date(pwChanged).getTime() / 1000)) {
         return c.json({ success: false, error: 'Token invalidated by password reset. Please login again.', code: 'AUTH_FAILED' }, 401);
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       // If KV fails, allow through
     }
 
@@ -136,7 +138,8 @@ export function rateLimiter(options: { maxRequests: number; windowSeconds: numbe
       }
 
       await c.env.KV.put(key, String(count + 1), { expirationTtl: window });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // If KV fails, allow through
     }
 

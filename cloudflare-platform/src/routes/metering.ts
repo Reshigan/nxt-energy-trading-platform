@@ -100,7 +100,8 @@ metering.post('/ingest', async (c) => {
           ).run();
         }
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       // Non-critical: smart contract evaluation failure shouldn't block ingestion
     }
 
