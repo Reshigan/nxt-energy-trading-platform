@@ -45,7 +45,7 @@ cloudflare-platform/
       components/       # Shared UI components
       lib/              # API client, auth store, utilities
       config/           # Role-based navigation config
-  migrations/           # D1 SQL migrations (001-012)
+  migrations/           # D1 SQL migrations (001-013)
   wrangler.toml         # Cloudflare Workers configuration
 ```
 
