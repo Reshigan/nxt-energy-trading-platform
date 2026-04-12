@@ -51,9 +51,9 @@ export const authAPI = {
   resetPassword: (data: { email: string; otp: string; new_password: string }) => api.post('/register/auth/reset-password', data),
   sendVerification: (email: string) => api.post('/register/auth/send-verification', { email }),
   verifyEmail: (data: { email: string; otp: string }) => api.post('/register/auth/verify-email', data),
-  enable2FA: () => api.post('/register/me/2fa/enable'),
-  verify2FA: (code: string) => api.post('/register/me/2fa/verify', { code }),
-  disable2FA: (password: string) => api.post('/register/me/2fa/disable', { password }),
+  enable2FA: () => api.post('/auth/2fa/enable'),
+  verify2FA: (code: string) => api.post('/auth/2fa/verify', { code }),
+  disable2FA: (password: string) => api.post('/auth/2fa/disable', { password }),
 };
 
 // Dashboard
@@ -150,7 +150,7 @@ export const settlementAPI = {
   fileDispute: (data: Record<string, unknown>) => api.post('/settlement/disputes', data),
   updateDisputeStatus: (id: string, data: Record<string, unknown>) => api.patch(`/settlement/disputes/${id}/status`, data),
   getNetting: (params: { counterparty_id?: string; from?: string; to?: string }) => api.get('/settlement/netting', { params }),
-  generateNetInvoice: (data: Record<string, unknown>) => api.post('/settlement/netting/generate', data),
+  generateNetInvoice: (data: Record<string, unknown>) => api.post('/settlement/netting', data),
 };
 
 // Compliance
@@ -180,7 +180,7 @@ export const participantsAPI = {
   get: (id: string) => api.get(`/participants/${id}`),
   update: (id: string, data: Record<string, unknown>) => api.patch(`/participants/${id}`, data),
   approve: (id: string) => api.post(`/participants/${id}/approve`),
-  reject: (id: string) => api.post(`/participants/${id}/reject`),
+  reject: (id: string, data?: { reason?: string }) => api.post(`/participants/${id}/reject`, data),
   suspend: (id: string, data: { reason: string }) => api.post(`/participants/${id}/suspend`, data),
 };
 
@@ -294,8 +294,9 @@ export const healthAPI = {
 // Fees
 export const feesAdminAPI = {
   getSchedule: () => api.get('/fees'),
-  updateSchedule: (id: string, data: Record<string, unknown>) => api.patch(`/fees/${id}`, data),
-  getRevenue: (params?: Record<string, string>) => api.get('/fees/revenue', { params }),
+  updateSchedule: (id: string, data: Record<string, unknown>) => api.patch(`/admin/fees/${id}`, data),
+  createSchedule: (data: Record<string, unknown>) => api.post('/admin/fees', data),
+  getRevenue: (params?: Record<string, string>) => api.get('/admin/revenue', { params }),
 };
 
 // Contract Rules
@@ -426,9 +427,9 @@ export const ticketsAPI = {
 // Announcements
 export const announcementsAPI = {
   list: () => api.get('/announcements'),
-  create: (data: { title: string; body?: string; type?: string; starts_at?: string; expires_at?: string }) => api.post('/admin/announcements', data),
-  update: (id: string, data: Record<string, unknown>) => api.patch(`/admin/announcements/${id}`, data),
-  remove: (id: string) => api.delete(`/admin/announcements/${id}`),
+  create: (data: { title: string; body?: string; type?: string; starts_at?: string; expires_at?: string }) => api.post('/announcements/admin', data),
+  update: (id: string, data: Record<string, unknown>) => api.patch(`/announcements/admin/${id}`, data),
+  remove: (id: string) => api.delete(`/announcements/admin/${id}`),
 };
 
 // Platform Config (admin)

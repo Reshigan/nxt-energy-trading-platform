@@ -56,7 +56,10 @@ export default function Invoices() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await settlementAPI.generateNetInvoice({ period: 'current' });
+      const now = new Date();
+      const period_start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const period_end = now.toISOString().split('T')[0];
+      const res = await settlementAPI.generateNetInvoice({ period_start, period_end, execute: false });
       if (res.data?.success) { toast.success('Invoice generated successfully'); loadData(); }
       else toast.error(res.data?.error || 'Failed to generate invoice');
     } catch { toast.error('Failed to generate invoice'); }
