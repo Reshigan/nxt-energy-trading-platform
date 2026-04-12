@@ -165,7 +165,7 @@ subscriptions.get('/plans', async (c) => {
 });
 
 // GET /subscriptions/current — Get current subscription
-subscriptions.get('/current', async (c) => {
+subscriptions.get('/current', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     try {
@@ -189,7 +189,7 @@ subscriptions.get('/current', async (c) => {
 });
 
 // POST /subscriptions — Create/upgrade subscription
-subscriptions.post('/', async (c) => {
+subscriptions.post('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { plan_id: string; billing_cycle?: 'monthly' | 'annual' };
@@ -257,7 +257,7 @@ subscriptions.post('/', async (c) => {
 });
 
 // DELETE /subscriptions — Cancel subscription
-subscriptions.delete('/', async (c) => {
+subscriptions.delete('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
 
@@ -297,7 +297,7 @@ subscriptions.delete('/', async (c) => {
 });
 
 // GET /subscriptions/usage — Get usage stats for current billing period
-subscriptions.get('/usage', async (c) => {
+subscriptions.get('/usage', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -356,7 +356,7 @@ subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
 });
 
 // POST /subscriptions/checkout — Create Stripe checkout session
-subscriptions.post('/checkout', async (c) => {
+subscriptions.post('/checkout', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { plan_id: string; billing_cycle?: 'monthly' | 'annual'; success_url?: string; cancel_url?: string };

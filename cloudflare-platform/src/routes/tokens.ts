@@ -9,7 +9,7 @@ const tokens = new Hono<HonoEnv>();
 tokens.use('*', authMiddleware());
 
 // POST /tokens/mint — Tokenize a carbon credit or REC
-tokens.post('/mint', async (c) => {
+tokens.post('/mint', authMiddleware(), async (c) => {
   try {
   const user = c.get('user');
   const body = await c.req.json() as { source_type: 'carbon_credit' | 'rec'; source_id: string };
@@ -97,7 +97,7 @@ tokens.get('/:tokenId/verify', async (c) => {
 });
 
 // POST /tokens/:id/transfer — Transfer token
-tokens.post('/:id/transfer', async (c) => {
+tokens.post('/:id/transfer', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { id } = c.req.param();
@@ -128,7 +128,7 @@ tokens.post('/:id/transfer', async (c) => {
 });
 
 // POST /tokens/:id/retire — Permanently retire/burn token
-tokens.post('/:id/retire', async (c) => {
+tokens.post('/:id/retire', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { id } = c.req.param();
@@ -153,7 +153,7 @@ tokens.post('/:id/retire', async (c) => {
 });
 
 // GET /tokens — List my tokens
-tokens.get('/', async (c) => {
+tokens.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(
