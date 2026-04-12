@@ -72,7 +72,8 @@ surveillance.get('/statutory-reports', async (c) => {
       'SELECT * FROM statutory_checks ORDER BY checked_at DESC LIMIT 100'
     ).all();
     return c.json({ success: true, data: checks.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });

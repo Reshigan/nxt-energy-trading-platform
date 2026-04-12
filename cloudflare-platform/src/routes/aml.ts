@@ -45,7 +45,8 @@ aml.get('/alerts', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), as
         total: counts?.total ?? 0,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list AML alerts' }, 500);
   }
 });
@@ -63,7 +64,8 @@ aml.get('/alerts/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
 
     if (!alert) return c.json({ success: false, error: 'Alert not found' }, 404);
     return c.json({ success: true, data: alert });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch alert' }, 500);
   }
 });
@@ -119,7 +121,8 @@ aml.patch('/alerts/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' 
     ).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update alert' }, 500);
   }
 });
@@ -130,7 +133,8 @@ aml.post('/scan/:participantId', authMiddleware({ roles: ['admin'], adminLevel: 
     const { participantId } = c.req.param();
     const alertsCreated = await runAMLChecks(c.env, participantId);
     return c.json({ success: true, data: { alerts_created: alertsCreated } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to run AML scan' }, 500);
   }
 });
@@ -140,7 +144,8 @@ aml.get('/rules', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), asy
   try {
     const results = await c.env.DB.prepare('SELECT * FROM aml_rules ORDER BY rule_name').all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list AML rules' }, 500);
   }
 });
@@ -175,7 +180,8 @@ aml.patch('/rules/:id', authMiddleware({ roles: ['admin'], adminLevel: 'superadm
     ).bind(...values).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update AML rule' }, 500);
   }
 });

@@ -1079,7 +1079,8 @@ register.post('/admin/users/:id/reset-password', authMiddleware({ roles: ['admin
     ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Password reset successful' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset password' }, 500);
   }
 });
@@ -1107,7 +1108,8 @@ register.post('/admin/users/:id/unlock', authMiddleware({ roles: ['admin'], admi
     ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Account unlocked' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to unlock account' }, 500);
   }
 });
@@ -1137,7 +1139,8 @@ register.post('/admin/users/:id/resend-verification', authMiddleware({ roles: ['
     }
 
     return c.json({ success: true, message: 'Verification email sent' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to send verification' }, 500);
   }
 });
@@ -1157,7 +1160,8 @@ register.post('/admin/users/:id/verify-email', authMiddleware({ roles: ['admin']
     ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Email verified' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to verify email' }, 500);
   }
 });
@@ -1183,7 +1187,8 @@ register.post('/admin/users/:id/reset-2fa', authMiddleware({ roles: ['admin'], a
     ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: '2FA reset successful' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset 2FA' }, 500);
   }
 });
@@ -1218,7 +1223,8 @@ register.post('/auth/send-verification', async (c) => {
 
     // Always return success to avoid email enumeration
     return c.json({ success: true, message: 'If the email is registered, a verification code has been sent.' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -1240,7 +1246,8 @@ register.post('/auth/verify-email', async (c) => {
     ).bind(body.email).run();
 
     return c.json({ success: true, message: 'Email verified successfully' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -1269,7 +1276,8 @@ register.get('/me/onboarding-status', authMiddleware({ requireKyc: false }), asy
     const total = Object.keys(steps).length;
 
     return c.json({ success: true, data: { steps, completed, total, complete: completed === total } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch onboarding status' }, 500);
   }
 });
@@ -1281,7 +1289,8 @@ register.post('/me/complete-onboarding', authMiddleware({ requireKyc: false }), 
     // Set a KV flag indicating onboarding is complete
     await c.env.KV.put(`onboarding:${user.sub}`, 'complete');
     return c.json({ success: true, message: 'Onboarding marked as complete' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to complete onboarding' }, 500);
   }
 });

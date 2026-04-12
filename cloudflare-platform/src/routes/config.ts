@@ -12,7 +12,8 @@ config.get('/', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async
       'SELECT key, value, description, category, updated_by, updated_at FROM platform_config ORDER BY category, key'
     ).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch config' }, 500);
   }
 });
@@ -29,7 +30,8 @@ config.get('/:key', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), a
       return c.json({ success: false, error: 'Config key not found' }, 404);
     }
     return c.json({ success: true, data: row });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch config' }, 500);
   }
 });
@@ -60,12 +62,14 @@ config.patch('/:key', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }),
     // Invalidate KV cache
     try {
       await c.env.KV.delete(`config:${key}`);
-    } catch {
+    } catch (err) {
+      console.error(err);
       // Non-fatal
     }
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update config' }, 500);
   }
 });

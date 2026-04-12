@@ -35,7 +35,8 @@ payments.get('/', authMiddleware(), async (c) => {
 
     const results = await c.env.DB.prepare(query).bind(...binds).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list payments' }, 500);
   }
 });
@@ -76,7 +77,8 @@ payments.get('/stats', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
         total_volume_cents: totalAmountCents,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch payment stats' }, 500);
   }
 });
@@ -138,7 +140,8 @@ payments.post('/', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), as
     ).run();
 
     return c.json({ success: true, data: { id, status: result.status, provider_ref: result.provider_ref } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to initiate payment' }, 500);
   }
 });
@@ -192,7 +195,8 @@ payments.patch('/:id', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
     ).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update payment' }, 500);
   }
 });
@@ -218,7 +222,8 @@ payments.post('/credit-note', authMiddleware({ roles: ['admin'], adminLevel: 'ad
     `).bind(id, body.invoice_id, body.amount_cents, body.reason, user.sub).run();
 
     return c.json({ success: true, data: { id } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to issue credit note' }, 500);
   }
 });
@@ -230,7 +235,8 @@ payments.get('/credit-notes', authMiddleware({ roles: ['admin'], adminLevel: 'ad
       'SELECT cn.*, p.email as issued_by_email FROM credit_notes cn LEFT JOIN participants p ON cn.issued_by = p.id ORDER BY cn.created_at DESC LIMIT 100'
     ).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list credit notes' }, 500);
   }
 });

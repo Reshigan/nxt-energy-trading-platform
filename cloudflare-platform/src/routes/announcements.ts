@@ -19,7 +19,8 @@ announcements.get('/', authMiddleware({ requireKyc: false }), async (c) => {
     `).bind(now, now).all();
 
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -49,7 +50,8 @@ announcements.post('/admin', authMiddleware({ roles: ['admin'], adminLevel: 'adm
     `).bind(id, body.title, body.body, type, body.starts_at ?? null, body.expires_at ?? null, user.sub, nowISO()).run();
 
     return c.json({ success: true, data: { id } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to create announcement' }, 500);
   }
 });
@@ -87,7 +89,8 @@ announcements.patch('/admin/:id', authMiddleware({ roles: ['admin'], adminLevel:
     ).bind(...values).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update announcement' }, 500);
   }
 });
@@ -98,7 +101,8 @@ announcements.delete('/admin/:id', authMiddleware({ roles: ['admin'], adminLevel
     const { id } = c.req.param();
     await c.env.DB.prepare('DELETE FROM announcements WHERE id = ?').bind(id).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to delete announcement' }, 500);
   }
 });

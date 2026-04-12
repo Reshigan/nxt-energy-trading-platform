@@ -164,7 +164,8 @@ odse.post('/ingest', async (c) => {
           if (blacklisted) {
             return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token has been revoked'), 401);
           }
-        } catch {
+        } catch (err) {
+          console.error(err);
           // If KV fails, allow through (consistent with authMiddleware)
         }
         // Check password-change invalidation
@@ -173,11 +174,13 @@ odse.post('/ingest', async (c) => {
           if (pwChanged && payload.iat < Math.floor(new Date(pwChanged).getTime() / 1000)) {
             return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token invalidated by password reset'), 401);
           }
-        } catch {
+        } catch (err) {
+          console.error(err);
           // If KV fails, allow through
         }
         authenticatedParticipantId = payload.sub;
-      } catch {
+      } catch (err) {
+        console.error(err);
         return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token validation failed'), 401);
       }
     }
