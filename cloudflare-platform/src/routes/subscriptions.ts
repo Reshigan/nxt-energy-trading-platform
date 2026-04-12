@@ -177,7 +177,8 @@ subscriptions.get('/current', async (c) => {
         return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
       }
       return c.json({ success: true, data: sub });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // subscriptions table may not exist yet — return default free plan
       return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
     }
@@ -265,7 +266,8 @@ subscriptions.delete('/', async (c) => {
       sub = await c.env.DB.prepare(
         "SELECT id FROM subscriptions WHERE participant_id = ? AND status = 'active'"
       ).bind(user.sub).first<{ id: string }>();
-    } catch {
+    } catch (err) {
+      console.error(err);
       return c.json({ success: false, error: 'No active subscription' }, 404);
     }
 
@@ -342,7 +344,8 @@ subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
         'SELECT s.*, p.company_name, p.email FROM subscriptions s JOIN participants p ON s.participant_id = p.id ORDER BY s.created_at DESC LIMIT 100'
       ).all();
       return c.json({ success: true, data: results.results });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // subscriptions table may not exist yet
       return c.json({ success: true, data: [] });
     }

@@ -37,7 +37,8 @@ export function captureException(c: Context<HonoEnv>, error: unknown): void {
       }
       sentry.captureException(error);
     }
-  } catch {
+  } catch (err) {
+    console.error(err);
     // Don't let Sentry failures affect the request
   }
 }

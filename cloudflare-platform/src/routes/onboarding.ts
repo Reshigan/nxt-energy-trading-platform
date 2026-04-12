@@ -119,7 +119,8 @@ onboarding.post('/process', authMiddleware({ roles: ['admin'] }), async (c) => {
         ).bind(generateId(), p.id, template.day, nowISO()).run();
 
         sent++;
-      } catch {
+      } catch (err) {
+        console.error(err);
         // Non-critical: continue with next participant
       }
     }

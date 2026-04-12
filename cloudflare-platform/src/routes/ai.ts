@@ -236,7 +236,8 @@ ai.post('/chat', async (c) => {
         max_tokens: 512,
       });
       aiResponse = (response as { response: string }).response;
-    } catch {
+    } catch (err) {
+      console.error(err);
       // AI unavailable — use fallback response
     }
 

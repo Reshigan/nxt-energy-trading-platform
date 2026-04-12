@@ -23,7 +23,8 @@ export async function getConfig(
   try {
     const cached = await kv.get(cacheKey);
     if (cached !== null) return cached;
-  } catch {
+  } catch (err) {
+    console.error(err);
     // KV failure — fall through to D1
   }
 
@@ -37,12 +38,14 @@ export async function getConfig(
       // Cache in KV for 5 minutes
       try {
         await kv.put(cacheKey, row.value, { expirationTtl: 300 });
-      } catch {
+      } catch (err) {
+        console.error(err);
         // KV write failure — non-fatal
       }
       return row.value;
     }
-  } catch {
+  } catch (err) {
+    console.error(err);
     // D1 failure — return default
   }
 

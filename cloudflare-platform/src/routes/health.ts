@@ -50,7 +50,8 @@ healthRoute.get('/', async (c) => {
       } else {
         checks[doName.toLowerCase()] = { status: 'not_bound' };
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       // DOs may not have a /health endpoint — that's fine, just check they're reachable
       checks[doName.toLowerCase()] = { status: 'available' };
     }

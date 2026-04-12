@@ -46,7 +46,8 @@ lender.get('/disbursements', async (c) => {
       'SELECT d.*, p.name as project_name FROM disbursements d LEFT JOIN projects p ON d.project_id = p.id ORDER BY d.created_at DESC'
     ).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });

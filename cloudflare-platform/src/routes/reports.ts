@@ -64,7 +64,8 @@ reports.get('/schedules', async (c) => {
     const user = c.get('user');
     const results = await c.env.DB.prepare('SELECT * FROM report_schedules WHERE participant_id = ? ORDER BY created_at DESC').bind(user.sub).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -80,7 +81,8 @@ reports.post('/schedule', async (c) => {
       'INSERT INTO report_schedules (id, participant_id, frequency, email, report_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, user.sub, body.frequency, body.email, body.report_type || 'general', 'active', nowISO()).run();
     return c.json({ success: true, data: { id } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Report schedules not available' }, 500);
   }
 });
@@ -91,7 +93,8 @@ reports.delete('/schedule/:id', async (c) => {
     const id = c.req.param('id');
     await c.env.DB.prepare('DELETE FROM report_schedules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to delete schedule' }, 500);
   }
 });
