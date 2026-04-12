@@ -105,7 +105,8 @@ app.use('*', async (c, next) => {
         rt.sum += duration;
         rt.count += 1;
         await c.env.KV.put(rtKey, JSON.stringify(rt), { expirationTtl: 86400 });
-      } catch {
+      } catch (err) {
+        console.error(err);
         // Non-critical: don't let analytics failures affect requests
       }
     })());
@@ -387,7 +388,8 @@ api.post('/errors/frontend', async (c) => {
     await storeError(c.env.KV, 'frontend_error', new Error(body.message || 'Unknown frontend error'), c.get('requestId'));
     log('error', 'frontend_error', { message: body.message, url: body.url, timestamp: body.timestamp }, c.get('requestId'));
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true }); // Always return 200 for beacon
   }
 });
@@ -492,7 +494,8 @@ api.get('/admin/revenue', authMiddleware({ roles: ['admin'] }), async (c) => {
     try {
       const subs = await c.env.DB.prepare("SELECT COUNT(*) as count FROM subscriptions WHERE status = 'active'").first<{ count: number }>();
       subsCount = subs?.count || 0;
-    } catch {
+    } catch (err) {
+      console.error(err);
       // subscriptions table may not exist yet
     }
     return c.json({
@@ -505,7 +508,8 @@ api.get('/admin/revenue', authMiddleware({ roles: ['admin'] }), async (c) => {
         monthly: [],
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: { total_revenue_cents: 0, month_revenue_cents: 0, trading_fees_cents: 0, active_subscriptions: 0, monthly: [] } });
   }
 });
@@ -555,7 +559,8 @@ api.get('/settlement/disputes', authMiddleware(), async (c) => {
     query += ' ORDER BY created_at DESC';
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -593,7 +598,8 @@ api.patch('/settlement/disputes/:id', authMiddleware({ roles: ['admin', 'regulat
     values.push(id);
     await c.env.DB.prepare(`UPDATE disputes SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update dispute' }, 500);
   }
 });
@@ -609,7 +615,8 @@ api.get('/invoices', authMiddleware(), async (c) => {
     query += ' ORDER BY created_at DESC';
     const results = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -647,7 +654,8 @@ api.get('/smart-rules', authMiddleware(), async (c) => {
       'SELECT scr.*, cd.title as contract_title FROM smart_contract_rules scr LEFT JOIN contract_documents cd ON scr.contract_doc_id = cd.id WHERE cd.creator_id = ? OR cd.counterparty_id = ? ORDER BY scr.created_at DESC'
     ).bind(user.sub, user.sub).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -669,7 +677,8 @@ api.post('/smart-rules', authMiddleware(), async (c) => {
       'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(id, body.contract_doc_id, body.rule_type, body.trigger_condition || '{}', body.action || '{}', nowISO()).run();
     return c.json({ success: true, data: { id } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Smart rules table not available' }, 500);
   }
 });
@@ -696,7 +705,8 @@ api.patch('/smart-rules/:id', authMiddleware(), async (c) => {
     values.push(id);
     await c.env.DB.prepare(`UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ?`).bind(...values).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update smart rule' }, 500);
   }
 });
@@ -715,7 +725,8 @@ api.delete('/smart-rules/:id', authMiddleware(), async (c) => {
     }
     await c.env.DB.prepare('DELETE FROM smart_contract_rules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to delete smart rule' }, 500);
   }
 });
@@ -764,7 +775,8 @@ api.post('/reports/schedule', authMiddleware(), async (c) => {
       'INSERT INTO report_schedules (id, participant_id, frequency, email, report_type, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, user.sub, body.frequency, body.email, body.report_type || 'general', 'active', nowISO()).run();
     return c.json({ success: true, data: { id } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Report schedules not available' }, 500);
   }
 });
@@ -774,7 +786,8 @@ api.get('/reports/schedules', authMiddleware(), async (c) => {
     const user = c.get('user');
     const results = await c.env.DB.prepare('SELECT * FROM report_schedules WHERE participant_id = ? ORDER BY created_at DESC').bind(user.sub).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -784,7 +797,8 @@ api.delete('/reports/schedule/:id', authMiddleware(), async (c) => {
     const { id } = c.req.param();
     await c.env.DB.prepare('DELETE FROM report_schedules WHERE id = ?').bind(id).run();
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to delete schedule' }, 500);
   }
 });
@@ -796,7 +810,8 @@ api.post('/auth/2fa/enable', authMiddleware(), async (c) => {
     const secret = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
     await c.env.KV.put(`2fa:${user.sub}`, secret, { expirationTtl: 86400 * 365 });
     return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/Ionvex:${user.email}?secret=${secret}&issuer=Ionvex` } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: '2FA setup failed' }, 500);
   }
 });
@@ -812,7 +827,8 @@ api.post('/auth/2fa/verify', authMiddleware(), async (c) => {
       await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 1, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
     } catch { /* two_factor_enabled column may not exist */ }
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: '2FA verification failed' }, 500);
   }
 });
@@ -825,7 +841,8 @@ api.post('/auth/2fa/disable', authMiddleware(), async (c) => {
       await c.env.DB.prepare("UPDATE participants SET two_factor_enabled = 0, updated_at = datetime('now') WHERE id = ?").bind(user.sub).run();
     } catch { /* two_factor_enabled column may not exist */ }
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: '2FA disable failed' }, 500);
   }
 });
@@ -879,7 +896,8 @@ api.post('/admin/impersonate/:userId', authMiddleware({ roles: ['admin'], adminL
         expires_in: 1800,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to impersonate user' }, 500);
   }
 });
@@ -889,7 +907,8 @@ api.post('/admin/impersonate/end', authMiddleware(), async (c) => {
     const user = c.get('user');
     await c.env.KV.delete(`impersonate:${user.sub}`);
     return c.json({ success: true, message: 'Impersonation ended' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to end impersonation' }, 500);
   }
 });
@@ -899,7 +918,8 @@ api.get('/admin/fees', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
   try {
     const fees = await c.env.DB.prepare('SELECT * FROM fee_schedule ORDER BY market, role').all();
     return c.json({ success: true, data: fees.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
@@ -927,7 +947,8 @@ api.patch('/admin/fees/:id', authMiddleware({ roles: ['admin'], adminLevel: 'adm
     ).bind(generateId(), user.sub, id, JSON.stringify(body), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update fee' }, 500);
   }
 });
@@ -950,7 +971,8 @@ api.post('/admin/reset-password/:id', authMiddleware({ roles: ['admin'], adminLe
     ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, data: { temporary_password: tempPassword } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset password' }, 500);
   }
 });
@@ -967,7 +989,8 @@ api.post('/admin/unlock/:id', authMiddleware({ roles: ['admin'], adminLevel: 'ad
     ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Account unlocked' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to unlock account' }, 500);
   }
 });
@@ -984,7 +1007,8 @@ api.post('/admin/reset-2fa/:id', authMiddleware({ roles: ['admin'], adminLevel: 
     ).bind(generateId(), user.sub, id, '{}', c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: '2FA reset' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset 2FA' }, 500);
   }
 });
@@ -1009,7 +1033,8 @@ api.get('/trading/my-limits', authMiddleware(), async (c) => {
       });
     }
     return c.json({ success: true, data: limits });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch trading limits' }, 500);
   }
 });
@@ -1050,7 +1075,8 @@ api.patch('/trading/my-limits', authMiddleware(), async (c) => {
     }
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update trading limits' }, 500);
   }
 });
@@ -1081,7 +1107,8 @@ api.post('/admin/fees', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }
     ).bind(generateId(), user.sub, id, JSON.stringify(body), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, data: { id } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to create fee' }, 500);
   }
 });
@@ -1102,7 +1129,8 @@ api.use('/*', async (c, next) => {
         }
         await c.env.KV.put(userKey, String(current + 1), { expirationTtl: 60 });
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       // Non-fatal
     }
   }
