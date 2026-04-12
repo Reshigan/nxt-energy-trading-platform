@@ -75,7 +75,18 @@ CREATE TABLE IF NOT EXISTS metering_readings (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- contract_attachments: used by contracts.ts for document attachments
+CREATE TABLE IF NOT EXISTS contract_attachments (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES contract_documents(id),
+  filename TEXT NOT NULL,
+  r2_key TEXT NOT NULL,
+  uploaded_by TEXT NOT NULL REFERENCES participants(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_contract_attachments_document ON contract_attachments(document_id);
 CREATE INDEX IF NOT EXISTS idx_surveillance_alerts_status ON surveillance_alerts(status);
 CREATE INDEX IF NOT EXISTS idx_trading_rules_participant ON trading_rules(participant_id);
 CREATE INDEX IF NOT EXISTS idx_trading_rules_market_status ON trading_rules(market, status);

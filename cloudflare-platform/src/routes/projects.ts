@@ -492,4 +492,104 @@ projects.post('/:id/declare-fc', authMiddleware({ roles: ['admin', 'ipp'] }), as
   }
 });
 
+// GET /projects/:id/disbursements — List disbursements for a project
+projects.get('/:id/disbursements', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM disbursements WHERE project_id = ? ORDER BY created_at DESC'
+    ).bind(id).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// PATCH /projects/:id/conditions/:conditionId — Update a condition precedent
+projects.patch('/:id/conditions/:conditionId', authMiddleware(), async (c) => {
+  try {
+    const { id, conditionId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { status?: string; notes?: string; evidence_url?: string };
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (body.status) {
+      updates.push('status = ?');
+      values.push(body.status);
+      if (body.status === 'satisfied') {
+        updates.push('satisfied_date = ?', 'satisfied_by = ?');
+        values.push(nowISO(), user.sub);
+      }
+    }
+    if (body.notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(body.notes);
+    }
+    if (body.evidence_url !== undefined) {
+      updates.push('evidence_url = ?');
+      values.push(body.evidence_url);
+    }
+
+    if (updates.length === 0) {
+      return c.json({ success: false, error: 'No fields to update' }, 400);
+    }
+
+    values.push(conditionId, id);
+    await c.env.DB.prepare(
+      `UPDATE conditions_precedent SET ${updates.join(', ')} WHERE id = ? AND project_id = ?`
+    ).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// PATCH /projects/:id/milestones/:milestoneId — Update a milestone
+projects.patch('/:id/milestones/:milestoneId', authMiddleware(), async (c) => {
+  try {
+    const { id, milestoneId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { status?: string; notes?: string; target_date?: string };
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+
+    if (body.status) {
+      updates.push('status = ?');
+      values.push(body.status);
+      if (body.status === 'completed') {
+        updates.push('completed_date = ?', 'completed_by = ?');
+        values.push(nowISO(), user.sub);
+      }
+    }
+    if (body.notes !== undefined) {
+      updates.push('notes = ?');
+      values.push(body.notes);
+    }
+    if (body.target_date !== undefined) {
+      updates.push('target_date = ?');
+      values.push(body.target_date);
+    }
+
+    if (updates.length === 0) {
+      return c.json({ success: false, error: 'No fields to update' }, 400);
+    }
+
+    values.push(milestoneId, id);
+    await c.env.DB.prepare(
+      `UPDATE milestones SET ${updates.join(', ')} WHERE id = ? AND project_id = ?`
+    ).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default projects;
