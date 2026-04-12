@@ -795,7 +795,7 @@ api.post('/auth/2fa/enable', authMiddleware(), async (c) => {
     const user = c.get('user');
     const secret = crypto.randomUUID().replace(/-/g, '').substring(0, 20).toUpperCase();
     await c.env.KV.put(`2fa:${user.sub}`, secret, { expirationTtl: 86400 * 365 });
-    return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/NXT%20Energy:${user.email}?secret=${secret}&issuer=NXT%20Energy` } });
+    return c.json({ success: true, data: { secret, otpauth_uri: `otpauth://totp/Ionvex:${user.email}?secret=${secret}&issuer=Ionvex` } });
   } catch {
     return c.json({ success: false, error: '2FA setup failed' }, 500);
   }
