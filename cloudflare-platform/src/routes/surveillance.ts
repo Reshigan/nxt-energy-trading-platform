@@ -119,4 +119,48 @@ surveillance.post('/alerts/:id/investigate', authMiddleware({ roles: ['regulator
   }
 });
 
+// GET /surveillance/circuit-breaker — Circuit breaker events
+surveillance.get('/circuit-breaker', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
+  try {
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM circuit_breaker_events ORDER BY halt_started_at DESC LIMIT 100'
+    ).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /surveillance/circuit-breaker — Trigger a manual circuit breaker halt
+surveillance.post('/circuit-breaker', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
+  try {
+    const body = await c.req.json<{ market: string; trigger_value?: string }>();
+    const user = c.get('user');
+    const id = generateId();
+    await c.env.DB.prepare(
+      `INSERT INTO circuit_breaker_events (id, market, trigger_type, trigger_value, halt_started_at, triggered_by)
+       VALUES (?, ?, 'manual', ?, datetime('now'), ?)`
+    ).bind(id, body.market, body.trigger_value || null, user.sub).run();
+    return c.json({ success: true, data: { id, market: body.market, status: 'halted' } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /surveillance/circuit-breaker/:id/resume — Resume trading after circuit breaker
+surveillance.post('/circuit-breaker/:id/resume', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    await c.env.DB.prepare(
+      "UPDATE circuit_breaker_events SET halt_ended_at = datetime('now') WHERE id = ?"
+    ).bind(id).run();
+    return c.json({ success: true, data: { id, status: 'resumed' } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default surveillance;
