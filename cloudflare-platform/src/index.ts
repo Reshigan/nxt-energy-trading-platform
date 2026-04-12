@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { prettyJSON } from 'hono/pretty-json';
-import { AppBindings, HonoEnv } from './utils/types';
+import { AppBindings, HonoEnv, Role, KycStatus, AdminLevel } from './utils/types';
 import { rateLimiter, requestIdMiddleware, authMiddleware } from './auth/middleware';
 import { securityHeadersMiddleware } from './middleware/security';
 import { blacklistToken, isTokenBlacklisted, signJwt, signRefreshToken, verifyJwt } from './auth/jwt';
@@ -227,10 +227,10 @@ api.post('/auth/refresh', async (c) => {
   const newToken = await signJwt({
     sub: participant.id,
     email: participant.email,
-    role: participant.role as any,
+    role: participant.role as Role,
     company_name: participant.company_name,
-    kyc_status: participant.kyc_status as any,
-    ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
+    kyc_status: participant.kyc_status as KycStatus,
+    ...(participant.admin_level ? { admin_level: participant.admin_level as AdminLevel } : {}),
   }, secret);
   const newRefresh = await signRefreshToken(participant.id, secret);
 
@@ -848,10 +848,10 @@ api.post('/admin/impersonate/:userId', authMiddleware({ roles: ['admin'], adminL
     const impersonationToken = await signJwt({
       sub: target.id,
       email: target.email,
-      role: target.role as any,
-      company_name: target.company_name,
-      kyc_status: target.kyc_status as any,
-      ...(target.admin_level ? { admin_level: target.admin_level as any } : {}),
+        role: target.role as Role,
+        company_name: target.company_name,
+        kyc_status: target.kyc_status as KycStatus,
+        ...(target.admin_level ? { admin_level: target.admin_level as AdminLevel } : {}),
     }, secret, 1800);
 
     // Store impersonation info in KV for the banner
