@@ -89,25 +89,6 @@ healthRoute.get('/detailed', async (c) => {
     checks.kv = { status: 'unhealthy', error: e instanceof Error ? e.message : 'unknown' };
   }
 
-  // DB stats
-  let dbStats: Record<string, number> = {};
-  try {
-    const [participants, trades, orders, contracts, credits] = await Promise.all([
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM participants').first<{ count: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM trades').first<{ count: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM orders').first<{ count: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM contract_documents').first<{ count: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM carbon_credits').first<{ count: number }>(),
-    ]);
-    dbStats = {
-      participants: participants?.count || 0,
-      trades: trades?.count || 0,
-      orders: orders?.count || 0,
-      contracts: contracts?.count || 0,
-      carbon_credits: credits?.count || 0,
-    };
-  } catch { /* tables may not exist */ }
-
   const coreHealthy = ['d1', 'kv'].every((k) => checks[k]?.status === 'healthy');
 
   return c.json({
@@ -116,8 +97,6 @@ healthRoute.get('/detailed', async (c) => {
     timestamp: new Date().toISOString(),
     environment: 'cloudflare-workers',
     services: checks,
-    database: dbStats,
-    platform: 'cloudflare-workers',
   }, coreHealthy ? 200 : 503);
 });
 
