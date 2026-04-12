@@ -9,7 +9,7 @@ const vault = new Hono<HonoEnv>();
 vault.use('*', authMiddleware());
 
 // GET /vault/documents — List all documents in vault
-vault.get('/documents', async (c) => {
+vault.get('/documents', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(
@@ -23,7 +23,7 @@ vault.get('/documents', async (c) => {
 });
 
 // POST /vault/documents — Upload document to vault
-vault.post('/documents', async (c) => {
+vault.post('/documents', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { title: string; document_type: string; tags?: string[]; content?: string };
@@ -46,7 +46,7 @@ vault.post('/documents', async (c) => {
 });
 
 // POST /vault/documents/:id/share — Share document with participants
-vault.post('/documents/:id/share', async (c) => {
+vault.post('/documents/:id/share', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -67,7 +67,7 @@ vault.post('/documents/:id/share', async (c) => {
 });
 
 // GET /vault/templates — List document templates
-vault.get('/templates', async (c) => {
+vault.get('/templates', authMiddleware(), async (c) => {
   try {
     return c.json({
       success: true,

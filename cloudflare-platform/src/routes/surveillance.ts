@@ -9,7 +9,7 @@ const surveillance = new Hono<HonoEnv>();
 surveillance.use('*', authMiddleware());
 
 // GET /surveillance/alerts — Market surveillance alerts
-surveillance.get('/alerts', async (c) => {
+surveillance.get('/alerts', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
   try {
     const trades = await c.env.DB.prepare(
       "SELECT t.*, b.company_name as buyer_name, s.company_name as seller_name FROM trades t LEFT JOIN participants b ON t.buyer_id = b.id LEFT JOIN participants s ON t.seller_id = s.id ORDER BY t.created_at DESC LIMIT 50"
@@ -46,7 +46,7 @@ surveillance.get('/alerts', async (c) => {
 });
 
 // GET /surveillance/kyc-deep — Deep KYC analytics
-surveillance.get('/kyc-deep', async (c) => {
+surveillance.get('/kyc-deep', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
   try {
     const participants = await c.env.DB.prepare(
       "SELECT p.id, p.company_name, p.role, p.kyc_status, p.bbbee_level, p.created_at, COUNT(k.id) as doc_count FROM participants p LEFT JOIN kyc_documents k ON p.id = k.participant_id GROUP BY p.id ORDER BY p.created_at DESC"
@@ -66,7 +66,7 @@ surveillance.get('/kyc-deep', async (c) => {
 });
 
 // GET /surveillance/statutory-reports — Statutory reporting overview
-surveillance.get('/statutory-reports', async (c) => {
+surveillance.get('/statutory-reports', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
   try {
     const checks = await c.env.DB.prepare(
       'SELECT * FROM statutory_checks ORDER BY checked_at DESC LIMIT 100'
@@ -79,7 +79,7 @@ surveillance.get('/statutory-reports', async (c) => {
 });
 
 // GET /surveillance/risk-monitor — System-wide risk monitoring
-surveillance.get('/risk-monitor', async (c) => {
+surveillance.get('/risk-monitor', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
   try {
     const openOrders = await c.env.DB.prepare("SELECT COUNT(*) as count, SUM(volume * price_cents) as exposure FROM orders WHERE status IN ('open', 'partial')").first<{ count: number; exposure: number | null }>();
     const activeEscrows = await c.env.DB.prepare("SELECT COUNT(*) as count, SUM(amount_cents) as total FROM escrows WHERE status = 'active'").first<{ count: number; total: number | null }>();
@@ -103,7 +103,7 @@ surveillance.get('/risk-monitor', async (c) => {
 });
 
 // POST /surveillance/alerts/:id/investigate — Mark alert as investigating
-surveillance.post('/alerts/:id/investigate', async (c) => {
+surveillance.post('/alerts/:id/investigate', authMiddleware({ roles: ['regulator', 'admin'] }), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');

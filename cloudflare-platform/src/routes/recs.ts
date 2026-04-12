@@ -8,7 +8,7 @@ const recs = new Hono<HonoEnv>();
 recs.use('*', authMiddleware());
 
 // GET /recs — List RECs with filters
-recs.get('/', async (c) => {
+recs.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { project_id, status, standard, page = '1', limit = '20' } = c.req.query();
@@ -36,7 +36,7 @@ recs.get('/', async (c) => {
 });
 
 // GET /recs/summary — Portfolio summary by year and standard
-recs.get('/summary', async (c) => {
+recs.get('/summary', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const ownerFilter = user.role !== 'admin' ? 'AND r.owner_id = ?' : '';
@@ -60,7 +60,7 @@ recs.get('/summary', async (c) => {
 });
 
 // POST /recs/:id/transfer — Transfer REC
-recs.post('/:id/transfer', async (c) => {
+recs.post('/:id/transfer', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { id } = c.req.param();
@@ -99,7 +99,7 @@ recs.post('/:id/transfer', async (c) => {
 });
 
 // POST /recs/:id/redeem — Redeem REC for ESG reporting
-recs.post('/:id/redeem', async (c) => {
+recs.post('/:id/redeem', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { id } = c.req.param();
