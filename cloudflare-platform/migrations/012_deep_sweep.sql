@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 CREATE INDEX IF NOT EXISTS idx_subscriptions_participant ON subscriptions(participant_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 
+-- Add rejection_reason column to kyc_documents (used by compliance reject endpoint)
+ALTER TABLE kyc_documents ADD COLUMN rejection_reason TEXT;
+
 -- Phase 11: Missing indexes on hot columns
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_trades_buyer ON trades(buyer_id);
