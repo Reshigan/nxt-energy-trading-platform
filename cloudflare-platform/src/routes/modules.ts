@@ -7,37 +7,42 @@ const modules = new Hono<HonoEnv>();
 
 // GET /modules/status — Get all modules with their enabled state (auth required)
 modules.get('/status', authMiddleware({ requireKyc: false }), async (c) => {
-  const tenantId = c.req.header('X-Tenant-Id') || 'default';
+  try {
+    const tenantId = c.req.header('X-Tenant-Id') || 'default';
 
-  const global = await c.env.DB.prepare(
-    'SELECT id, name, display_name, description, category, enabled_global, icon, sort_order, min_subscription_tier, config FROM platform_modules ORDER BY sort_order'
-  ).all();
+    const global = await c.env.DB.prepare(
+      'SELECT id, name, display_name, description, category, enabled_global, icon, sort_order, min_subscription_tier, config FROM platform_modules ORDER BY sort_order'
+    ).all();
 
-  // Get tenant overrides if applicable
-  let tenantOverrides: Record<string, boolean> = {};
-  if (tenantId !== 'default') {
-    const tenant = await c.env.DB.prepare(
-      'SELECT pm.name, tm.enabled FROM tenant_modules tm JOIN platform_modules pm ON tm.module_id = pm.id WHERE tm.tenant_id = ?'
-    ).bind(tenantId).all();
-    for (const mod of tenant.results) {
-      tenantOverrides[mod.name as string] = !!(mod.enabled);
+    // Get tenant overrides if applicable
+    let tenantOverrides: Record<string, boolean> = {};
+    if (tenantId !== 'default') {
+      const tenant = await c.env.DB.prepare(
+        'SELECT pm.name, tm.enabled FROM tenant_modules tm JOIN platform_modules pm ON tm.module_id = pm.id WHERE tm.tenant_id = ?'
+      ).bind(tenantId).all();
+      for (const mod of tenant.results) {
+        tenantOverrides[mod.name as string] = !!(mod.enabled);
+      }
     }
+
+    const data = global.results.map((mod) => ({
+      id: mod.id,
+      name: mod.name,
+      display_name: mod.display_name,
+      description: mod.description,
+      category: mod.category,
+      enabled: tenantOverrides[mod.name as string] ?? !!(mod.enabled_global),
+      icon: mod.icon,
+      sort_order: mod.sort_order,
+      min_subscription_tier: mod.min_subscription_tier,
+      config: mod.config ? JSON.parse(mod.config as string) : {},
+    }));
+
+    return c.json({ success: true, data });
+  } catch (err) {
+    console.error('Module status error:', err);
+    return c.json({ success: false, error: 'Failed to load module status' }, 500);
   }
-
-  const data = global.results.map((mod) => ({
-    id: mod.id,
-    name: mod.name,
-    display_name: mod.display_name,
-    description: mod.description,
-    category: mod.category,
-    enabled: tenantOverrides[mod.name as string] ?? !!(mod.enabled_global),
-    icon: mod.icon,
-    sort_order: mod.sort_order,
-    min_subscription_tier: mod.min_subscription_tier,
-    config: mod.config ? JSON.parse(mod.config as string) : {},
-  }));
-
-  return c.json({ success: true, data });
 });
 
 // POST /modules/:id/toggle — Admin toggle module on/off
@@ -111,10 +116,15 @@ modules.post('/:id/tenant-toggle', authMiddleware({ roles: ['admin'] }), async (
 
 // GET /modules/categories — Get module categories with counts
 modules.get('/categories', authMiddleware({ roles: ['admin'] }), async (c) => {
-  const categories = await c.env.DB.prepare(
-    'SELECT category, COUNT(*) as count, SUM(CASE WHEN enabled_global = 1 THEN 1 ELSE 0 END) as enabled_count FROM platform_modules GROUP BY category ORDER BY MIN(sort_order)'
-  ).all();
-  return c.json({ success: true, data: categories.results });
+  try {
+    const categories = await c.env.DB.prepare(
+      'SELECT category, COUNT(*) as count, SUM(CASE WHEN enabled_global = 1 THEN 1 ELSE 0 END) as enabled_count FROM platform_modules GROUP BY category ORDER BY MIN(sort_order)'
+    ).all();
+    return c.json({ success: true, data: categories.results });
+  } catch (err) {
+    console.error('Module categories error:', err);
+    return c.json({ success: false, error: 'Failed to load categories' }, 500);
+  }
 });
 
 export default modules;
