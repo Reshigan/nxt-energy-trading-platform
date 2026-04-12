@@ -88,6 +88,7 @@ const ONBOARDING_SEQUENCE: OnboardingTemplate[] = [
  * Finds participants registered within the last 14 days and sends appropriate emails.
  */
 onboarding.post('/process', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
   // Admin-only — also callable by scheduled cron with admin service token
   const now = new Date();
   let sent = 0;
@@ -118,30 +119,40 @@ onboarding.post('/process', authMiddleware({ roles: ['admin'] }), async (c) => {
         ).bind(generateId(), p.id, template.day, nowISO()).run();
 
         sent++;
-      } catch {
+      } catch (err) {
+        console.error(err);
         // Non-critical: continue with next participant
       }
     }
   }
 
   return c.json({ success: true, data: { emails_sent: sent } });
+  } catch (err) {
+    console.error('Onboarding process error:', err);
+    return c.json({ success: false, error: 'Failed to process onboarding emails' }, 500);
+  }
 });
 
 // GET /onboarding/status — Check onboarding progress for current user
 onboarding.get('/status', authMiddleware({ requireKyc: false }), async (c) => {
-  const user = c.get('user');
-  const emails = await c.env.DB.prepare(
-    'SELECT day, sent_at FROM onboarding_emails WHERE participant_id = ? ORDER BY day'
-  ).bind(user.sub).all();
+  try {
+    const user = c.get('user');
+    const emails = await c.env.DB.prepare(
+      'SELECT day, sent_at FROM onboarding_emails WHERE participant_id = ? ORDER BY day'
+    ).bind(user.sub).all();
 
-  return c.json({
-    success: true,
-    data: {
-      emails_sent: emails.results,
-      total_sequence: ONBOARDING_SEQUENCE.length,
-      completed: emails.results.length >= ONBOARDING_SEQUENCE.length,
-    },
-  });
+    return c.json({
+      success: true,
+      data: {
+        emails_sent: emails.results,
+        total_sequence: ONBOARDING_SEQUENCE.length,
+        completed: emails.results.length >= ONBOARDING_SEQUENCE.length,
+      },
+    });
+  } catch (err) {
+    console.error('Onboarding status error:', err);
+    return c.json({ success: false, error: 'Failed to load onboarding status' }, 500);
+  }
 });
 
 export default onboarding;

@@ -28,7 +28,8 @@ popia.get('/consent', authMiddleware(), async (c) => {
           current_version: '1.0',
         },
       });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // columns may not exist in deployed D1 — return safe default
       return c.json({
         success: true,
@@ -55,7 +56,8 @@ popia.post('/consent', authMiddleware(), async (c) => {
         UPDATE participants SET consent_given = ?, consent_given_at = ?, consent_version = ?, updated_at = ?
         WHERE id = ?
       `).bind(body.consent ? 1 : 0, nowISO(), body.version || '1.0', nowISO(), user.sub).run();
-    } catch {
+    } catch (err) {
+      console.error(err);
       // consent columns may not exist — still record in audit log
     }
 

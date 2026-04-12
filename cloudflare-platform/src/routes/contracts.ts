@@ -1449,4 +1449,164 @@ contracts.get('/activity/feed', authMiddleware(), async (c) => {
   }
 });
 
+// ─── Contract-scoped smart rules CRUD ───
+
+// GET /contracts/:contractId/rules — List rules for a specific contract document
+contracts.get('/:contractId/rules', authMiddleware(), async (c) => {
+  try {
+    const { contractId } = c.req.param();
+    const user = c.get('user');
+
+    // Verify access
+    const doc = await c.env.DB.prepare(
+      'SELECT id FROM contract_documents WHERE id = ? AND (creator_id = ? OR counterparty_id = ? OR ? IN (SELECT id FROM participants WHERE role = \'admin\'))'
+    ).bind(contractId, user.sub, user.sub, user.sub).first();
+    if (!doc && user.role !== 'admin') {
+      return c.json({ success: false, error: 'Access denied' }, 403);
+    }
+
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM smart_contract_rules WHERE contract_doc_id = ? ORDER BY created_at DESC'
+    ).bind(contractId).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/:contractId/rules — Create rule for a contract
+contracts.post('/:contractId/rules', authMiddleware(), async (c) => {
+  try {
+    const { contractId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { rule_type: string; trigger_condition: string; action: string };
+
+    if (!body.rule_type || !body.trigger_condition || !body.action) {
+      return c.json({ success: false, error: 'rule_type, trigger_condition, and action are required' }, 400);
+    }
+
+    const id = generateId();
+    await c.env.DB.prepare(
+      'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, contractId, body.rule_type, body.trigger_condition, body.action, nowISO()).run();
+
+    return c.json({ success: true, data: { id } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// PATCH /contracts/:contractId/rules/:ruleId — Update a rule
+contracts.patch('/:contractId/rules/:ruleId', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    const body = await c.req.json() as Record<string, unknown>;
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    for (const key of ['rule_type', 'trigger_condition', 'action', 'active']) {
+      if (body[key] !== undefined) {
+        updates.push(`${key} = ?`);
+        values.push(body[key]);
+      }
+    }
+    if (updates.length === 0) {
+      return c.json({ success: false, error: 'No fields to update' }, 400);
+    }
+
+    values.push(ruleId, contractId);
+    await c.env.DB.prepare(
+      `UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ? AND contract_doc_id = ?`
+    ).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// DELETE /contracts/:contractId/rules/:ruleId — Delete a rule
+contracts.delete('/:contractId/rules/:ruleId', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    await c.env.DB.prepare(
+      'DELETE FROM smart_contract_rules WHERE id = ? AND contract_doc_id = ?'
+    ).bind(ruleId, contractId).run();
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/:contractId/rules/:ruleId/pause — Toggle pause on a rule
+contracts.post('/:contractId/rules/:ruleId/pause', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    const rule = await c.env.DB.prepare(
+      'SELECT active FROM smart_contract_rules WHERE id = ? AND contract_doc_id = ?'
+    ).bind(ruleId, contractId).first<{ active: number }>();
+    if (!rule) return c.json({ success: false, error: 'Rule not found' }, 404);
+
+    const newActive = rule.active === 1 ? 0 : 1;
+    await c.env.DB.prepare(
+      "UPDATE smart_contract_rules SET active = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(newActive, ruleId).run();
+
+    return c.json({ success: true, data: { active: newActive === 1 } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// ─── Document attachments ───
+
+// GET /contracts/documents/:id/attachments — List document attachments
+contracts.get('/documents/:id/attachments', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const results = await c.env.DB.prepare(
+      'SELECT id, document_id, filename, r2_key, uploaded_by, created_at FROM contract_attachments WHERE document_id = ? ORDER BY created_at DESC'
+    ).bind(id).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/documents/:id/attachments — Upload attachment
+contracts.post('/documents/:id/attachments', authMiddleware(), async (c) => {
+  try {
+    const { id: docId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { filename: string; content_base64?: string };
+
+    if (!body.filename) {
+      return c.json({ success: false, error: 'filename is required' }, 400);
+    }
+
+    const attachId = generateId();
+    const r2Key = `attachments/${docId}/${attachId}_${body.filename}`;
+
+    if (body.content_base64) {
+      const buffer = Uint8Array.from(atob(body.content_base64), (ch) => ch.charCodeAt(0));
+      await c.env.R2.put(r2Key, buffer);
+    }
+
+    await c.env.DB.prepare(
+      'INSERT INTO contract_attachments (id, document_id, filename, r2_key, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(attachId, docId, body.filename, r2Key, user.sub, nowISO()).run();
+
+    return c.json({ success: true, data: { id: attachId, r2_key: r2Key } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default contracts;

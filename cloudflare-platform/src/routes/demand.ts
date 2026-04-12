@@ -84,7 +84,8 @@ demand.get('/profiles', authMiddleware(), async (c) => {
     try {
       const results = await c.env.DB.prepare(query).bind(...params).all();
       return c.json({ success: true, data: results.results });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // demand_profiles table may not exist yet
       return c.json({ success: true, data: [] });
     }
@@ -399,7 +400,8 @@ demand.get('/matches', authMiddleware(), async (c) => {
       `).bind(user.sub, pg.per_page, pg.offset).all();
 
       return c.json({ success: true, data: results.results });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // demand_matches or demand_profiles table may not exist yet
       return c.json({ success: true, data: [] });
     }

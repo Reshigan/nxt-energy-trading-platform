@@ -9,7 +9,7 @@ const lender = new Hono<HonoEnv>();
 lender.use('*', authMiddleware());
 
 // GET /lender/dashboard — Lending portfolio overview
-lender.get('/dashboard', async (c) => {
+lender.get('/dashboard', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const projects = await c.env.DB.prepare(
       'SELECT id, name, technology, capacity_mw, phase, created_at FROM projects ORDER BY created_at DESC LIMIT 20'
@@ -40,19 +40,20 @@ lender.get('/dashboard', async (c) => {
 });
 
 // GET /lender/disbursements — List all disbursements with controls
-lender.get('/disbursements', async (c) => {
+lender.get('/disbursements', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const results = await c.env.DB.prepare(
       'SELECT d.*, p.name as project_name FROM disbursements d LEFT JOIN projects p ON d.project_id = p.id ORDER BY d.created_at DESC'
     ).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: true, data: [] });
   }
 });
 
 // POST /lender/disbursements/:id/approve — Approve a disbursement
-lender.post('/disbursements/:id/approve', async (c) => {
+lender.post('/disbursements/:id/approve', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -78,7 +79,7 @@ lender.post('/disbursements/:id/approve', async (c) => {
 });
 
 // POST /lender/disbursements/:id/reject — Reject a disbursement
-lender.post('/disbursements/:id/reject', async (c) => {
+lender.post('/disbursements/:id/reject', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -99,7 +100,7 @@ lender.post('/disbursements/:id/reject', async (c) => {
 });
 
 // GET /lender/covenants — Project covenant monitoring
-lender.get('/covenants', async (c) => {
+lender.get('/covenants', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const projects = await c.env.DB.prepare('SELECT id, name, phase FROM projects LIMIT 20').all();
     // Item 4: No simulated data — return static placeholder values flagged as not-live
@@ -120,7 +121,7 @@ lender.get('/covenants', async (c) => {
 });
 
 // GET /lender/exposure — Portfolio exposure analysis
-lender.get('/exposure', async (c) => {
+lender.get('/exposure', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const projects = await c.env.DB.prepare(
       'SELECT p.id, p.name, p.technology, p.capacity_mw, SUM(d.amount_cents) as total_disbursed FROM projects p LEFT JOIN disbursements d ON p.id = d.project_id GROUP BY p.id'

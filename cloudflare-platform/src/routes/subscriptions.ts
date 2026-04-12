@@ -165,7 +165,7 @@ subscriptions.get('/plans', async (c) => {
 });
 
 // GET /subscriptions/current — Get current subscription
-subscriptions.get('/current', async (c) => {
+subscriptions.get('/current', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     try {
@@ -177,7 +177,8 @@ subscriptions.get('/current', async (c) => {
         return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
       }
       return c.json({ success: true, data: sub });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // subscriptions table may not exist yet — return default free plan
       return c.json({ success: true, data: { plan: 'free', status: 'active', features: ['5 trades/month', 'Basic dashboard'] } });
     }
@@ -188,7 +189,7 @@ subscriptions.get('/current', async (c) => {
 });
 
 // POST /subscriptions — Create/upgrade subscription
-subscriptions.post('/', async (c) => {
+subscriptions.post('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { plan_id: string; billing_cycle?: 'monthly' | 'annual' };
@@ -256,7 +257,7 @@ subscriptions.post('/', async (c) => {
 });
 
 // DELETE /subscriptions — Cancel subscription
-subscriptions.delete('/', async (c) => {
+subscriptions.delete('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
 
@@ -265,7 +266,8 @@ subscriptions.delete('/', async (c) => {
       sub = await c.env.DB.prepare(
         "SELECT id FROM subscriptions WHERE participant_id = ? AND status = 'active'"
       ).bind(user.sub).first<{ id: string }>();
-    } catch {
+    } catch (err) {
+      console.error(err);
       return c.json({ success: false, error: 'No active subscription' }, 404);
     }
 
@@ -295,7 +297,7 @@ subscriptions.delete('/', async (c) => {
 });
 
 // GET /subscriptions/usage — Get usage stats for current billing period
-subscriptions.get('/usage', async (c) => {
+subscriptions.get('/usage', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -342,7 +344,8 @@ subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
         'SELECT s.*, p.company_name, p.email FROM subscriptions s JOIN participants p ON s.participant_id = p.id ORDER BY s.created_at DESC LIMIT 100'
       ).all();
       return c.json({ success: true, data: results.results });
-    } catch {
+    } catch (err) {
+      console.error(err);
       // subscriptions table may not exist yet
       return c.json({ success: true, data: [] });
     }
@@ -353,7 +356,7 @@ subscriptions.get('/all', authMiddleware({ roles: ['admin'] }), async (c) => {
 });
 
 // POST /subscriptions/checkout — Create Stripe checkout session
-subscriptions.post('/checkout', async (c) => {
+subscriptions.post('/checkout', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { plan_id: string; billing_cycle?: 'monthly' | 'annual'; success_url?: string; cancel_url?: string };
