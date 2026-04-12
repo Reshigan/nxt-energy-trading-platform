@@ -75,7 +75,8 @@ export async function verifyJwt(token: string, secret?: string): Promise<JwtPayl
     if (payload.exp < now) return null;
 
     return payload;
-  } catch {
+  } catch (err) {
+    console.error(err);
     return null;
   }
 }
