@@ -7,7 +7,7 @@ const sessions = new Hono<HonoEnv>();
 sessions.use('*', authMiddleware());
 
 // GET /auth/sessions — List active sessions for current user
-sessions.get('/', async (c) => {
+sessions.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
 
@@ -40,7 +40,7 @@ sessions.get('/', async (c) => {
 });
 
 // DELETE /auth/sessions/:id — Revoke a specific session
-sessions.delete('/:id', async (c) => {
+sessions.delete('/:id', authMiddleware(), async (c) => {
   const user = c.get('user');
   const { id } = c.req.param();
 
@@ -65,7 +65,7 @@ sessions.delete('/:id', async (c) => {
 });
 
 // POST /auth/sessions/revoke-all — Revoke all sessions except current
-sessions.post('/revoke-all', async (c) => {
+sessions.post('/revoke-all', authMiddleware(), async (c) => {
   const user = c.get('user');
   const currentToken = c.req.header('Authorization')?.substring(7);
 

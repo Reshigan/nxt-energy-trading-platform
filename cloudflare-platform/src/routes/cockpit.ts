@@ -89,7 +89,7 @@ type DB = { prepare: (q: string) => { bind: (...a: unknown[]) => { first: <T = R
 const cockpit = new Hono<HonoEnv>();
 cockpit.use('*', authMiddleware({ requireKyc: false }));
 
-cockpit.get('/', async (c) => {
+cockpit.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const role = user.role;
