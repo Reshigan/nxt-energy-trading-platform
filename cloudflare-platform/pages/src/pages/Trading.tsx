@@ -12,7 +12,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 
 interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; avg_entry_price_cents?: number; current_price_cents?: number; unrealised_pnl_cents?: number; }
-interface OrderBookEntry { price: number; size: number; total: number; }
+interface OrderBookEntry { price: number; size: number; total: number; volume?: number; orderCount?: number; }
 interface PricePoint { time: string; price: number; volume: number; }
 
 const MARKETS = ['solar', 'wind', 'gas', 'carbon', 'battery', 'hydro'] as const;
@@ -45,7 +45,19 @@ export default function Trading() {
         tradingAPI.getPrices(selectedMarket, selectedTimeframe.toLowerCase()),
       ]);
       if (posRes.status === 'fulfilled' && posRes.value.data?.data) setPositions(Array.isArray(posRes.value.data.data) ? posRes.value.data.data : []);
-      if (obRes.status === 'fulfilled' && obRes.value.data?.data) setObData(obRes.value.data.data);
+      if (obRes.status === 'fulfilled' && obRes.value.data?.data) {
+        const raw = obRes.value.data.data;
+        // Normalize orderbook fields: API may return {price, volume, orderCount} instead of {price, size, total}
+        const normalizeSide = (entries: OrderBookEntry[]) => {
+          let cumulative = 0;
+          return (entries || []).map(e => {
+            const size = e.size ?? e.volume ?? 0;
+            cumulative += size;
+            return { price: e.price ?? 0, size, total: e.total ?? cumulative };
+          });
+        };
+        setObData({ bids: normalizeSide(raw.bids), asks: normalizeSide(raw.asks) });
+      }
       if (priceRes.status === 'fulfilled') {
         const pd = priceRes.value.data?.data;
         if (Array.isArray(pd)) setPriceData(pd);
