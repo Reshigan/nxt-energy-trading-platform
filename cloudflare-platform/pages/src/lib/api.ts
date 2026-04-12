@@ -148,7 +148,7 @@ export const settlementAPI = {
   payInvoice: (id: string) => api.post(`/settlement/invoices/${id}/pay`),
   getDisputes: (params?: Record<string, string>) => api.get('/settlement/disputes', { params }),
   fileDispute: (data: Record<string, unknown>) => api.post('/settlement/disputes', data),
-  updateDisputeStatus: (id: string, data: Record<string, unknown>) => api.patch(`/settlement/disputes/${id}`, data),
+  updateDisputeStatus: (id: string, data: Record<string, unknown>) => api.patch(`/settlement/disputes/${id}/status`, data),
   getNetting: (params: { counterparty_id?: string; from?: string; to?: string }) => api.get('/settlement/netting', { params }),
   generateNetInvoice: (data: Record<string, unknown>) => api.post('/settlement/netting', data),
 };
