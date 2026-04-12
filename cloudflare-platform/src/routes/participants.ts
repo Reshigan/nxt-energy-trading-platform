@@ -201,4 +201,65 @@ participants.post('/:id/suspend', authMiddleware({ roles: ['admin'] }), async (c
   }
 });
 
+// POST /participants/:id/approve — Admin approve participant KYC
+participants.post('/:id/approve', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    const participant = await c.env.DB.prepare('SELECT id, kyc_status FROM participants WHERE id = ?').bind(id).first<{ id: string; kyc_status: string }>();
+    if (!participant) return c.json({ success: false, error: 'Participant not found' }, 404);
+
+    await c.env.DB.prepare(
+      "UPDATE participants SET kyc_status = 'verified', trading_enabled = 1, updated_at = ? WHERE id = ?"
+    ).bind(nowISO(), id).run();
+
+    await c.env.DB.prepare(
+      "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'approve_participant', 'participant', ?, ?, ?)"
+    ).bind(generateId(), user.sub, id, JSON.stringify({ previous_status: participant.kyc_status }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id) VALUES (?, ?, 'KYC Approved', 'Your KYC verification has been approved. You can now trade on the platform.', 'success', 'participant', ?)"
+      ).bind(generateId(), id, id).run();
+    } catch { /* notification best-effort */ }
+
+    return c.json({ success: true, message: 'Participant approved' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /participants/:id/reject — Admin reject participant KYC
+participants.post('/:id/reject', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { reason?: string };
+
+    const participant = await c.env.DB.prepare('SELECT id, kyc_status FROM participants WHERE id = ?').bind(id).first<{ id: string; kyc_status: string }>();
+    if (!participant) return c.json({ success: false, error: 'Participant not found' }, 404);
+
+    await c.env.DB.prepare(
+      "UPDATE participants SET kyc_status = 'rejected', trading_enabled = 0, updated_at = ? WHERE id = ?"
+    ).bind(nowISO(), id).run();
+
+    await c.env.DB.prepare(
+      "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'reject_participant', 'participant', ?, ?, ?)"
+    ).bind(generateId(), user.sub, id, JSON.stringify({ reason: body.reason || 'Not specified', previous_status: participant.kyc_status }), c.req.header('CF-Connecting-IP') || 'unknown').run();
+
+    try {
+      await c.env.DB.prepare(
+        "INSERT INTO notifications (id, participant_id, title, body, type, entity_type, entity_id) VALUES (?, ?, 'KYC Rejected', ?, 'danger', 'participant', ?)"
+      ).bind(generateId(), id, `Your KYC verification has been rejected: ${body.reason || 'Not specified'}`, id).run();
+    } catch { /* notification best-effort */ }
+
+    return c.json({ success: true, message: 'Participant rejected' });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default participants;
