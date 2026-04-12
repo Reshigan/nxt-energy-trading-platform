@@ -32,7 +32,8 @@ tickets.post('/', authMiddleware(), async (c) => {
     `).bind(id, user.sub, category, body.subject, body.description, priority, now, now).run();
 
     return c.json({ success: true, data: { id, status: 'open' } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to create ticket' }, 500);
   }
 });
@@ -70,7 +71,8 @@ tickets.get('/', authMiddleware(), async (c) => {
 
     const results = await c.env.DB.prepare(query).bind(...binds).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list tickets' }, 500);
   }
 });
@@ -94,7 +96,8 @@ tickets.get('/stats', authMiddleware({ roles: ['admin'], adminLevel: 'support' }
         total: total?.count ?? 0,
       },
     });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch ticket stats' }, 500);
   }
 });
@@ -129,7 +132,8 @@ tickets.get('/:id', authMiddleware(), async (c) => {
     const messages = await c.env.DB.prepare(messagesQuery).bind(id).all();
 
     return c.json({ success: true, data: { ...ticket, messages: messages.results } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch ticket' }, 500);
   }
 });
@@ -174,7 +178,8 @@ tickets.post('/:id/messages', authMiddleware(), async (c) => {
     ).bind(id).run();
 
     return c.json({ success: true, data: { id: msgId } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to add message' }, 500);
   }
 });
@@ -230,7 +235,8 @@ tickets.patch('/:id', authMiddleware({ roles: ['admin'], adminLevel: 'support' }
     ).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update ticket' }, 500);
   }
 });

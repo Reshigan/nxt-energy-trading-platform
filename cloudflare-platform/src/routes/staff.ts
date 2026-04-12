@@ -54,7 +54,8 @@ staff.post('/', authMiddleware({ roles: ['admin'], adminLevel: 'superadmin' }), 
     ).run();
 
     return c.json({ success: true, data: { id, email: body.email, admin_level: body.admin_level } }, 201);
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to create staff account' }, 500);
   }
 });
@@ -66,7 +67,8 @@ staff.get('/', authMiddleware({ roles: ['admin'], adminLevel: 'admin' }), async 
       "SELECT id, email, company_name, admin_level, kyc_status, created_at, updated_at FROM participants WHERE admin_level IS NOT NULL ORDER BY created_at DESC"
     ).all();
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to list staff' }, 500);
   }
 });
@@ -109,7 +111,8 @@ staff.patch('/:id', authMiddleware({ roles: ['admin'], adminLevel: 'superadmin' 
     ).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to update staff level' }, 500);
   }
 });
@@ -146,7 +149,8 @@ staff.delete('/:id/revoke', authMiddleware({ roles: ['admin'], adminLevel: 'supe
     ).run();
 
     return c.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to revoke staff access' }, 500);
   }
 });
@@ -168,7 +172,8 @@ staff.get('/activity', authMiddleware({ roles: ['admin'], adminLevel: 'admin' })
     `).bind(limit, offset).all();
 
     return c.json({ success: true, data: results.results });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch staff activity' }, 500);
   }
 });

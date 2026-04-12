@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { HonoEnv } from '../utils/types';
+import { HonoEnv, Role, KycStatus, AdminLevel } from '../utils/types';
 import { generateId, nowISO } from '../utils/id';
 import { hashPassword, verifyPassword } from '../utils/hash';
 import { RegisterSchema, LoginSchema } from '../utils/validation';
@@ -177,9 +177,9 @@ register.post('/verify-otp', async (c) => {
     const token = await signJwt({
       sub: participant.id,
       email: participant.email,
-      role: participant.role as any,
+      role: participant.role as Role,
       company_name: participant.company_name,
-      kyc_status: participant.kyc_status as any,
+      kyc_status: participant.kyc_status as KycStatus,
     }, jwtSecret);
     const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -356,7 +356,7 @@ register.post('/:id/validate', authMiddleware({ roles: ['admin'] }), async (c) =
     WHERE entity_type = 'participant' AND entity_id = ? AND status IN ('pending', 'fail')
   `).bind(id).run();
 
-  await runAutoValidations(id, participant as any, c.env.DB);
+  await runAutoValidations(id, participant as Record<string, unknown>, c.env.DB);
 
   return c.json({ success: true, message: 'Re-validation triggered' });
   } catch (err) {
@@ -648,10 +648,10 @@ register.post('/auth/login', async (c) => {
   const token = await signJwt({
     sub: participant.id,
     email: participant.email,
-    role: participant.role as any,
+    role: participant.role as Role,
     company_name: participant.company_name,
-    kyc_status: participant.kyc_status as any,
-    ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
+    kyc_status: participant.kyc_status as KycStatus,
+    ...(participant.admin_level ? { admin_level: participant.admin_level as AdminLevel } : {}),
   }, jwtSecret);
   const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -726,10 +726,10 @@ register.post('/auth/login/2fa', async (c) => {
     const token = await signJwt({
       sub: participant.id,
       email: participant.email,
-      role: participant.role as any,
+      role: participant.role as Role,
       company_name: participant.company_name,
-      kyc_status: participant.kyc_status as any,
-      ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
+      kyc_status: participant.kyc_status as KycStatus,
+      ...(participant.admin_level ? { admin_level: participant.admin_level as AdminLevel } : {}),
     }, jwtSecret);
     const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -1079,7 +1079,8 @@ register.post('/admin/users/:id/reset-password', authMiddleware({ roles: ['admin
     ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Password reset successful' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset password' }, 500);
   }
 });
@@ -1107,7 +1108,8 @@ register.post('/admin/users/:id/unlock', authMiddleware({ roles: ['admin'], admi
     ).bind(generateId(), user.sub, id, JSON.stringify({ target_email: target.email }), c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Account unlocked' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to unlock account' }, 500);
   }
 });
@@ -1137,7 +1139,8 @@ register.post('/admin/users/:id/resend-verification', authMiddleware({ roles: ['
     }
 
     return c.json({ success: true, message: 'Verification email sent' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to send verification' }, 500);
   }
 });
@@ -1157,7 +1160,8 @@ register.post('/admin/users/:id/verify-email', authMiddleware({ roles: ['admin']
     ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: 'Email verified' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to verify email' }, 500);
   }
 });
@@ -1183,7 +1187,8 @@ register.post('/admin/users/:id/reset-2fa', authMiddleware({ roles: ['admin'], a
     ).bind(generateId(), user.sub, id, c.req.header('CF-Connecting-IP') || 'unknown').run();
 
     return c.json({ success: true, message: '2FA reset successful' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to reset 2FA' }, 500);
   }
 });
@@ -1218,7 +1223,8 @@ register.post('/auth/send-verification', async (c) => {
 
     // Always return success to avoid email enumeration
     return c.json({ success: true, message: 'If the email is registered, a verification code has been sent.' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -1240,7 +1246,8 @@ register.post('/auth/verify-email', async (c) => {
     ).bind(body.email).run();
 
     return c.json({ success: true, message: 'Email verified successfully' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }
 });
@@ -1269,7 +1276,8 @@ register.get('/me/onboarding-status', authMiddleware({ requireKyc: false }), asy
     const total = Object.keys(steps).length;
 
     return c.json({ success: true, data: { steps, completed, total, complete: completed === total } });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to fetch onboarding status' }, 500);
   }
 });
@@ -1281,7 +1289,8 @@ register.post('/me/complete-onboarding', authMiddleware({ requireKyc: false }), 
     // Set a KV flag indicating onboarding is complete
     await c.env.KV.put(`onboarding:${user.sub}`, 'complete');
     return c.json({ success: true, message: 'Onboarding marked as complete' });
-  } catch {
+  } catch (err) {
+    console.error(err);
     return c.json({ success: false, error: 'Failed to complete onboarding' }, 500);
   }
 });

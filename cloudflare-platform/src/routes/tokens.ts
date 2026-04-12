@@ -9,7 +9,8 @@ const tokens = new Hono<HonoEnv>();
 tokens.use('*', authMiddleware());
 
 // POST /tokens/mint — Tokenize a carbon credit or REC
-tokens.post('/mint', async (c) => {
+tokens.post('/mint', authMiddleware(), async (c) => {
+  try {
   const user = c.get('user');
   const body = await c.req.json() as { source_type: 'carbon_credit' | 'rec'; source_id: string };
 
@@ -59,86 +60,110 @@ tokens.post('/mint', async (c) => {
   }));
 
   return c.json({ success: true, data: { id, token_id: tokenId, token_hash: tokenHash, quantity, unit } }, 201);
+  } catch (err) {
+    console.error('Token mint error:', err);
+    return c.json({ success: false, error: 'Failed to mint token' }, 500);
+  }
 });
 
 // GET /tokens/:tokenId/verify — Public verification
 tokens.get('/:tokenId/verify', async (c) => {
-  const { tokenId } = c.req.param();
-  const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE token_id = ?').bind(tokenId).first();
-  if (!token) return c.json({ success: false, error: 'Token not found', valid: false }, 404);
+  try {
+    const { tokenId } = c.req.param();
+    const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE token_id = ?').bind(tokenId).first();
+    if (!token) return c.json({ success: false, error: 'Token not found', valid: false }, 404);
 
-  const provenance = JSON.parse(token.provenance_chain as string);
+    const provenance = JSON.parse(token.provenance_chain as string);
 
-  return c.json({
-    success: true, valid: true,
-    data: {
-      token_id: token.token_id,
-      asset_type: token.asset_type,
-      quantity: token.quantity,
-      unit: token.unit,
-      status: token.status,
-      owner_id: token.owner_id,
-      minted_at: token.minted_at,
-      metadata: JSON.parse(token.metadata as string),
-      provenance,
-      hash_on_record: token.token_hash,
-    },
-  });
+    return c.json({
+      success: true, valid: true,
+      data: {
+        token_id: token.token_id,
+        asset_type: token.asset_type,
+        quantity: token.quantity,
+        unit: token.unit,
+        status: token.status,
+        owner_id: token.owner_id,
+        minted_at: token.minted_at,
+        metadata: JSON.parse(token.metadata as string),
+        provenance,
+        hash_on_record: token.token_hash,
+      },
+    });
+  } catch (err) {
+    console.error('Token verify error:', err);
+    return c.json({ success: false, error: 'Failed to verify token' }, 500);
+  }
 });
 
 // POST /tokens/:id/transfer — Transfer token
-tokens.post('/:id/transfer', async (c) => {
-  const user = c.get('user');
-  const { id } = c.req.param();
-  const body = await c.req.json() as { to_participant_id: string; notes?: string };
+tokens.post('/:id/transfer', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const { id } = c.req.param();
+    const body = await c.req.json() as { to_participant_id: string; notes?: string };
 
-  const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE id = ? AND owner_id = ?').bind(id, user.sub).first();
-  if (!token) return c.json({ success: false, error: 'Token not found' }, 404);
-  if (token.status !== 'active') return c.json({ success: false, error: 'Only active tokens can be transferred' }, 400);
+    const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE id = ? AND owner_id = ?').bind(id, user.sub).first();
+    if (!token) return c.json({ success: false, error: 'Token not found' }, 404);
+    if (token.status !== 'active') return c.json({ success: false, error: 'Only active tokens can be transferred' }, 400);
 
-  const recipient = await c.env.DB.prepare('SELECT id FROM participants WHERE id = ?').bind(body.to_participant_id).first();
-  if (!recipient) return c.json({ success: false, error: 'Recipient not found' }, 404);
+    const recipient = await c.env.DB.prepare('SELECT id FROM participants WHERE id = ?').bind(body.to_participant_id).first();
+    if (!recipient) return c.json({ success: false, error: 'Recipient not found' }, 404);
 
-  const now = nowISO();
-  const provenance = JSON.parse(token.provenance_chain as string);
-  const encoder = new TextEncoder();
-  const transferHash = await sha256(encoder.encode(`${token.token_id}|transfer|${user.sub}|${body.to_participant_id}|${now}`).buffer as ArrayBuffer);
-  provenance.push({ action: 'transferred', from: user.sub, to: body.to_participant_id, at: now, hash: transferHash, notes: body.notes });
+    const now = nowISO();
+    const provenance = JSON.parse(token.provenance_chain as string);
+    const encoder = new TextEncoder();
+    const transferHash = await sha256(encoder.encode(`${token.token_id}|transfer|${user.sub}|${body.to_participant_id}|${now}`).buffer as ArrayBuffer);
+    provenance.push({ action: 'transferred', from: user.sub, to: body.to_participant_id, at: now, hash: transferHash, notes: body.notes });
 
-  await c.env.DB.prepare(
-    'UPDATE tokenised_assets SET owner_id = ?, provenance_chain = ?, transferred_at = ? WHERE id = ?'
-  ).bind(body.to_participant_id, JSON.stringify(provenance), now, id).run();
+    await c.env.DB.prepare(
+      'UPDATE tokenised_assets SET owner_id = ?, provenance_chain = ?, transferred_at = ? WHERE id = ?'
+    ).bind(body.to_participant_id, JSON.stringify(provenance), now, id).run();
 
-  return c.json({ success: true, message: 'Token transferred' });
+    return c.json({ success: true, message: 'Token transferred' });
+  } catch (err) {
+    console.error('Token transfer error:', err);
+    return c.json({ success: false, error: 'Failed to transfer token' }, 500);
+  }
 });
 
 // POST /tokens/:id/retire — Permanently retire/burn token
-tokens.post('/:id/retire', async (c) => {
-  const user = c.get('user');
-  const { id } = c.req.param();
+tokens.post('/:id/retire', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const { id } = c.req.param();
 
-  const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE id = ? AND owner_id = ?').bind(id, user.sub).first();
-  if (!token) return c.json({ success: false, error: 'Token not found' }, 404);
-  if (token.status !== 'active') return c.json({ success: false, error: 'Only active tokens can be retired' }, 400);
+    const token = await c.env.DB.prepare('SELECT * FROM tokenised_assets WHERE id = ? AND owner_id = ?').bind(id, user.sub).first();
+    if (!token) return c.json({ success: false, error: 'Token not found' }, 404);
+    if (token.status !== 'active') return c.json({ success: false, error: 'Only active tokens can be retired' }, 400);
 
-  const now = nowISO();
-  const provenance = JSON.parse(token.provenance_chain as string);
-  provenance.push({ action: 'retired', by: user.sub, at: now });
+    const now = nowISO();
+    const provenance = JSON.parse(token.provenance_chain as string);
+    provenance.push({ action: 'retired', by: user.sub, at: now });
 
-  await c.env.DB.prepare(
-    "UPDATE tokenised_assets SET status = 'burned', provenance_chain = ?, retired_at = ? WHERE id = ?"
-  ).bind(JSON.stringify(provenance), now, id).run();
+    await c.env.DB.prepare(
+      "UPDATE tokenised_assets SET status = 'burned', provenance_chain = ?, retired_at = ? WHERE id = ?"
+    ).bind(JSON.stringify(provenance), now, id).run();
 
-  return c.json({ success: true, message: 'Token permanently retired' });
+    return c.json({ success: true, message: 'Token permanently retired' });
+  } catch (err) {
+    console.error('Token retire error:', err);
+    return c.json({ success: false, error: 'Failed to retire token' }, 500);
+  }
 });
 
 // GET /tokens — List my tokens
-tokens.get('/', async (c) => {
-  const user = c.get('user');
-  const results = await c.env.DB.prepare(
-    'SELECT * FROM tokenised_assets WHERE owner_id = ? ORDER BY minted_at DESC'
-  ).bind(user.sub).all();
-  return c.json({ success: true, data: results.results });
+tokens.get('/', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM tokenised_assets WHERE owner_id = ? ORDER BY minted_at DESC'
+    ).bind(user.sub).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    console.error('Token list error:', err);
+    return c.json({ success: false, error: 'Failed to list tokens' }, 500);
+  }
 });
 
 export default tokens;
