@@ -471,6 +471,36 @@ trading.post('/admin/markets/:market/halt', authMiddleware({ roles: ['admin'] })
   }
 });
 
+// GET /trading/market-sessions — List market sessions and their schedules
+trading.get('/market-sessions', authMiddleware(), async (c) => {
+  try {
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM market_sessions ORDER BY market ASC'
+    ).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /trading/market-sessions — Create or update a market session
+trading.post('/market-sessions', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const body = await c.req.json<{ market: string; session_type?: string; open_time: string; close_time: string; days: string }>();
+    const id = generateId();
+    await c.env.DB.prepare(
+      `INSERT INTO market_sessions (id, market, session_type, open_time, close_time, days)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET open_time = excluded.open_time, close_time = excluded.close_time, days = excluded.days`
+    ).bind(id, body.market, body.session_type || 'continuous', body.open_time, body.close_time, body.days).run();
+    return c.json({ success: true, data: { id, market: body.market } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 // Helper: Update market index in KV
 async function updateMarketIndex(kv: KVNamespace, market: string, price: number, volume: number): Promise<void> {
   const key = `index:${market}`;

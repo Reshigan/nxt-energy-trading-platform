@@ -646,4 +646,41 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
   }
 });
 
+// GET /odse/daily-aggregations — Pre-aggregated daily energy data
+odse.get('/daily-aggregations', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const asset_id = c.req.query('asset_id');
+    const direction = c.req.query('direction');
+    const days = parseInt(c.req.query('days') || '30', 10);
+
+    let query = `SELECT da.* FROM odse_daily_aggregations da
+      JOIN odse_assets oa ON da.asset_id = oa.asset_id`;
+    const params: (string | number)[] = [];
+
+    if (user.role !== 'admin') {
+      query += ' WHERE oa.participant_id = ?';
+      params.push(user.sub);
+    } else {
+      query += ' WHERE 1=1';
+    }
+
+    if (asset_id) {
+      query += ' AND da.asset_id = ?';
+      params.push(asset_id);
+    }
+    if (direction) {
+      query += ' AND da.direction = ?';
+      params.push(direction);
+    }
+    query += ` AND da.date >= date('now', '-${days} days') ORDER BY da.date DESC`;
+
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default odse;
