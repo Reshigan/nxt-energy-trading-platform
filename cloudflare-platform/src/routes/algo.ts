@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
+import { log } from '../utils/logger';
 
 const algo = new Hono<HonoEnv>();
 
@@ -51,7 +52,7 @@ export async function processTradingRules(env: any, market: string, currentPrice
     if (trigger) {
       // In a real system, this would call the OrderBookDO and place the order
       // For simulation, we log the auto-trade
-      console.log(`[ALGO-TRADE] Triggered rule ${rule.id} for ${rule.participant_id}: ${rule.action} ${rule.volume} MWh at ${currentPrice}`);
+      log('info', 'algo_trade_triggered', { rule_id: rule.id, participant_id: rule.participant_id, action: rule.action, volume: rule.volume, price: currentPrice });
       
       // Mark rule as executed or update it
       await env.DB.prepare('UPDATE trading_rules SET status = \'executed\', executed_at = ? WHERE id = ?')
