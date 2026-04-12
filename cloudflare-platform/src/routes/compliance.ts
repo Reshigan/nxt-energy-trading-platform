@@ -371,4 +371,17 @@ compliance.get('/reports', authMiddleware({ roles: ['admin'] }), async (c) => {
   }
 });
 
+// GET /compliance/regulatory-verifications — List regulatory verification records
+compliance.get('/regulatory-verifications', authMiddleware({ roles: ['admin', 'regulator'] }), async (c) => {
+  try {
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM regulatory_verifications ORDER BY created_at DESC LIMIT 100'
+    ).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
 export default compliance;
