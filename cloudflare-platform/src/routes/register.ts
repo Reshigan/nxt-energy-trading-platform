@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { HonoEnv } from '../utils/types';
+import { HonoEnv, Role, KycStatus, AdminLevel } from '../utils/types';
 import { generateId, nowISO } from '../utils/id';
 import { hashPassword, verifyPassword } from '../utils/hash';
 import { RegisterSchema, LoginSchema } from '../utils/validation';
@@ -177,9 +177,9 @@ register.post('/verify-otp', async (c) => {
     const token = await signJwt({
       sub: participant.id,
       email: participant.email,
-      role: participant.role as any,
+      role: participant.role as Role,
       company_name: participant.company_name,
-      kyc_status: participant.kyc_status as any,
+      kyc_status: participant.kyc_status as KycStatus,
     }, jwtSecret);
     const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -356,7 +356,7 @@ register.post('/:id/validate', authMiddleware({ roles: ['admin'] }), async (c) =
     WHERE entity_type = 'participant' AND entity_id = ? AND status IN ('pending', 'fail')
   `).bind(id).run();
 
-  await runAutoValidations(id, participant as any, c.env.DB);
+  await runAutoValidations(id, participant as Record<string, unknown>, c.env.DB);
 
   return c.json({ success: true, message: 'Re-validation triggered' });
   } catch (err) {
@@ -648,10 +648,10 @@ register.post('/auth/login', async (c) => {
   const token = await signJwt({
     sub: participant.id,
     email: participant.email,
-    role: participant.role as any,
+    role: participant.role as Role,
     company_name: participant.company_name,
-    kyc_status: participant.kyc_status as any,
-    ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
+    kyc_status: participant.kyc_status as KycStatus,
+    ...(participant.admin_level ? { admin_level: participant.admin_level as AdminLevel } : {}),
   }, jwtSecret);
   const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 
@@ -726,10 +726,10 @@ register.post('/auth/login/2fa', async (c) => {
     const token = await signJwt({
       sub: participant.id,
       email: participant.email,
-      role: participant.role as any,
+      role: participant.role as Role,
       company_name: participant.company_name,
-      kyc_status: participant.kyc_status as any,
-      ...(participant.admin_level ? { admin_level: participant.admin_level as any } : {}),
+      kyc_status: participant.kyc_status as KycStatus,
+      ...(participant.admin_level ? { admin_level: participant.admin_level as AdminLevel } : {}),
     }, jwtSecret);
     const refreshToken = await signRefreshToken(participant.id, jwtSecret);
 

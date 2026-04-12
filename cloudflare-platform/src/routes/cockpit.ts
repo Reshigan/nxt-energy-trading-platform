@@ -90,35 +90,40 @@ const cockpit = new Hono<HonoEnv>();
 cockpit.use('*', authMiddleware({ requireKyc: false }));
 
 cockpit.get('/', async (c) => {
-  const user = c.get('user');
-  const role = user.role;
-  const pid = user.sub;
-  const db = c.env.DB as unknown as DB;
+  try {
+    const user = c.get('user');
+    const role = user.role;
+    const pid = user.sub;
+    const db = c.env.DB as unknown as DB;
 
-  const builders: Record<string, (pid: string, db: DB) => Promise<CockpitData>> = {
-    admin: buildAdminCockpit,
-    generator: buildIPPCockpit,
-    ipp: buildIPPCockpit,
-    ipp_developer: buildIPPCockpit,
-    trader: buildTraderCockpit,
-    carbon_fund: buildCarbonFundCockpit,
-    offtaker: buildOfftakerCockpit,
-    lender: buildLenderCockpit,
-    grid: buildGridCockpit,
-    regulator: buildRegulatorCockpit,
-  };
+    const builders: Record<string, (pid: string, db: DB) => Promise<CockpitData>> = {
+      admin: buildAdminCockpit,
+      generator: buildIPPCockpit,
+      ipp: buildIPPCockpit,
+      ipp_developer: buildIPPCockpit,
+      trader: buildTraderCockpit,
+      carbon_fund: buildCarbonFundCockpit,
+      offtaker: buildOfftakerCockpit,
+      lender: buildLenderCockpit,
+      grid: buildGridCockpit,
+      regulator: buildRegulatorCockpit,
+    };
 
-  const builder = builders[role] || builders.trader;
-  const cockpitData = await builder(pid, db);
+    const builder = builders[role] || builders.trader;
+    const cockpitData = await builder(pid, db);
 
-  return c.json({
-    success: true,
-    data: {
-      role,
-      participant: { id: pid, name: user.company_name || '' },
-      ...cockpitData,
-    },
-  });
+    return c.json({
+      success: true,
+      data: {
+        role,
+        participant: { id: pid, name: user.company_name || '' },
+        ...cockpitData,
+      },
+    });
+  } catch (err) {
+    console.error('Cockpit error:', err);
+    return c.json({ success: false, error: 'Failed to load cockpit data' }, 500);
+  }
 });
 
 // ══════════════════════════════════════════════════════════════
