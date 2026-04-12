@@ -586,7 +586,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'notify',
       execute: async (env, event) => {
         const { participant_id, company_name } = event.data;
-        await notifyParticipant(env.DB, participant_id as string, 'Welcome to NXT Energy', `Registration successful for ${company_name}. Your KYC verification is in progress.`, 'info', 'participant', event.entity_id);
+        await notifyParticipant(env.DB, participant_id as string, 'Welcome to Ionvex', `Registration successful for ${company_name}. Your KYC verification is in progress.`, 'info', 'participant', event.entity_id);
       },
     },
     {
@@ -611,7 +611,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       execute: async (env, event) => {
         const email = await getParticipantEmail(env.DB, event.data.participant_id as string);
         if (email) {
-          await sendEmail(env, { to: email, subject: 'Welcome to NXT Energy — KYC Approved', html: '<p>Your identity verification is complete. You can now place orders and trade on the platform.</p>' });
+          await sendEmail(env, { to: email, subject: 'Welcome to Ionvex — KYC Approved', html: '<p>Your identity verification is complete. You can now place orders and trade on the platform.</p>' });
         }
       },
     },
