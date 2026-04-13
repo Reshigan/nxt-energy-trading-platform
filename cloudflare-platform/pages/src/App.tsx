@@ -93,6 +93,13 @@ const VPPDashboard = lazy(() => import('./pages/VPPDashboard'));
 const ScenarioComparison = lazy(() => import('./pages/ScenarioComparison'));
 const SurveillanceDashboard = lazy(() => import('./pages/SurveillanceDashboard'));
 const SchedulingPage = lazy(() => import('./pages/Scheduling'));
+// Spec 13+14: Platform Evolution + Role-Complete
+const PipelinePage = lazy(() => import('./pages/Pipeline'));
+const CalendarPage = lazy(() => import('./pages/Calendar'));
+const NetworkMapPage = lazy(() => import('./pages/NetworkMap'));
+const GridDashboard = lazy(() => import('./pages/GridDashboard'));
+const FundDashboard = lazy(() => import('./pages/FundDashboard'));
+const ProcurementHub = lazy(() => import('./pages/ProcurementHub'));
 
 function App() {
   return (
@@ -174,6 +181,13 @@ function App() {
         <Route path="/scenarios" element={<ProtectedRoute><ScenarioComparison /></ProtectedRoute>} />
         <Route path="/surveillance-enhanced" element={<ProtectedRoute><SurveillanceDashboard /></ProtectedRoute>} />
         <Route path="/scheduling" element={<ProtectedRoute><SchedulingPage /></ProtectedRoute>} />
+        {/* Spec 13+14: Platform Evolution + Role-Complete routes */}
+        <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+        <Route path="/network" element={<ProtectedRoute><NetworkMapPage /></ProtectedRoute>} />
+        <Route path="/grid-dashboard" element={<ProtectedRoute><GridDashboard /></ProtectedRoute>} />
+        <Route path="/fund-dashboard" element={<ProtectedRoute><FundDashboard /></ProtectedRoute>} />
+        <Route path="/procurement" element={<ProtectedRoute><ProcurementHub /></ProtectedRoute>} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>

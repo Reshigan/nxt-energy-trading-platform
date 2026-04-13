@@ -53,6 +53,11 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
       { name: 'ESG Scoring', href: '/esg', icon: IconESG },
     ]},
+    { label: 'Platform Evolution', items: [
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
+    ]},
     { label: 'Staff', items: [
       { name: 'Staff Management', href: '/staff', icon: IconAdmin },
       { name: 'Support Dashboard', href: '/support-dashboard', icon: IconHelp },
@@ -77,6 +82,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Energy', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
@@ -92,6 +98,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
       { name: 'ESG', href: '/esg', icon: IconESG },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
     ]},
   ],
   ipp_developer: [
@@ -135,6 +142,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
   carbon_fund: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Fund Dashboard', href: '/fund-dashboard', icon: IconPortfolio },
       { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
     ]},
     { label: 'Carbon', items: [
@@ -148,13 +156,16 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Finance', items: [
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
       { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
   offtaker: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Procurement Hub', href: '/procurement', icon: IconMarketplace },
       { name: 'Demand', href: '/demand', icon: IconDemand },
     ]},
     { label: 'Supply', items: [
@@ -164,11 +175,13 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
       { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Finance', items: [
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
       { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
       { name: 'ESG', href: '/esg', icon: IconESG },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
@@ -176,14 +189,17 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'Lender', href: '/lender', icon: IconLender },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Portfolio', items: [
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
     ]},
     { label: 'Finance', items: [
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
@@ -207,6 +223,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
   grid: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Grid Dashboard', href: '/grid-dashboard', icon: IconMetering },
       { name: 'Metering', href: '/metering', icon: IconMetering },
     ]},
     { label: 'Grid Operations', items: [
@@ -215,9 +232,11 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'VPP', href: '/vpp', icon: IconVPP },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
     ]},
     { label: 'Reports', items: [
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Reports', href: '/reports', icon: IconReports },
     ]},
   ],
