@@ -147,9 +147,9 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
     // Verify the requesting user owns this RFP (admins can act on any RFP)
     const isAdmin = user.role === 'admin';
     const rfpOwner = isAdmin
-      ? await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ?").bind(rfpId).first()
-      : await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND offtaker_id = ?").bind(rfpId, user.sub).first();
-    if (!rfpOwner) return c.json({ success: false, error: 'RFP not found or not owned by you' }, 403);
+      ? await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND status = 'published'").bind(rfpId).first()
+      : await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND offtaker_id = ? AND status = 'published'").bind(rfpId, user.sub).first();
+    if (!rfpOwner) return c.json({ success: false, error: 'RFP not found, not owned by you, or not in published status' }, 403);
     // Validate bid exists before mutating state
     const bidExists = await c.env.DB.prepare('SELECT id FROM procurement_bids WHERE id = ? AND rfp_id = ?').bind(bidId, rfpId).first();
     if (!bidExists) return c.json({ success: false, error: 'Bid not found for this RFP' }, 404);
