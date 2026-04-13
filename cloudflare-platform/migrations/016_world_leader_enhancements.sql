@@ -228,4 +228,4 @@ INSERT OR IGNORE INTO exchange_rates (id, base_currency, target_currency, rate, 
 VALUES
   ('fx-zar-usd', 'ZAR', 'USD', 0.054, 'manual', '2026-04-01'),
   ('fx-zar-eur', 'ZAR', 'EUR', 0.049, 'manual', '2026-04-01'),
-  ('fx-zar-gbp', 'ZAR', 'EUR', 0.042, 'manual', '2026-04-01');
+  ('fx-zar-gbp', 'ZAR', 'GBP', 0.042, 'manual', '2026-04-01');
