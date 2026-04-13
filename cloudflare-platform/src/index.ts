@@ -55,6 +55,22 @@ import paymentsRoute from './routes/payments';
 import amlRoute from './routes/aml';
 import entityRoute from './routes/entity';
 import notificationsWsRoute from './routes/notifications-ws';
+import touRoute from './routes/tou';
+import curvesRoute from './routes/curves';
+import schedulingRoute from './routes/scheduling';
+import currencyRoute from './routes/currency';
+import valuationRoute from './routes/valuation';
+import regulatoryRoute from './routes/regulatory';
+import retentionRoute from './routes/retention';
+import esgRoute from './routes/esg';
+import vintageRoute from './routes/vintage';
+import dealroomRoute from './routes/dealroom';
+import vppRoute from './routes/vpp';
+import negotiateRoute from './routes/negotiate';
+import whatsappRoute from './routes/whatsapp';
+import searchRoute from './routes/search';
+import alertsRoute from './routes/alerts';
+import surveillanceEnhancedRoute from './routes/surveillance-enhanced';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -301,6 +317,24 @@ api.route('/surveillance-tools', surveillanceTools);
 api.route('/lifecycle', lifecycle);
 api.route('/entity', entityRoute);
 api.route('/notifications-ws', notificationsWsRoute);
+
+// Spec 12: World-Leader Enhancements
+api.route('/tou', touRoute);
+api.route('/curves', curvesRoute);
+api.route('/scheduling', schedulingRoute);
+api.route('/currency', currencyRoute);
+api.route('/valuation', valuationRoute);
+api.route('/regulatory', regulatoryRoute);
+api.route('/retention', retentionRoute);
+api.route('/esg', esgRoute);
+api.route('/vintage', vintageRoute);
+api.route('/dealroom', dealroomRoute);
+api.route('/vpp', vppRoute);
+api.route('/negotiate', negotiateRoute);
+api.route('/whatsapp', whatsappRoute);
+api.route('/search', searchRoute);
+api.route('/alerts', alertsRoute);
+api.route('/surveillance/enhanced', surveillanceEnhancedRoute);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {

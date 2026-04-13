@@ -494,4 +494,138 @@ export const notificationsWsAPI = {
   dismissAction: (id: string) => api.post(`/notifications-ws/action-queue/${id}/dismiss`),
 };
 
+// Spec 12: World-Leader Enhancements APIs
+
+// TOU Pricing
+export const touAPI = {
+  getProfiles: () => api.get('/tou/profiles'),
+  createProfile: (data: Record<string, unknown>) => api.post('/tou/profiles', data),
+  getCurrentPeriod: () => api.get('/tou/current-period'),
+  splitTrade: (tradeId: string) => api.post(`/tou/split-trade/${tradeId}`),
+  costComparison: (params: Record<string, string>) => api.get('/tou/cost-comparison', { params }),
+};
+
+// Forward Price Curves
+export const curvesAPI = {
+  getCurve: (market: string) => api.get(`/curves/${market}`),
+  getTenor: (market: string, tenor: number) => api.get(`/curves/${market}/${tenor}`),
+  buildCurve: (market: string) => api.post(`/curves/build/${market}`),
+  getHistory: (market: string, params?: Record<string, string>) => api.get(`/curves/history/${market}`, { params }),
+};
+
+// Scheduling & Nominations
+export const schedulingAPI = {
+  nominate: (data: Record<string, unknown>) => api.post('/scheduling/nominate', data),
+  getNominations: (params?: Record<string, string>) => api.get('/scheduling/nominations', { params }),
+  confirm: (id: string) => api.post(`/scheduling/${id}/confirm`),
+  gridConfirm: (id: string) => api.post(`/scheduling/${id}/grid-confirm`),
+  getCalendar: (params?: Record<string, string>) => api.get('/scheduling/calendar', { params }),
+  submitActual: (id: string, data: Record<string, unknown>) => api.post(`/scheduling/${id}/actual`, data),
+  getImbalance: () => api.get('/scheduling/imbalance'),
+  settleImbalance: () => api.post('/scheduling/imbalance/settle'),
+};
+
+// Multi-Currency
+export const currencyAPI = {
+  getRates: () => api.get('/currency/rates'),
+  updateRates: (data: Record<string, unknown>) => api.post('/currency/rates', data),
+  convert: (data: { amount: number; from: string; to: string }) => api.post('/currency/convert', data),
+};
+
+// PPA Valuation
+export const valuationAPI = {
+  calculatePPA: (data: Record<string, unknown>) => api.post('/valuation/ppa', data),
+  sensitivity: (data: Record<string, unknown>) => api.post('/valuation/sensitivity', data),
+  getHistory: () => api.get('/valuation/history'),
+};
+
+// Regulatory Export
+export const regulatoryAPI = {
+  getNERSA: (params?: Record<string, string>) => api.get('/regulatory/nersa', { params }),
+  getFSCA: () => api.get('/regulatory/fsca'),
+  exportData: (format: string, params?: Record<string, string>) => api.get(`/regulatory/export/${format}`, { params }),
+  scheduleReport: (data: Record<string, unknown>) => api.post('/regulatory/schedule', data),
+};
+
+// Data Retention
+export const retentionAPI = {
+  getPolicies: () => api.get('/retention/policies'),
+  archive: (table: string) => api.post(`/retention/archive/${table}`),
+  getLog: () => api.get('/retention/log'),
+  getStats: () => api.get('/retention/stats'),
+};
+
+// ESG Scoring
+export const esgAPI = {
+  calculate: (participantId: string) => api.post(`/esg/calculate/${participantId}`),
+  getScore: (participantId: string) => api.get(`/esg/score/${participantId}`),
+  getLeaderboard: (params?: Record<string, string>) => api.get('/esg/leaderboard', { params }),
+  getBadges: () => api.get('/esg/badges'),
+};
+
+// Carbon Vintage Analysis
+export const vintageAPI = {
+  getAnalysis: () => api.get('/vintage/analysis'),
+  getFairValue: (params: Record<string, string>) => api.get('/vintage/fair-value', { params }),
+};
+
+// Deal Room
+export const dealroomAPI = {
+  create: (data: { contract_id: string }) => api.post('/dealroom', data),
+  list: () => api.get('/dealroom'),
+  get: (id: string) => api.get(`/dealroom/${id}`),
+  sendMessage: (id: string, data: Record<string, unknown>) => api.post(`/dealroom/${id}/message`, data),
+  propose: (id: string, data: Record<string, unknown>) => api.post(`/dealroom/${id}/propose`, data),
+  close: (id: string) => api.post(`/dealroom/${id}/close`),
+};
+
+// VPP
+export const vppAPI = {
+  registerAsset: (data: Record<string, unknown>) => api.post('/vpp/assets', data),
+  getAssets: (params?: Record<string, string>) => api.get('/vpp/assets', { params }),
+  dispatch: (data: Record<string, unknown>) => api.post('/vpp/dispatch', data),
+  endDispatch: (id: string) => api.post(`/vpp/dispatch/${id}/end`),
+  getEvents: () => api.get('/vpp/events'),
+  getDashboard: () => api.get('/vpp/dashboard'),
+  heartbeat: (id: string, data: Record<string, unknown>) => api.post(`/vpp/assets/${id}/heartbeat`, data),
+};
+
+// AI Negotiation
+export const negotiateAPI = {
+  analyze: (data: Record<string, unknown>) => api.post('/negotiate/negotiate', data),
+  compare: (data: Record<string, unknown>) => api.post('/negotiate/negotiate/compare', data),
+};
+
+// WhatsApp
+export const whatsappAPI = {
+  link: (data: { phone_number: string }) => api.post('/whatsapp/link', data),
+  verify: (data: { otp: string }) => api.post('/whatsapp/verify', data),
+  getStatus: () => api.get('/whatsapp/status'),
+};
+
+// Search
+export const searchAPI = {
+  search: (q: string, params?: Record<string, string>) => api.get('/search', { params: { q, ...params } }),
+};
+
+// Alerts
+export const alertsAPI = {
+  subscribe: (data: Record<string, unknown>) => api.post('/alerts/subscribe', data),
+  unsubscribe: () => api.delete('/alerts/subscribe'),
+  createPriceAlert: (data: Record<string, unknown>) => api.post('/alerts/price', data),
+  getPriceAlerts: () => api.get('/alerts/price'),
+  deletePriceAlert: (id: string) => api.delete(`/alerts/price/${id}`),
+  checkAlerts: () => api.post('/alerts/check'),
+  getSubscriptions: () => api.get('/alerts/subscriptions'),
+};
+
+// Enhanced Surveillance
+export const surveillanceEnhancedAPI = {
+  scan: () => api.post('/surveillance/enhanced/scan'),
+  getAlerts: (params?: Record<string, string>) => api.get('/surveillance/enhanced/alerts', { params }),
+  investigate: (id: string) => api.post(`/surveillance/enhanced/alerts/${id}/investigate`),
+  resolve: (id: string, data: Record<string, unknown>) => api.post(`/surveillance/enhanced/alerts/${id}/resolve`, data),
+  getStats: () => api.get('/surveillance/enhanced/stats'),
+};
+
 export default api;
