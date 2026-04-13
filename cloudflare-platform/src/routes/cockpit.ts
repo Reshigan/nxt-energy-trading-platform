@@ -105,7 +105,7 @@ async function fetchAlerts(pid: string, role: string, db: DB): Promise<Alert[]> 
     if (['admin', 'regulator'].includes(role)) {
       const aml = await db.prepare("SELECT id, alert_type, severity, description, created_at FROM aml_alerts WHERE status = 'open' ORDER BY created_at DESC LIMIT 5").all();
       for (const a of aml.results) {
-        alerts.push({ id: `alert-aml-${a.id}`, severity: a.severity === 'high' ? 'critical' : 'warning', title: `AML Alert: ${a.alert_type}`, message: String(a.description), created_at: String(a.created_at) });
+        alerts.push({ id: `alert-aml-${a.id}`, severity: (a.severity === 'high' || a.severity === 'critical') ? 'critical' : 'warning', title: `AML Alert: ${a.alert_type}`, message: String(a.description), created_at: String(a.created_at) });
       }
     }
     // Overdue invoices — admin sees all; offtaker/trader see only their own
