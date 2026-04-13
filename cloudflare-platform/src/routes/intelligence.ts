@@ -99,7 +99,7 @@ intelligence.post('/generate', async (c) => {
         const id = generateId();
         await c.env.DB.prepare(
           "INSERT INTO intelligence_items (id, participant_id, category, severity, title, description, recommended_action, action_url, source_module) VALUES (?, ?, 'action', 'warning', ?, ?, ?, ?, 'contracts')"
-        ).bind(id, pid, `CP deadline in ${daysLeft} days`, `${r.description} is due on ${r.target_date}`, 'Upload required document', `/contracts`, 'contracts').run();
+        ).bind(id, pid, `CP deadline in ${daysLeft} days`, `${r.description} is due on ${r.target_date}`, 'Upload required document', `/contracts`).run();
         generated.push(id);
       }
     } catch { /* */ }
@@ -116,7 +116,7 @@ intelligence.post('/generate', async (c) => {
         const id = generateId();
         await c.env.DB.prepare(
           "INSERT INTO intelligence_items (id, participant_id, category, severity, title, description, recommended_action, action_url, source_module) VALUES (?, ?, 'action', 'critical', ?, ?, ?, ?, 'settlement')"
-        ).bind(id, pid, `Invoice ${r.invoice_number || ''} overdue`, `R${((Number(r.total_cents) || 0) / 100).toFixed(0)} is ${daysOverdue} days overdue`, 'Process payment', `/invoices`, 'settlement').run();
+        ).bind(id, pid, `Invoice ${r.invoice_number || ''} overdue`, `R${((Number(r.total_cents) || 0) / 100).toFixed(0)} is ${daysOverdue} days overdue`, 'Process payment', `/invoices`).run();
         generated.push(id);
       }
     } catch { /* */ }
@@ -134,7 +134,7 @@ intelligence.post('/generate', async (c) => {
         const id = generateId();
         await c.env.DB.prepare(
           "INSERT INTO intelligence_items (id, participant_id, category, severity, title, description, recommended_action, action_url, source_module) VALUES (?, ?, 'action', 'warning', ?, ?, ?, ?, 'compliance')"
-        ).bind(id, pid, `Licence expires in ${daysLeft} days`, `Your ${r.licence_type} licence expires on ${r.expiry_date}`, 'Initiate renewal', `/compliance`, 'compliance').run();
+        ).bind(id, pid, `Licence expires in ${daysLeft} days`, `Your ${r.licence_type} licence expires on ${r.expiry_date}`, 'Initiate renewal', `/compliance`).run();
         generated.push(id);
       }
     } catch { /* */ }
