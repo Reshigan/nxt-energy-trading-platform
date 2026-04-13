@@ -628,4 +628,120 @@ export const surveillanceEnhancedAPI = {
   getStats: () => api.get('/surveillance/enhanced/stats'),
 };
 
+// Spec 13+14: Platform Evolution + Role-Complete APIs
+
+// Deal Pipeline
+export const pipelineAPI = {
+  getDeals: () => api.get('/pipeline'),
+  getStats: () => api.get('/pipeline/stats'),
+};
+
+// Entity Threads (Conversations)
+export const threadsAPI = {
+  getThreads: (entityType: string, entityId: string) => api.get(`/threads/${entityType}/${entityId}`),
+  addComment: (entityType: string, entityId: string, data: { message: string; message_type?: string }) => api.post(`/threads/${entityType}/${entityId}`, data),
+  reply: (id: string, data: { message: string }) => api.post(`/threads/${id}/reply`, data),
+  markRead: (id: string) => api.post(`/threads/${id}/read`),
+  getUnread: () => api.get('/threads/unread/count'),
+};
+
+// Calendar
+export const calendarAPI = {
+  getEvents: (params?: Record<string, string>) => api.get('/calendar', { params }),
+  getToday: () => api.get('/calendar/today'),
+  getWeek: () => api.get('/calendar/week'),
+  getOverdue: () => api.get('/calendar/overdue'),
+  createCustom: (data: { title: string; event_date: string; description?: string; event_type?: string }) => api.post('/calendar/custom', data),
+};
+
+// Intelligence Engine
+export const intelligenceAPI = {
+  getItems: (params?: Record<string, string>) => api.get('/intelligence', { params }),
+  getSummary: () => api.get('/intelligence/summary'),
+  acknowledge: (id: string) => api.post(`/intelligence/${id}/acknowledge`),
+  acknowledgeAll: () => api.post('/intelligence/acknowledge-all'),
+  generate: () => api.post('/intelligence/generate'),
+};
+
+// Network Graph
+export const networkAPI = {
+  getGraph: () => api.get('/network/graph'),
+};
+
+// Morning Briefing
+export const briefingAPI = {
+  get: () => api.get('/briefing'),
+};
+
+// First-Deal Concierge
+export const conciergeAPI = {
+  getStatus: () => api.get('/concierge/status'),
+  completeStep: (step: number) => api.post('/concierge/complete-step', { step }),
+  dismiss: () => api.post('/concierge/dismiss'),
+};
+
+// Grid Operator
+export const gridAPI = {
+  getConnections: (params?: Record<string, string>) => api.get('/grid/connections', { params }),
+  createConnection: (data: Record<string, unknown>) => api.post('/grid/connections', data),
+  updateConnectionStatus: (id: string, data: Record<string, unknown>) => api.patch(`/grid/connections/${id}/status`, data),
+  getWheelingSummary: () => api.get('/grid/wheeling/summary'),
+  getValidationQueue: () => api.get('/grid/metering/validation-queue'),
+  validateReading: (id: string, data: { valid: boolean; notes?: string }) => api.post(`/grid/metering/${id}/validate`, data),
+  batchValidate: (data: { ids: string[]; valid: boolean }) => api.post('/grid/metering/batch-validate', data),
+  getImbalance: (params?: Record<string, string>) => api.get('/grid/imbalance', { params }),
+  settleImbalance: (id: string) => api.post(`/grid/imbalance/${id}/settle`),
+  getCapacity: () => api.get('/grid/capacity'),
+};
+
+// Carbon Fund
+export const fundAPI = {
+  getPerformance: (params?: Record<string, string>) => api.get('/fund/performance', { params }),
+  getOptionsBook: () => api.get('/fund/options-book'),
+  getRegistryReconciliation: () => api.get('/fund/registry-reconciliation'),
+  syncRegistry: (name: string) => api.post(`/fund/registry/${name}/sync`),
+  getVintageLadder: () => api.get('/fund/vintage-ladder'),
+  generateReport: (type: string) => api.post(`/fund/report/${type}`),
+  getDrawdown: () => api.get('/fund/drawdown'),
+};
+
+// Procurement (Offtaker)
+export const procurementAPI = {
+  createRFP: (data: Record<string, unknown>) => api.post('/procurement/rfp', data),
+  listRFPs: () => api.get('/procurement/rfp'),
+  publishRFP: (id: string) => api.patch(`/procurement/rfp/${id}/publish`),
+  getBids: (rfpId: string) => api.get(`/procurement/rfp/${rfpId}/bids`),
+  submitBid: (rfpId: string, data: Record<string, unknown>) => api.post(`/procurement/rfp/${rfpId}/bids`, data),
+  selectBid: (rfpId: string, bidId: string) => api.post(`/procurement/rfp/${rfpId}/select/${bidId}`),
+  getConsumptionTracking: () => api.get('/procurement/consumption-tracking'),
+  getBudgetTracking: () => api.get('/procurement/budget-tracking'),
+  getSustainabilityMetrics: () => api.get('/procurement/sustainability-metrics'),
+  generateSustainabilityReport: () => api.post('/procurement/sustainability-report'),
+};
+
+// Document Intelligence (Spec 13 Shift 5)
+export const documentsAPI = {
+  extract: (document_id: string) => api.post('/documents/extract', { document_id }),
+  getTerms: (id: string) => api.get(`/documents/${id}/terms`),
+  compare: (doc_a_id: string, doc_b_id: string) => api.post('/documents/compare', { doc_a_id, doc_b_id }),
+  getClauseLibrary: () => api.get('/documents/clause-library'),
+};
+
+// Smart Auto-Scheduling (Spec 13 Shift 6)
+export const autoSchedulingAPI = {
+  nominate: (data: { period?: string; contract_id?: string }) => api.post('/auto-scheduling/nominate', data),
+  getRules: () => api.get('/auto-scheduling/rules'),
+  submit: (nominations: Array<Record<string, unknown>>) => api.post('/auto-scheduling/submit', { nominations }),
+};
+
+// Batch Operations
+export const batchAPI = {
+  approveDisbursements: (ids: string[]) => api.post('/batch/disbursements/approve', { ids }),
+  reverifyKYC: (ids: string[]) => api.post('/batch/kyc/reverify', { ids }),
+  retireCredits: (data: { ids: string[]; purpose?: string; beneficiary?: string }) => api.post('/batch/credits/retire', data),
+  signDocuments: (ids: string[]) => api.post('/batch/documents/sign', { ids }),
+  payInvoices: (data: { ids: string[]; payment_ref?: string }) => api.post('/batch/invoices/pay', data),
+  exportData: (data: { entity_type: string; ids: string[]; format?: string }) => api.post('/batch/export', data),
+};
+
 export default api;
