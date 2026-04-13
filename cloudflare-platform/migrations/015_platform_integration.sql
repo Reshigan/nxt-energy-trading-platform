@@ -1,8 +1,8 @@
 -- Migration 015: Platform Integration — Cross-Module Data Flow
 -- Adds contract_id to trades, action_queue table, and entity_links table
 
--- contract_id column on trades already exists in production (added via earlier migration)
--- Skipping ALTER TABLE to keep migration idempotent
+-- Add contract_id to trades for cross-module linking
+ALTER TABLE trades ADD COLUMN contract_id TEXT REFERENCES contract_documents(id);
 
 -- Action Queue: items that appear in user cockpits requiring action
 CREATE TABLE IF NOT EXISTS action_queue (
