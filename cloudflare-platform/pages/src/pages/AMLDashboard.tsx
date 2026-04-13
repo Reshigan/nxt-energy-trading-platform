@@ -231,7 +231,7 @@ export default function AMLDashboard() {
                         {alert.status}
                       </span>
                       <span className={`font-medium text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                        {alert.alert_type.replace(/_/g, ' ')}
+                        {(alert.alert_type || '').replace(/_/g, ' ')}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
@@ -268,7 +268,7 @@ export default function AMLDashboard() {
                     </div>
                   </div>
                   <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Participant: {alert.participant_id.slice(0, 12)}... &middot; {new Date(alert.created_at).toLocaleString()}
+                    Participant: {(alert.participant_id || '').slice(0, 12)}... &middot; {new Date(alert.created_at).toLocaleString()}
                   </p>
                   {alert.description && (
                     <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>

@@ -107,7 +107,7 @@ export default function Invoices() {
   };
 
   const columns: Column<Invoice>[] = [
-    { key: 'invoice_number', header: 'Invoice #', sortable: true, render: (r) => <span className="mono text-xs font-semibold">{r.invoice_number || r.id.slice(0, 8)}</span> },
+    { key: 'invoice_number', header: 'Invoice #', sortable: true, render: (r) => <span className="mono text-xs font-semibold">{r.invoice_number || (r.id || '').slice(0, 8)}</span> },
     { key: 'counterparty', header: 'Counterparty', sortable: true },
     { key: 'issued_date', header: 'Issued', sortable: true, render: (r) => <span className="text-xs">{r.issued_date ? formatDate(r.issued_date) : 'N/A'}</span> },
     { key: 'due_date', header: 'Due', sortable: true, render: (r) => <span className="text-xs">{r.due_date ? formatDate(r.due_date) : 'N/A'}</span> },
