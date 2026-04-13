@@ -82,7 +82,14 @@ grid.patch('/connections/:id/status', authMiddleware({ roles: ['grid', 'admin'] 
     if (body.status === 'agreement_signed') { updates.push('agreement_date = ?'); params.push(nowISO()); }
     if (body.status === 'energised') { updates.push('energised_date = ?'); params.push(nowISO()); }
     params.push(id);
-    await c.env.DB.prepare(`UPDATE grid_connections SET ${updates.join(', ')} WHERE id = ?`).bind(...params).run();
+    const isAdmin = user.role === 'admin';
+    let updateSql = `UPDATE grid_connections SET ${updates.join(', ')} WHERE id = ?`;
+    if (!isAdmin) {
+      updateSql += ' AND grid_operator_id = ?';
+      params.push(user.sub);
+    }
+    const updateResult = await c.env.DB.prepare(updateSql).bind(...params).run();
+    if (updateResult.meta.changes === 0) return c.json({ success: false, error: 'Connection not found or not assigned to you' }, 403);
     // Cascade: notify applicant
     try {
       const conn = await c.env.DB.prepare('SELECT applicant_id FROM grid_connections WHERE id = ?').bind(id).first<{ applicant_id: string }>();
