@@ -15,42 +15,54 @@ import { Modal } from '../components/ui/Modal';
 interface ContractDetail {
   id: string;
   title: string;
-  type: string;
-  status: string;
+  document_type: string;
   phase: string;
-  counterparty_name: string;
-  value: number;
-  start_date: string;
-  end_date: string;
+  creator_id: string;
+  counterparty_id: string;
+  project_id: string | null;
+  commercial_terms: Record<string, unknown> | null;
+  template_id: string | null;
+  version: string;
+  previous_version_id: string | null;
+  sha256_hash: string | null;
+  page_count: number | null;
   created_at: string;
   updated_at: string;
-  terms: Record<string, unknown>;
+  signatories?: Array<{ id: string; signatory_name: string; signed: number }>;
+  statutory_checks?: Array<{ id: string; regulation: string; status: string }>;
 }
 
 interface Signature {
   id: string;
-  signer_name: string;
-  signer_email: string;
+  document_id: string;
+  participant_id: string;
+  signatory_name: string;
+  signatory_designation: string;
+  signed: number;
   signed_at: string | null;
-  status: string;
-  ip_address?: string;
+  signature_r2_key: string | null;
+  ip_address: string | null;
+  document_hash_at_signing: string | null;
+  created_at: string;
 }
 
 interface Amendment {
   id: string;
-  version: number;
-  reason: string;
-  major: boolean;
+  version: string;
+  phase: string;
+  previous_version_id: string | null;
   created_at: string;
-  created_by: string;
 }
 
 interface AuditEntry {
   id: string;
+  actor_id: string;
   action: string;
-  actor_name: string;
-  timestamp: string;
+  entity_type: string;
+  entity_id: string;
   details: string;
+  ip_address: string | null;
+  created_at: string;
 }
 
 const TABS = ['Details', 'Signatures', 'Versions', 'Audit Trail'] as const;
@@ -86,8 +98,14 @@ export default function ContractDeep() {
         contractsAPI.getVersions(id),
         contractsAPI.getAuditTrail(id),
       ]);
-      if (detailRes.status === 'fulfilled' && detailRes.value.data?.data) setContract(detailRes.value.data.data);
-      else if (detailRes.status === 'rejected') setError('Failed to load contract details');
+      if (detailRes.status === 'fulfilled' && detailRes.value.data?.data) {
+        const d = detailRes.value.data.data;
+        setContract(d);
+        // Also populate signatures from the detail response if the signatures endpoint didn't return data
+        if (d.signatories && Array.isArray(d.signatories)) {
+          setSignatures(d.signatories);
+        }
+      } else if (detailRes.status === 'rejected') setError('Failed to load contract details');
       if (sigRes.status === 'fulfilled' && Array.isArray(sigRes.value.data?.data)) setSignatures(sigRes.value.data.data);
       if (verRes.status === 'fulfilled' && Array.isArray(verRes.value.data?.data)) setVersions(verRes.value.data.data);
       if (auditRes.status === 'fulfilled' && Array.isArray(auditRes.value.data?.data)) setAuditTrail(auditRes.value.data.data);
@@ -196,8 +214,8 @@ export default function ContractDeep() {
             </h1>
             {!loading && contract && (
               <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor(contract.status)}`}>{contract.status}</span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">Phase: {contract.phase}</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor(contract.phase)}`}>{contract.phase}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Type: {contract.document_type?.replace(/_/g, ' ')}</span>
               </div>
             )}
           </div>
@@ -249,11 +267,11 @@ export default function ContractDeep() {
             ) : contract ? (
               <div className="space-y-3">
                 {[
-                  ['Type', contract.type],
-                  ['Counterparty', contract.counterparty_name],
-                  ['Value', formatZAR(contract.value / 100)],
-                  ['Start Date', new Date(contract.start_date).toLocaleDateString('en-ZA')],
-                  ['End Date', new Date(contract.end_date).toLocaleDateString('en-ZA')],
+                  ['Document Type', contract.document_type?.replace(/_/g, ' ') || 'N/A'],
+                  ['Version', contract.version || 'v1.0'],
+                  ['Creator', contract.creator_id],
+                  ['Counterparty', contract.counterparty_id],
+                  ['Project', contract.project_id || 'N/A'],
                   ['Created', new Date(contract.created_at).toLocaleDateString('en-ZA')],
                   ['Last Updated', new Date(contract.updated_at).toLocaleDateString('en-ZA')],
                 ].map(([label, value]) => (
@@ -310,14 +328,14 @@ export default function ContractDeep() {
               {signatures.map(sig => (
                 <div key={sig.id} className={`flex items-center justify-between px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div>
-                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{sig.signer_name}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">{sig.signer_email}</div>
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{sig.signatory_name}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{sig.signatory_designation || sig.participant_id}</div>
                   </div>
                   <div className="text-right">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      sig.status === 'signed' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      sig.signed ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                         : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                    }`}>{sig.status}</span>
+                    }`}>{sig.signed ? 'signed' : 'pending'}</span>
                     {sig.signed_at && <div className="text-[10px] text-slate-400 mt-1">{new Date(sig.signed_at).toLocaleString('en-ZA')}</div>}
                   </div>
                 </div>
@@ -341,14 +359,14 @@ export default function ContractDeep() {
                 <div key={ver.id} className={`px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${ver.major ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                        v{ver.version} {ver.major ? '(Major)' : '(Minor)'}
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        {ver.version}
                       </span>
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{ver.reason}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(ver.phase)}`}>{ver.phase}</span>
                     </div>
                     <span className="text-xs text-slate-400">{new Date(ver.created_at).toLocaleDateString('en-ZA')}</span>
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">By {ver.created_by}</div>
+                  {ver.previous_version_id && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Previous: {ver.previous_version_id}</div>}
                 </div>
               ))}
             </div>
@@ -380,9 +398,9 @@ export default function ContractDeep() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{entry.action.replace(/_/g, ' ')}</span>
-                      <span className="text-[10px] text-slate-400">{new Date(entry.timestamp).toLocaleString('en-ZA')}</span>
+                      <span className="text-[10px] text-slate-400">{new Date(entry.created_at).toLocaleString('en-ZA')}</span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_name} — {entry.details}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_id}{entry.details ? ` — ${entry.details}` : ''}</div>
                   </div>
                 </div>
               ))}
