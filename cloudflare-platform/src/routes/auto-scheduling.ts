@@ -21,13 +21,13 @@ app.post('/nominate', async (c) => {
       contracts = await db.prepare(
         `SELECT cd.*, p.name as project_name FROM contract_documents cd
          LEFT JOIN ipp_projects p ON cd.project_id = p.id
-         WHERE cd.id = ? AND cd.status = 'active'`
+         WHERE cd.id = ? AND cd.phase = 'active'`
       ).bind(contract_id).all();
     } else {
       contracts = await db.prepare(
         `SELECT cd.*, p.name as project_name FROM contract_documents cd
          LEFT JOIN ipp_projects p ON cd.project_id = p.id
-         WHERE (cd.generator_id = ? OR cd.offtaker_id = ?) AND cd.status = 'active'`
+         WHERE (cd.creator_id = ? OR cd.counterparty_id = ?) AND cd.phase = 'active'`
       ).bind(participantId, participantId).all();
     }
 
@@ -86,7 +86,7 @@ app.get('/rules', async (c) => {
     const contracts = await db.prepare(
       `SELECT id, title, technology, volume_mwh, tariff_cents_kwh, escalation_pct, contract_term_years
        FROM contract_documents
-       WHERE (generator_id = ? OR offtaker_id = ?) AND status = 'active'`
+       WHERE (creator_id = ? OR counterparty_id = ?) AND phase = 'active'`
     ).bind(participantId, participantId).all();
 
     const rules = (contracts.results || []).map((contract) => ({
