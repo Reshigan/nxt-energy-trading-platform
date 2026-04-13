@@ -77,6 +77,8 @@ threads.post('/:id/reply', async (c) => {
     // Get parent to inherit entity_type/entity_id
     const parent = await c.env.DB.prepare('SELECT entity_type, entity_id FROM entity_threads WHERE id = ?').bind(parentId).first<{ entity_type: string; entity_id: string }>();
     if (!parent) return c.json({ success: false, error: 'Parent comment not found' }, 404);
+    const hasAccess = await checkEntityAccess(c.env.DB, parent.entity_type, parent.entity_id, user.sub, user.role);
+    if (!hasAccess) return c.json({ success: false, error: 'Access denied' }, 403);
     const id = generateId();
     await c.env.DB.prepare(
       'INSERT INTO entity_threads (id, entity_type, entity_id, participant_id, message, message_type, parent_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
