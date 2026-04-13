@@ -12,6 +12,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Button } from '../components/ui/Button';
+import EntityLink from '../components/EntityLink';
 
 const TABS = ['Overview', 'Credits', 'Options', 'TCFD', 'Registry', 'Retirement'] as const;
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -217,8 +218,8 @@ export default function Carbon() {
               <tbody>
                 {allCredits.map(c => (
                   <tr key={c.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                    <td className="py-3 font-medium text-slate-800 dark:text-slate-200">{c.standard}</td>
-                    <td className="py-3 text-slate-600 dark:text-slate-400">{c.project_name || 'N/A'}</td>
+                    <td className="py-3 font-medium text-slate-800 dark:text-slate-200"><EntityLink type="credit" id={c.id} label={c.standard} /></td>
+                    <td className="py-3 text-slate-600 dark:text-slate-400">{c.project_name ? <EntityLink type="project" id={c.id} label={c.project_name} /> : 'N/A'}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{c.quantity?.toLocaleString()}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(c.price_per_unit / 100)}</td>
                     <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${c.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : c.status === 'retired' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500'}`}>{c.status}</span></td>
@@ -249,7 +250,7 @@ export default function Carbon() {
               <tbody>
                 {options.map(o => (
                   <tr key={o.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'}`}>
-                    <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize">{o.type}</td>
+                    <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize"><EntityLink type="credit" id={o.id} label={`${o.type} Option`} /></td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(o.strike_price / 100)}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(o.premium / 100)}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{o.quantity?.toLocaleString()}</td>

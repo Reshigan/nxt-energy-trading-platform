@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import EntityLink from '../components/EntityLink';
 
 const tabs = ['All', 'Draft', 'Active', 'Pending', 'Completed', 'Smart Rules', 'Templates'];
 
@@ -287,7 +288,7 @@ export default function Contracts() {
                     <tr key={d.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}
                       style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}>
                       <td className="py-3.5 px-5">
-                        <div className="font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</div>
+                        <EntityLink type="contract" id={d.id} label={d.id.substring(0, 12)} />
                         <div className="text-xs text-slate-500 mt-0.5">{d.title}</div>
                       </td>
                       <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 text-xs">{(d.document_type || '').replace(/_/g, ' ')}</td>
@@ -296,7 +297,7 @@ export default function Contracts() {
                           {sc.icon} {d.phase}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">{d.governing_law || 'SA'}</td>
+                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">{d.counterparty_id ? <EntityLink type="participant" id={d.counterparty_id} label="Counterparty" className="mr-1" /> : null}{d.governing_law || 'SA'}</td>
                       <td className="py-3.5 px-4 text-center">
                         {d.integrity_seal ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
