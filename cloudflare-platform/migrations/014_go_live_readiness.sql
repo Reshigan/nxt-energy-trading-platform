@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS participants_new (
   fsca_licence TEXT,
   kyc_status TEXT NOT NULL DEFAULT 'pending' CHECK (kyc_status IN ('pending','in_review','manual_review','verified','rejected','suspended')),
   trading_enabled INTEGER NOT NULL DEFAULT 0,
+  consent_given INTEGER DEFAULT 0,
+  consent_given_at TEXT,
+  consent_version TEXT DEFAULT '1.0',
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   two_factor_enabled INTEGER DEFAULT 0,
@@ -38,7 +41,8 @@ INSERT OR IGNORE INTO participants_new
   SELECT id, company_name, registration_number, tax_number, vat_number, role,
          contact_person, email, password_hash, password_salt, phone, physical_address,
          sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status,
-         trading_enabled, created_at, updated_at, two_factor_enabled, subscription_tier, admin_level
+         trading_enabled, consent_given, consent_given_at, consent_version,
+         created_at, updated_at, two_factor_enabled, subscription_tier, admin_level
   FROM participants;
 
 -- Step 3: Drop old table and rename
@@ -49,6 +53,7 @@ ALTER TABLE participants_new RENAME TO participants;
 CREATE INDEX IF NOT EXISTS idx_participants_email ON participants(email);
 CREATE INDEX IF NOT EXISTS idx_participants_role ON participants(role);
 CREATE INDEX IF NOT EXISTS idx_participants_kyc_status ON participants(kyc_status);
+CREATE INDEX IF NOT EXISTS idx_participants_admin_level ON participants(admin_level);
 
 -- ═══════════════════════════════════════════════════════════════
 -- 2. Also expand kyc_status CHECK to include 'manual_review' (used by admin cockpit)
