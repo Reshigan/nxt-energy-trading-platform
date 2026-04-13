@@ -67,7 +67,7 @@ batch.post('/credits/retire', authMiddleware({ roles: ['carbon_fund', 'admin'] }
 });
 
 // POST /batch/documents/sign — Batch sign contract documents
-batch.post('/documents/sign', async (c) => {
+batch.post('/documents/sign', authMiddleware({ roles: ['ipp', 'generator', 'offtaker', 'lender', 'admin'] }), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as { ids: string[] };
@@ -87,15 +87,16 @@ batch.post('/documents/sign', async (c) => {
 });
 
 // POST /batch/invoices/pay — Batch pay invoices
-batch.post('/invoices/pay', async (c) => {
+batch.post('/invoices/pay', authMiddleware({ roles: ['offtaker', 'lender', 'admin'] }), async (c) => {
   try {
+    const user = c.get('user');
     const body = await c.req.json() as { ids: string[]; payment_ref?: string };
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let paid = 0;
     for (const id of body.ids) {
       await c.env.DB.prepare(
-        "UPDATE invoices SET status = 'paid', paid_at = ?, payment_reference = ? WHERE id = ?"
-      ).bind(nowISO(), body.payment_ref || `BATCH-${Date.now()}`, id).run();
+        "UPDATE invoices SET status = 'paid', paid_at = ?, payment_reference = ? WHERE id = ? AND (payer_id = ? OR ? IN (SELECT id FROM participants WHERE role = 'admin'))"
+      ).bind(nowISO(), body.payment_ref || `BATCH-${Date.now()}`, id, user.sub, user.sub).run();
       paid++;
     }
     return c.json({ success: true, data: { paid } });

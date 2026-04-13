@@ -141,7 +141,7 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
       loiId = generateId();
       await c.env.DB.prepare(
         "INSERT INTO contract_documents (id, creator_id, counterparty_id, document_type, phase, title, value_cents, created_at, updated_at) VALUES (?, ?, ?, 'loi', 'loi', ?, ?, ?, ?)"
-      ).bind(loiId, user.sub, bid.generator_id, `LOI from RFP ${rfpId}`, (bid.tariff_cents || 0) * (bid.volume_mwh || 0), nowISO(), nowISO()).run();
+      ).bind(loiId, user.sub, bid.generator_id, `LOI from RFP ${rfpId}`, (bid.tariff_cents || 0) * (bid.volume_mwh || 0) * 1000, nowISO(), nowISO()).run();
       // Notify bidders
       try {
         await c.env.DB.prepare(

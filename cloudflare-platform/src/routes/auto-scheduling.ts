@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
+import { authMiddleware } from '../auth/middleware';
 
 const app = new Hono<HonoEnv>();
+app.use('*', authMiddleware());
 
 // Spec 13 Shift 6: Smart Auto-Scheduling — auto-nominate based on PPA terms
 
@@ -10,8 +12,8 @@ app.post('/nominate', async (c) => {
   try {
     const { period, contract_id } = await c.req.json();
     const db = c.env.DB;
-    const userId = c.get('userId' as never) as string;
-    const participantId = c.get('participantId' as never) as string;
+    const user = c.get('user');
+    const participantId = user.sub;
 
     // Get active contracts with scheduling terms
     let contracts;
@@ -78,7 +80,8 @@ app.post('/nominate', async (c) => {
 app.get('/rules', async (c) => {
   try {
     const db = c.env.DB;
-    const participantId = c.get('participantId' as never) as string;
+    const user = c.get('user');
+    const participantId = user.sub;
 
     const contracts = await db.prepare(
       `SELECT id, title, technology, volume_mwh, tariff_cents_kwh, escalation_pct, contract_term_years

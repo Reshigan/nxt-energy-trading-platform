@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
+import { authMiddleware } from '../auth/middleware';
 
 const app = new Hono<HonoEnv>();
+app.use('*', authMiddleware());
 
 // Spec 13 Shift 5: Document Intelligence — extract and parse commercial terms
 

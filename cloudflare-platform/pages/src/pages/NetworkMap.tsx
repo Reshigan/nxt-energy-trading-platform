@@ -82,12 +82,10 @@ export default function NetworkMap() {
       ctx.fillText(node.name?.substring(0, 20) || '', x, y + radius + 12);
     }
 
-    animRef.current = requestAnimationFrame(draw);
   }, [nodes, edges, filter, selected]);
 
   useEffect(() => {
-    animRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animRef.current);
+    draw();
   }, [draw]);
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
