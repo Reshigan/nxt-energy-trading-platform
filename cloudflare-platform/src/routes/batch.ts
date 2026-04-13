@@ -74,10 +74,13 @@ batch.post('/documents/sign', authMiddleware({ roles: ['ipp', 'generator', 'offt
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let signed = 0;
     for (const id of body.ids) {
-      await c.env.DB.prepare(
-        "INSERT OR IGNORE INTO document_signatories (id, document_id, participant_id, signed, signed_at, signature_hash, ip_address) VALUES (?, ?, ?, 1, ?, ?, ?)"
-      ).bind(generateId(), id, user.sub, nowISO(), `sha256:batch-${Date.now()}`, c.req.header('CF-Connecting-IP') || 'unknown').run();
-      signed++;
+      // Update existing signatory record for this user on this document
+      const result = await c.env.DB.prepare(
+        "UPDATE document_signatories SET signed = 1, signed_at = ?, ip_address = ?, document_hash_at_signing = ? WHERE document_id = ? AND participant_id = ? AND signed = 0"
+      ).bind(nowISO(), c.req.header('CF-Connecting-IP') || 'unknown', `sha256:batch-${Date.now()}`, id, user.sub).run();
+      if (result.meta.changes > 0) {
+        signed++;
+      }
     }
     return c.json({ success: true, data: { signed } });
   } catch (err) {
