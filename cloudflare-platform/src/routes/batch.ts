@@ -107,31 +107,33 @@ batch.post('/invoices/pay', authMiddleware({ roles: ['offtaker', 'lender', 'admi
 });
 
 // POST /batch/export — Export selected data
-batch.post('/export', async (c) => {
+batch.post('/export', authMiddleware({ roles: ['admin', 'ipp', 'generator', 'offtaker', 'lender', 'carbon_fund'] }), async (c) => {
   try {
+    const user = c.get('user');
     const body = await c.req.json() as { entity_type: string; ids: string[]; format?: string };
     if (!body.entity_type || !body.ids?.length) return c.json({ success: false, error: 'entity_type and ids required' }, 400);
     const format = body.format || 'csv';
-    // Generate CSV content
+    // Generate CSV content with ownership checks
     let data: unknown[] = [];
     if (body.entity_type === 'contracts') {
       const placeholders = body.ids.map(() => '?').join(',');
       const result = await c.env.DB.prepare(
-        `SELECT * FROM contract_documents WHERE id IN (${placeholders})`
-      ).bind(...body.ids).all();
+        `SELECT * FROM contract_documents WHERE id IN (${placeholders}) AND (creator_id = ? OR counterparty_id = ?)`
+      ).bind(...body.ids, user.sub, user.sub).all();
       data = result.results || [];
     } else if (body.entity_type === 'trades') {
       const placeholders = body.ids.map(() => '?').join(',');
       const result = await c.env.DB.prepare(
-        `SELECT * FROM trades WHERE id IN (${placeholders})`
-      ).bind(...body.ids).all();
+        `SELECT * FROM trades WHERE id IN (${placeholders}) AND (buyer_id = ? OR seller_id = ?)`
+      ).bind(...body.ids, user.sub, user.sub).all();
       data = result.results || [];
     }
 
     if (format === 'csv' && data.length > 0) {
       const headers = Object.keys(data[0] as Record<string, unknown>);
-      const rows = data.map((row) => headers.map((h) => String((row as Record<string, unknown>)[h] || '')).join(','));
-      const csv = [headers.join(','), ...rows].join('\n');
+      const escCsv = (v: string) => /[,"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+      const rows = data.map((row) => headers.map((h) => escCsv(String((row as Record<string, unknown>)[h] || ''))).join(','));
+      const csv = [headers.map(escCsv).join(','), ...rows].join('\n');
       return c.text(csv, 200, { 'Content-Type': 'text/csv', 'Content-Disposition': `attachment; filename="${body.entity_type}-export.csv"` });
     }
 
