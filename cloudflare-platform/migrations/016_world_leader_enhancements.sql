@@ -230,5 +230,5 @@ VALUES
   ('fx-zar-eur', 'ZAR', 'EUR', 0.049, 'manual', '2026-04-01'),
   ('fx-zar-gbp', 'ZAR', 'GBP', 0.042, 'manual', '2026-04-01');
 
--- Add dispatch_event_id to vpp_assets for event-scoped release
-ALTER TABLE vpp_assets ADD COLUMN dispatch_event_id TEXT REFERENCES vpp_dispatch_events(id);
+-- dispatch_event_id column on vpp_assets already exists in production (added via earlier migration)
+-- Skipping ALTER TABLE to keep migration idempotent
