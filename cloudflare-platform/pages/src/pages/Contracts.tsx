@@ -290,7 +290,7 @@ export default function Contracts() {
                         <div className="font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</div>
                         <div className="text-xs text-slate-500 mt-0.5">{d.title}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 text-xs">{d.document_type.replace(/_/g, ' ')}</td>
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 text-xs">{(d.document_type || '').replace(/_/g, ' ')}</td>
                       <td className="py-3.5 px-4">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}>
                           {sc.icon} {d.phase}
