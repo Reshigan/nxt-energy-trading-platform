@@ -480,4 +480,18 @@ export const tradingLimitsAPI = {
   update: (data: Record<string, unknown>) => api.patch('/trading/my-limits', data),
 };
 
+// Entity Graph (Spec 11)
+export const entityAPI = {
+  getGraph: (type: string, id: string) => api.get(`/entity/${type}/${id}`),
+};
+
+// Action Queue / Notifications WebSocket polling (Spec 11)
+export const notificationsWsAPI = {
+  poll: (since?: string) => api.get('/notifications-ws/poll', { params: { since } }),
+  stream: () => api.get('/notifications-ws/stream'),
+  getActionQueue: (status?: string) => api.get('/notifications-ws/action-queue', { params: { status } }),
+  completeAction: (id: string) => api.post(`/notifications-ws/action-queue/${id}/complete`),
+  dismissAction: (id: string) => api.post(`/notifications-ws/action-queue/${id}/dismiss`),
+};
+
 export default api;

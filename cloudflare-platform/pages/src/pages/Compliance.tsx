@@ -11,6 +11,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Button } from '../components/ui/Button';
+import EntityLink from '../components/EntityLink';
 
 const TABS = ['Overview', 'KYC Documents', 'Licences', 'Statutory Checks'] as const;
 
@@ -157,7 +158,7 @@ export default function Compliance() {
               </tr></thead>
               <tbody>{kycData.map(doc => (
                 <tr key={doc.name} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3.5 px-5 font-medium text-slate-800 dark:text-slate-200">{doc.name}</td>
+                  <td className="py-3.5 px-5 font-medium text-slate-800 dark:text-slate-200"><EntityLink type="participant" id={doc.name} label={doc.name} /></td>
                   <td className="py-3.5 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge[doc.status] || ''}`}>{doc.status}</span></td>
                   <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{doc.score}%</td>
                   <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{doc.date}</td>
@@ -198,7 +199,7 @@ export default function Compliance() {
               </tr></thead>
               <tbody>{statutoryData.map(s => (
                 <tr key={s.rule} className={`border-t ${c('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3 px-5 font-medium text-slate-800 dark:text-slate-200">{s.rule}</td>
+                  <td className="py-3 px-5 font-medium text-slate-800 dark:text-slate-200"><EntityLink type="participant" id={s.rule} label={s.rule} /></td>
                   <td className="py-3 px-4 text-slate-500">{s.regulator}</td>
                   <td className="py-3 px-4"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusBadge[s.status] || ''}`}>{s.status}</span></td>
                   <td className="py-3 px-5 text-right text-slate-400 text-xs">{s.lastCheck}</td>

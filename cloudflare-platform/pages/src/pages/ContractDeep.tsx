@@ -397,10 +397,8 @@ export default function ContractDeep() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{entry.action.replace(/_/g, ' ')}</span>
-                      <span className="text-[10px] text-slate-400">{new Date(entry.created_at).toLocaleString('en-ZA')}</span>
                       <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{(entry.action || '').replace(/_/g, ' ')}</span>
-                      <span className="text-[10px] text-slate-400">{new Date(entry.timestamp).toLocaleString('en-ZA')}</span>
+                      <span className="text-[10px] text-slate-400">{new Date(entry.created_at).toLocaleString('en-ZA')}</span>
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_id}{entry.details ? ` — ${entry.details}` : ''}</div>
                   </div>
