@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import type { Env } from '../types';
+import { HonoEnv } from '../utils/types';
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<HonoEnv>();
 
 // Spec 13 Shift 5: Document Intelligence — extract and parse commercial terms
 

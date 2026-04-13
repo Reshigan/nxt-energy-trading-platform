@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import type { Env } from '../types';
+import { HonoEnv } from '../utils/types';
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<HonoEnv>();
 
 // Spec 13 Shift 6: Smart Auto-Scheduling — auto-nominate based on PPA terms
 
