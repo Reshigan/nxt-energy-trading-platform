@@ -77,7 +77,7 @@ valuation.post('/ppa', async (c) => {
       const genKwh = annualGenBase * Math.pow(1 - degradation / 100, y - 1);
       const ppaTariff = body.ppa_tariff_cents * Math.pow(1 + body.escalation_pct / 100, y - 1);
       const gridTariffY = gridTariff * Math.pow(1 + gridEscalation / 100, y - 1);
-      const revenueRands = (genKwh * ppaTariff) / 10000;
+      const revenueRands = (genKwh * ppaTariff) / 100;
       const opexRands = body.opex_annual_rands * Math.pow(1 + body.opex_escalation_pct / 100, y - 1);
       const netCf = revenueRands - opexRands;
       cumulative += netCf;
@@ -107,7 +107,7 @@ valuation.post('/ppa', async (c) => {
 
     // Grid savings
     const gridSavingsRands = yearlyBreakdown.reduce((s, yr) => {
-      const gridCost = (yr.generation_kwh * yr.grid_tariff_cents) / 10000;
+      const gridCost = (yr.generation_kwh * yr.grid_tariff_cents) / 100;
       return s + (gridCost - yr.revenue_rands);
     }, 0);
 
