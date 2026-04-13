@@ -1,4 +1,4 @@
-export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender' | 'carbon_fund';
+export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender' | 'carbon_fund' | 'grid';
 
 export interface RoleConfig {
   label: string;
@@ -17,7 +17,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-green-600',
     accentBg: 'bg-green-500',
     accentHex: '#16A34A',
-        allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering', '/ipp', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/smart-rules', '/vault', '/trade-journal', '/carbon-deep', '/ipp-deep', '/reporting-engine', '/support'],
+        allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering', '/metering-analytics', '/ipp', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/smart-rules', '/vault', '/trade-journal', '/carbon-deep', '/ipp-deep', '/reporting-engine', '/support'],
         kpis: [
           { label: 'Generation Today', value: '847 MWh', change: '+12.3%', positive: true },
       { label: 'Active PPAs', value: '14', change: '+2', positive: true },
@@ -36,7 +36,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-indigo-600',
     accentBg: 'bg-indigo-500',
     accentHex: '#4F46E5',
-    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/p2p', '/marketplace', '/settlement', '/reports', '/notifications', '/settings', '/smart-rules', '/invoices', '/vault', '/trade-journal', '/carbon-deep', '/reporting-engine', '/support'],
+    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering-analytics', '/risk', '/p2p', '/marketplace', '/settlement', '/reports', '/notifications', '/settings', '/smart-rules', '/invoices', '/vault', '/trade-journal', '/carbon-deep', '/reporting-engine', '/support'],
     kpis: [
       { label: 'Portfolio Value', value: 'R24.8M', change: '+12.4%', positive: true },
       { label: "Today's P&L", value: 'R1.24M', change: '+8.2%', positive: true },
@@ -55,7 +55,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-purple-600',
     accentBg: 'bg-purple-500',
     accentHex: '#7C3AED',
-    allowedPaths: ['/', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/marketplace', '/p2p', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/offtaker-cost', '/invoices', '/disputes', '/vault', '/trade-journal', '/offtaker-deep', '/reporting-engine', '/support'],
+    allowedPaths: ['/', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/metering-analytics', '/marketplace', '/p2p', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/offtaker-cost', '/invoices', '/disputes', '/vault', '/trade-journal', '/offtaker-deep', '/reporting-engine', '/support'],
     kpis: [
       { label: 'Energy Consumed', value: '1.2 GWh', change: '+5.4%', positive: true },
       { label: 'Blended Cost', value: 'R0.89/kWh', change: '-2.1%', positive: true },
@@ -74,7 +74,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-amber-600',
     accentBg: 'bg-amber-500',
     accentHex: '#D97706',
-        allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/metering', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/vault', '/ipp-deep', '/reporting-engine', '/support'],
+        allowedPaths: ['/', '/contracts', '/analytics', '/ipp', '/metering', '/metering-analytics', '/settlement', '/compliance', '/reports', '/notifications', '/settings', '/demand', '/invoices', '/vault', '/ipp-deep', '/reporting-engine', '/support'],
         kpis: [
           { label: 'Projects Active', value: '6', change: '+1', positive: true },
       { label: 'Total Capacity', value: '450 MW', change: '+75 MW', positive: true },
@@ -112,7 +112,7 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
     accent: 'text-slate-600',
     accentBg: 'bg-slate-500',
     accentHex: '#525252',
-    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin', '/vault', '/lender', '/surveillance', '/trade-journal', '/carbon-deep', '/ipp-deep', '/offtaker-deep', '/reporting-engine', '/staff', '/support-dashboard', '/support', '/platform-config', '/aml-dashboard', '/payments'],
+    allowedPaths: ['/', '/trading', '/carbon', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/metering', '/metering-analytics', '/p2p', '/ipp', '/marketplace', '/settlement', '/compliance', '/reports', '/developer', '/notifications', '/admin', '/settings', '/demand', '/offtaker-cost', '/disputes', '/invoices', '/smart-rules', '/audit-trail', '/system-health', '/tenant-admin', '/vault', '/lender', '/surveillance', '/trade-journal', '/carbon-deep', '/ipp-deep', '/offtaker-deep', '/reporting-engine', '/staff', '/support-dashboard', '/support', '/platform-config', '/aml-dashboard', '/payments', '/dashboard', '/modules'],
     kpis: [
       { label: 'Platform Users', value: '142', change: '+12', positive: true },
       { label: 'API Calls Today', value: '48.2K', change: '+18%', positive: true },
@@ -145,12 +145,31 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
       { label: 'Generate Reports', icon: 'file-text' },
     ],
   },
+  grid: {
+    label: 'Grid Operator',
+    accent: 'text-orange-600',
+    accentBg: 'bg-orange-500',
+    accentHex: '#EA580C',
+    allowedPaths: ['/', '/metering', '/metering-analytics', '/analytics', '/contracts', '/compliance', '/reports', '/notifications', '/settings', '/vault', '/reporting-engine', '/support'],
+    kpis: [
+      { label: 'Active Connections', value: '1,247', change: '+23', positive: true },
+      { label: 'Energy Wheeled MTD', value: '4.8 GWh', change: '+12%', positive: true },
+      { label: 'Grid Availability', value: '99.1%', change: '+0.2%', positive: true },
+      { label: 'Pending Meters', value: '8', change: '-3', positive: true },
+    ],
+    actions: [
+      { label: 'Validate Meter Readings', icon: 'check-circle' },
+      { label: 'Review Connection Apps', icon: 'users' },
+      { label: 'Grid Status Update', icon: 'activity' },
+      { label: 'Download Wheeling Report', icon: 'download' },
+    ],
+  },
   carbon_fund: {
     label: 'Carbon Fund',
     accent: 'text-emerald-600',
     accentBg: 'bg-emerald-500',
     accentHex: '#10B981',
-    allowedPaths: ['/', '/trading', '/carbon', '/carbon-deep', '/contracts', '/analytics', '/markets', '/portfolio', '/risk', '/settlement', '/reports', '/notifications', '/settings', '/vault', '/trade-journal', '/reporting-engine', '/support'],
+    allowedPaths: ['/', '/trading', '/carbon', '/carbon-deep', '/contracts', '/analytics', '/markets', '/portfolio', '/metering-analytics', '/risk', '/settlement', '/reports', '/notifications', '/settings', '/vault', '/trade-journal', '/reporting-engine', '/support'],
     kpis: [
       { label: 'ESG Assets', value: 'R2.4B', change: '+15.2%', positive: true },
       { label: 'Carbon Offset', value: '1.2M t', change: '+120K', positive: true },
@@ -167,7 +186,13 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
 };
 
 
+// Role aliases — map DB roles to frontend config keys
+const ROLE_ALIASES: Record<string, PlatformRole> = {
+  ipp: 'generator', // ipp maps to generator config (same project-based workflow)
+};
+
 export function getRoleConfig(role: string): RoleConfig {
-  const key = role?.toLowerCase().replace(/\s+/g, '_') as PlatformRole;
+  const normalized = role?.toLowerCase().replace(/\s+/g, '_');
+  const key = (ROLE_ALIASES[normalized] || normalized) as PlatformRole;
   return ROLE_CONFIGS[key] || ROLE_CONFIGS.trader;
 }

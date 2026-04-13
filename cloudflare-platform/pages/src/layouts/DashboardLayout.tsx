@@ -172,6 +172,21 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Reports', href: '/reports', icon: IconReports },
     ]},
   ],
+  grid: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Metering', href: '/metering', icon: IconMetering },
+    ]},
+    { label: 'Grid Operations', items: [
+      { name: 'Metering Analytics', href: '/metering-analytics', icon: IconAnalytics },
+      { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+    ]},
+    { label: 'Reports', items: [
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+      { name: 'Reports', href: '/reports', icon: IconReports },
+    ]},
+  ],
 };
 
 // Fallback flat lists for roles without grouped nav
@@ -217,7 +232,7 @@ const ALL_MORE_LINKS = [
   { name: 'Support', href: '/support', icon: IconNotifications },
 ];
 
-const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;
+const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund', 'grid'] as const;
 
 // Map nav hrefs to module names for feature-flag filtering
 const HREF_TO_MODULE: Record<string, string> = {
@@ -264,7 +279,9 @@ export default function DashboardLayout() {
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);
   const { isEnabled: isModuleEnabled } = useModules();
-  const roleGroups = ROLE_NAV[activeRole || 'trader'] || ROLE_NAV.trader;
+  // Map ipp → generator nav (same project-based workflow)
+  const navRole = activeRole === 'ipp' ? 'generator' : (activeRole || 'trader');
+  const roleGroups = ROLE_NAV[navRole] || ROLE_NAV.trader;
 
   // Filter nav items by module status — hide items whose module is disabled
   const filterByModule = (items: NavItem[]) =>

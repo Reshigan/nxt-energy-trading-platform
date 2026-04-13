@@ -374,7 +374,7 @@ export const tokensAPI = {
 
 // Cockpit
 export const cockpitAPI = {
-  get: () => api.get('/cockpit'),
+  get: (role?: string) => api.get('/cockpit', { params: role ? { role } : undefined }),
 };
 
 // Contract Agreements (digital workflow)

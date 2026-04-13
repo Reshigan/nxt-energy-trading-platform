@@ -143,7 +143,7 @@ export default function SupportDashboard() {
         <div className="flex items-center gap-2 mb-6">
           <span className={`text-xs px-2 py-0.5 rounded-full ${statusColor(ticket?.status || '')}`}>{ticket?.status}</span>
           <span className={`text-xs ${priorityColor(ticket?.priority || '')}`}>{ticket?.priority}</span>
-          <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>#{ticket?.id.slice(0, 8)}</span>
+          <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>#{(ticket?.id || '').slice(0, 8)}</span>
         </div>
 
         <div className="space-y-3 mb-6">
@@ -249,7 +249,7 @@ export default function SupportDashboard() {
               </div>
               <div className="flex items-center gap-3 mt-1">
                 <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{ticket.category}</span>
-                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>#{ticket.id.slice(0, 8)}</span>
+                <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>#{(ticket.id || '').slice(0, 8)}</span>
                 <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{new Date(ticket.created_at).toLocaleDateString()}</span>
               </div>
             </button>
