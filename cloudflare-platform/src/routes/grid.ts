@@ -37,8 +37,11 @@ grid.post('/connections', async (c) => {
     if (!body.project_id || !body.connection_point || !body.applied_capacity_mw) {
       return c.json({ success: false, error: 'project_id, connection_point and applied_capacity_mw required' }, 400);
     }
+    if (!body.grid_operator_id) {
+      return c.json({ success: false, error: 'grid_operator_id is required' }, 400);
+    }
     const id = generateId();
-    const operatorId = body.grid_operator_id || user.sub;
+    const operatorId = body.grid_operator_id;
     await c.env.DB.prepare(
       'INSERT INTO grid_connections (id, project_id, connection_point, applied_capacity_mw, voltage_level, applicant_id, grid_operator_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ).bind(id, body.project_id, body.connection_point, body.applied_capacity_mw, body.voltage_level || null, user.sub, operatorId).run();
