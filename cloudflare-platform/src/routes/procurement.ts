@@ -47,9 +47,11 @@ procurement.patch('/rfp/:id/publish', authMiddleware({ roles: ['offtaker', 'admi
   try {
     const id = c.req.param('id');
     const user = c.get('user');
-    await c.env.DB.prepare(
-      "UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ? AND offtaker_id = ?"
-    ).bind(nowISO(), id, user.sub).run();
+    const isAdmin = user.role === 'admin';
+    const publishResult = isAdmin
+      ? await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ?").bind(nowISO(), id).run()
+      : await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), id, user.sub).run();
+    if (publishResult.meta.changes === 0) return c.json({ success: false, error: 'RFP not found or not owned by you' }, 404);
     // Cascade: notify matched generators
     try {
       const rfp = await c.env.DB.prepare('SELECT technology, location FROM procurement_rfps WHERE id = ?').bind(id).first<{ technology: string | null; location: string | null }>();
@@ -142,12 +144,22 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
   try {
     const { id: rfpId, bidId } = c.req.param();
     const user = c.get('user');
-    // Verify the requesting user owns this RFP
-    const rfpOwner = await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND offtaker_id = ?").bind(rfpId, user.sub).first();
+    // Verify the requesting user owns this RFP (admins can act on any RFP)
+    const isAdmin = user.role === 'admin';
+    const rfpOwner = isAdmin
+      ? await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ?").bind(rfpId).first()
+      : await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND offtaker_id = ?").bind(rfpId, user.sub).first();
     if (!rfpOwner) return c.json({ success: false, error: 'RFP not found or not owned by you' }, 403);
+    // Validate bid exists before mutating state
+    const bidExists = await c.env.DB.prepare('SELECT id FROM procurement_bids WHERE id = ? AND rfp_id = ?').bind(bidId, rfpId).first();
+    if (!bidExists) return c.json({ success: false, error: 'Bid not found for this RFP' }, 404);
     await c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ?").bind(bidId, rfpId).run();
     await c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ?").bind(rfpId, bidId).run();
-    await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), rfpId, user.sub).run();
+    if (isAdmin) {
+      await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ?").bind(nowISO(), rfpId).run();
+    } else {
+      await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), rfpId, user.sub).run();
+    }
 
     // Auto-create LOI
     const bid = await c.env.DB.prepare('SELECT generator_id, tariff_cents, volume_mwh FROM procurement_bids WHERE id = ?').bind(bidId).first<{ generator_id: string; tariff_cents: number; volume_mwh: number | null }>();
