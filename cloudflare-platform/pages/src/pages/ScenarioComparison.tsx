@@ -28,7 +28,7 @@ function calculateYearlyCosts(s: Scenario): { year: number; ppa: number; grid: n
   let ppaTariff = s.ppa_tariff_cents;
   let gridTariff = s.grid_tariff_cents;
   const annualGen = s.capacity_mw * 1000 * 8760 * (s.capacity_factor_pct / 100);
-  let cumulativeSavings = -s.capex_rands / 100; // convert to cents then to rands
+  let cumulativeSavings = -s.capex_rands; // initial investment in Rands
 
   for (let y = 1; y <= s.tenure_years; y++) {
     const ppaCost = (ppaTariff * annualGen) / 100;
