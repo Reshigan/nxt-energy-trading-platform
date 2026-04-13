@@ -103,3 +103,4 @@ export const FiShare2 = (p: P) => svg(p, <><circle cx="18" cy="5" r="3" /><circl
 export const FiCheckSquare = (p: P) => svg(p, <><polyline points="9 11 12 14 22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></>);
 export const FiTarget = (p: P) => svg(p, <><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" /></>);
 export const FiMinus = (p: P) => svg(p, <line x1="5" y1="12" x2="19" y2="12" />);
+export const FiArchive = (p: P) => svg(p, <><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" /></>);
