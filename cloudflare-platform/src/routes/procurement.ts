@@ -160,8 +160,8 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
       ? c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND status = 'published'").bind(now, rfpId)
       : c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ? AND status = 'published'").bind(now, rfpId, user.sub);
     const batchResults = await c.env.DB.batch([
-      c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ?").bind(bidId, rfpId),
-      c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ?").bind(rfpId, bidId),
+      c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ? AND rfp_id IN (SELECT id FROM procurement_rfps WHERE status = 'published')").bind(bidId, rfpId),
+      c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ? AND rfp_id IN (SELECT id FROM procurement_rfps WHERE status = 'published')").bind(rfpId, bidId),
       rfpUpdateStmt,
     ]);
     // Check optimistic lock: if RFP update affected 0 rows, another request already awarded it
