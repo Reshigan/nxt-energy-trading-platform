@@ -15,10 +15,10 @@ batch.post('/disbursements/approve', authMiddleware({ roles: ['lender', 'admin']
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let approved = 0;
     for (const id of body.ids) {
-      await c.env.DB.prepare(
+      const result = await c.env.DB.prepare(
         "UPDATE disbursements SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?"
       ).bind(user.sub, nowISO(), id).run();
-      approved++;
+      if (result.meta.changes > 0) approved++;
     }
     return c.json({ success: true, data: { approved } });
   } catch (err) {
@@ -34,10 +34,10 @@ batch.post('/kyc/reverify', authMiddleware({ roles: ['admin'] }), async (c) => {
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let reverified = 0;
     for (const id of body.ids) {
-      await c.env.DB.prepare(
+      const result = await c.env.DB.prepare(
         "UPDATE participants SET kyc_status = 'in_review' WHERE id = ?"
       ).bind(id).run();
-      reverified++;
+      if (result.meta.changes > 0) reverified++;
     }
     return c.json({ success: true, data: { reverified } });
   } catch (err) {
@@ -54,10 +54,10 @@ batch.post('/credits/retire', authMiddleware({ roles: ['carbon_fund', 'admin'] }
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let retired = 0;
     for (const id of body.ids) {
-      await c.env.DB.prepare(
+      const result = await c.env.DB.prepare(
         "UPDATE carbon_credits SET status = 'retired', retired_by = ?, retired_at = ?, retirement_purpose = ?, retirement_beneficiary = ? WHERE id = ? AND owner_id = ?"
       ).bind(user.sub, nowISO(), body.purpose || 'voluntary', body.beneficiary || null, id, user.sub).run();
-      retired++;
+      if (result.meta.changes > 0) retired++;
     }
     return c.json({ success: true, data: { retired } });
   } catch (err) {
@@ -97,10 +97,10 @@ batch.post('/invoices/pay', authMiddleware({ roles: ['offtaker', 'lender', 'admi
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let paid = 0;
     for (const id of body.ids) {
-      await c.env.DB.prepare(
+      const result = await c.env.DB.prepare(
         "UPDATE invoices SET status = 'paid', paid_at = ?, payment_reference = ? WHERE id = ? AND (payer_id = ? OR ? IN (SELECT id FROM participants WHERE role = 'admin'))"
       ).bind(nowISO(), body.payment_ref || `BATCH-${Date.now()}`, id, user.sub, user.sub).run();
-      paid++;
+      if (result.meta.changes > 0) paid++;
     }
     return c.json({ success: true, data: { paid } });
   } catch (err) {
@@ -117,19 +117,34 @@ batch.post('/export', authMiddleware({ roles: ['admin', 'ipp', 'generator', 'off
     if (!body.entity_type || !body.ids?.length) return c.json({ success: false, error: 'entity_type and ids required' }, 400);
     const format = body.format || 'csv';
     // Generate CSV content with ownership checks
+    const isAdmin = user.role === 'admin';
     let data: unknown[] = [];
     if (body.entity_type === 'contracts') {
       const placeholders = body.ids.map(() => '?').join(',');
-      const result = await c.env.DB.prepare(
-        `SELECT * FROM contract_documents WHERE id IN (${placeholders}) AND (creator_id = ? OR counterparty_id = ?)`
-      ).bind(...body.ids, user.sub, user.sub).all();
-      data = result.results || [];
+      if (isAdmin) {
+        const result = await c.env.DB.prepare(
+          `SELECT * FROM contract_documents WHERE id IN (${placeholders})`
+        ).bind(...body.ids).all();
+        data = result.results || [];
+      } else {
+        const result = await c.env.DB.prepare(
+          `SELECT * FROM contract_documents WHERE id IN (${placeholders}) AND (creator_id = ? OR counterparty_id = ?)`
+        ).bind(...body.ids, user.sub, user.sub).all();
+        data = result.results || [];
+      }
     } else if (body.entity_type === 'trades') {
       const placeholders = body.ids.map(() => '?').join(',');
-      const result = await c.env.DB.prepare(
-        `SELECT * FROM trades WHERE id IN (${placeholders}) AND (buyer_id = ? OR seller_id = ?)`
-      ).bind(...body.ids, user.sub, user.sub).all();
-      data = result.results || [];
+      if (isAdmin) {
+        const result = await c.env.DB.prepare(
+          `SELECT * FROM trades WHERE id IN (${placeholders})`
+        ).bind(...body.ids).all();
+        data = result.results || [];
+      } else {
+        const result = await c.env.DB.prepare(
+          `SELECT * FROM trades WHERE id IN (${placeholders}) AND (buyer_id = ? OR seller_id = ?)`
+        ).bind(...body.ids, user.sub, user.sub).all();
+        data = result.results || [];
+      }
     }
 
     if (format === 'csv' && data.length > 0) {

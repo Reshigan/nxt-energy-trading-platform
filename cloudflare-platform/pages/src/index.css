@@ -148,8 +148,8 @@ body {
   /* Ensure tab bars wrap and don't overflow */
   [role="tablist"] { flex-wrap: wrap; gap: 4px; }
   [role="tab"] { font-size: 11px; padding: 6px 10px; }
-  /* Touch-friendly buttons */
-  button { min-height: 40px; }
+  /* Touch-friendly primary action buttons (exclude small utility buttons) */
+  button:not([class*="text-xs"]):not([class*="text-sm"]):not([class*="py-0"]):not([role="tab"]) { min-height: 40px; }
   /* Kanban pipeline: horizontal scroll instead of grid */
   .pipeline-kanban { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; padding-bottom: 8px; }
   .pipeline-kanban > div { min-width: 280px; scroll-snap-align: start; flex-shrink: 0; }
