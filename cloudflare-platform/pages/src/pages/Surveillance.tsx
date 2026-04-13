@@ -71,7 +71,7 @@ export default function Surveillance() {
     } catch { toast.error('Failed to update alert'); }
   };
 
-  const filteredAlerts = alerts.filter(a => !search || a.description.toLowerCase().includes(search.toLowerCase()) || a.type.toLowerCase().includes(search.toLowerCase()));
+  const filteredAlerts = alerts.filter(a => !search || (a.description || '').toLowerCase().includes(search.toLowerCase()) || (a.type || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-6" role="main" aria-label="Market Surveillance page">
@@ -123,7 +123,7 @@ export default function Surveillance() {
                 <th className="text-center py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Actions</th>
               </tr></thead><tbody>{filteredAlerts.map(a => (
                 <tr key={a.id} className={`border-t ${c('border-white/[0.04] hover:bg-white/[0.02]', 'border-black/[0.04] hover:bg-slate-50')} transition-colors`}>
-                  <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200 capitalize">{a.type.replace(/_/g, ' ')}</td>
+                  <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200 capitalize">{(a.type || '').replace(/_/g, ' ')}</td>
                   <td className="py-3 px-4"><span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${severityBadge[a.severity] || ''}`}>{a.severity}</span></td>
                   <td className="py-3 px-4 text-slate-500 dark:text-slate-400 max-w-[400px] truncate">{a.description}</td>
                   <td className="py-3 px-4"><span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${a.status === 'cleared' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : a.status === 'investigating' ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{a.status}</span></td>

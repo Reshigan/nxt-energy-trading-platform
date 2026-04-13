@@ -84,7 +84,7 @@ export default function Disputes() {
   };
 
   const columns: Column<Dispute>[] = [
-    { key: 'id', header: 'ID', sortable: true, render: (r) => <span className="mono text-xs">{r.id.slice(0, 8)}</span> },
+    { key: 'id', header: 'ID', sortable: true, render: (r) => <span className="mono text-xs">{(r.id || '').slice(0, 8)}</span> },
     { key: 'trade_id', header: 'Trade', sortable: true, render: (r) => <span className="mono text-xs">{r.trade_id?.slice(0, 8) || 'N/A'}</span> },
     { key: 'type', header: 'Type', sortable: true, render: (r) => <span className="capitalize">{r.type}</span> },
     { key: 'counterparty', header: 'Counterparty', sortable: true },

@@ -70,7 +70,7 @@ export default function AMLDashboard() {
 
   const filtered = flags.filter(f => {
     if (filter !== 'all' && f.status !== filter) return false;
-    if (search && !f.participant_name.toLowerCase().includes(search.toLowerCase()) && !f.flag_type.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(f.participant_name || '').toLowerCase().includes(search.toLowerCase()) && !(f.flag_type || '').toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -158,7 +158,7 @@ export default function AMLDashboard() {
                 {filtered.map((f) => (
                   <tr key={f.id} className={`border-t ${c('border-white/[0.04] hover:bg-white/[0.02]', 'border-black/[0.04] hover:bg-slate-50')} transition-colors`}>
                     <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{f.participant_name}</td>
-                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 capitalize">{f.flag_type.replace(/_/g, ' ')}</td>
+                    <td className="py-3 px-4 text-slate-500 dark:text-slate-400 capitalize">{(f.flag_type || '').replace(/_/g, ' ')}</td>
                     <td className="py-3 px-4 text-center">
                       <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full text-xs font-bold ${
                         f.risk_score >= 80 ? 'bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400' :
