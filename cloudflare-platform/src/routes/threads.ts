@@ -91,8 +91,21 @@ threads.get('/unread/count', async (c) => {
   try {
     const user = c.get('user');
     const result = await c.env.DB.prepare(
-      "SELECT COUNT(*) as count FROM entity_threads WHERE read_by NOT LIKE ? AND participant_id != ?"
-    ).bind(`%${user.sub}%`, user.sub).first<{ count: number }>();
+      `SELECT COUNT(*) as count FROM entity_threads t
+       WHERE t.read_by NOT LIKE ? AND t.participant_id != ?
+       AND (
+         t.entity_type = 'contract' AND t.entity_id IN (
+           SELECT id FROM contract_documents WHERE creator_id = ? OR counterparty_id = ?
+         )
+         OR t.entity_type = 'trade' AND t.entity_id IN (
+           SELECT id FROM trades WHERE buyer_id = ? OR seller_id = ?
+         )
+         OR t.entity_type = 'project' AND t.entity_id IN (
+           SELECT id FROM projects WHERE owner_id = ?
+         )
+         OR t.participant_id = ?
+       )`
+    ).bind(`%${user.sub}%`, user.sub, user.sub, user.sub, user.sub, user.sub, user.sub, user.sub).first<{ count: number }>();
     return c.json({ success: true, data: { unread: result?.count || 0 } });
   } catch (err) {
     captureException(c, err);

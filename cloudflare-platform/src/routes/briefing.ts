@@ -71,8 +71,21 @@ briefing.get('/', async (c) => {
     let unreadThreads = 0;
     try {
       const result = await c.env.DB.prepare(
-        "SELECT COUNT(*) as count FROM entity_threads WHERE read_by NOT LIKE ? AND participant_id != ?"
-      ).bind(`%${pid}%`, pid).first<{ count: number }>();
+        `SELECT COUNT(*) as count FROM entity_threads t
+         WHERE t.read_by NOT LIKE ? AND t.participant_id != ?
+         AND (
+           t.entity_type = 'contract' AND t.entity_id IN (
+             SELECT id FROM contract_documents WHERE creator_id = ? OR counterparty_id = ?
+           )
+           OR t.entity_type = 'trade' AND t.entity_id IN (
+             SELECT id FROM trades WHERE buyer_id = ? OR seller_id = ?
+           )
+           OR t.entity_type = 'project' AND t.entity_id IN (
+             SELECT id FROM projects WHERE owner_id = ?
+           )
+           OR t.participant_id = ?
+         )`
+      ).bind(`%${pid}%`, pid, pid, pid, pid, pid, pid, pid).first<{ count: number }>();
       unreadThreads = result?.count || 0;
     } catch { /* */ }
 

@@ -18,7 +18,7 @@ network.get('/graph', async (c) => {
     ).all();
     const nodes = (participants.results || []).map((p: Record<string, unknown>) => ({
       id: String(p.id),
-      name: isAdmin ? String(p.company_name) : (String(p.id) === user.sub ? String(p.company_name) : String(p.company_name)),
+      name: isAdmin ? String(p.company_name) : (String(p.id) === user.sub ? String(p.company_name) : `Participant ${String(p.id).substring(0, 8)}`),
       type: String(p.role),
       province: String(p.province || ''),
     }));
