@@ -49,8 +49,8 @@ procurement.patch('/rfp/:id/publish', authMiddleware({ roles: ['offtaker', 'admi
     const user = c.get('user');
     const isAdmin = user.role === 'admin';
     const publishResult = isAdmin
-      ? await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ?").bind(nowISO(), id).run()
-      : await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), id, user.sub).run();
+      ? await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ? AND status = 'draft'").bind(nowISO(), id).run()
+      : await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'published', updated_at = ? WHERE id = ? AND offtaker_id = ? AND status = 'draft'").bind(nowISO(), id, user.sub).run();
     if (publishResult.meta.changes === 0) return c.json({ success: false, error: 'RFP not found or not owned by you' }, 404);
     // Cascade: notify matched generators
     try {

@@ -33,9 +33,9 @@ export default function GridDashboard() {
   ];
 
   const statusColors: Record<string, string> = {
-    applied: 'bg-blue-500/20 text-blue-400', feasibility: 'bg-yellow-500/20 text-yellow-400',
+    applied: 'bg-blue-500/20 text-blue-400',
     quoted: 'bg-orange-500/20 text-orange-400', agreement_signed: 'bg-purple-500/20 text-purple-400',
-    construction: 'bg-indigo-500/20 text-indigo-400', energised: 'bg-green-500/20 text-green-400',
+    under_construction: 'bg-indigo-500/20 text-indigo-400', energised: 'bg-green-500/20 text-green-400',
     rejected: 'bg-red-500/20 text-red-400',
   };
 
