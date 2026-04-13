@@ -90,6 +90,12 @@ vpp.post('/dispatch', authMiddleware({ roles: ['admin', 'grid'] }), async (c) =>
     const revenueCents = Math.round(dispatched * 500);
 
     const eventId = generateId();
+
+    // Update dispatched assets with the event ID
+    for (const da of dispatchedAssets) {
+      await c.env.DB.prepare("UPDATE vpp_assets SET dispatch_event_id = ? WHERE id = ?").bind(eventId, da.id).run();
+    }
+
     await c.env.DB.prepare(
       `INSERT INTO vpp_dispatch_events (id, trigger_type, load_shedding_stage, total_dispatched_kw, assets_dispatched, revenue_cents, started_at, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'active')`
@@ -122,10 +128,10 @@ vpp.post('/dispatch/:id/end', authMiddleware({ roles: ['admin', 'grid'] }), asyn
       "UPDATE vpp_dispatch_events SET status = 'completed', ended_at = ? WHERE id = ?"
     ).bind(nowISO(), id).run();
 
-    // Release all dispatched assets
+    // Release only assets belonging to this specific dispatch event
     await c.env.DB.prepare(
-      "UPDATE vpp_assets SET status = 'available' WHERE status = 'dispatched'"
-    ).run();
+      "UPDATE vpp_assets SET status = 'available', dispatch_event_id = NULL WHERE dispatch_event_id = ?"
+    ).bind(id).run();
 
     return c.json({ success: true, data: { id, status: 'completed' } });
   } catch (err) {

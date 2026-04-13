@@ -162,10 +162,10 @@ curves.post('/build/:market', authMiddleware({ roles: ['admin', 'trader'] }), as
 curves.get('/history/:market', async (c) => {
   try {
     const market = c.req.param('market');
-    const months = parseInt(c.req.query('months') || '12', 10);
+    const months = Math.max(1, Math.min(120, parseInt(c.req.query('months') || '12', 10) || 12));
     const results = await c.env.DB.prepare(
-      `SELECT * FROM forward_curves WHERE market = ? AND curve_date > datetime('now', '-${months} months') ORDER BY curve_date DESC, tenor_months ASC`
-    ).bind(market).all();
+      `SELECT * FROM forward_curves WHERE market = ? AND curve_date > datetime('now', '-' || ? || ' months') ORDER BY curve_date DESC, tenor_months ASC`
+    ).bind(market, months).all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
     captureException(c, err);
