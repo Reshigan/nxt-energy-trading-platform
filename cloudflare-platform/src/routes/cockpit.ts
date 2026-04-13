@@ -171,7 +171,6 @@ cockpit.use('*', authMiddleware({ requireKyc: false }));
 cockpit.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
-    const role = user.role;
     const pid = user.sub;
     const db = c.env.DB as unknown as DB;
 
@@ -187,6 +186,13 @@ cockpit.get('/', authMiddleware(), async (c) => {
       grid: buildGridCockpit,
       regulator: buildRegulatorCockpit,
     };
+
+    // Allow admin to preview any role cockpit via ?role= query param
+    const requestedRole = c.req.query('role');
+    const validRoles = Object.keys(builders);
+    const role = (user.role === 'admin' && requestedRole && requestedRole !== 'admin' && validRoles.includes(requestedRole))
+      ? requestedRole
+      : user.role;
 
     const builder = builders[role] || builders.trader;
     const [cockpitData, alerts, recent_activity] = await Promise.all([
