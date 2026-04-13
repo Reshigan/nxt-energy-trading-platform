@@ -15,6 +15,7 @@ import {
   IconCarbonDeep, IconIPPDeep, IconOfftakerDeep, IconReportingEngine,
 } from '../components/icons';
 import AIChatWidget from '../components/AIChatWidget';
+import EntityDetailPanel from '../components/EntityDetailPanel';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import GuidedTour from '../components/GuidedTour';
 import KYCBanner from '../components/KYCBanner';
@@ -523,6 +524,9 @@ export default function DashboardLayout() {
         </div>,
         document.body
       )}
+
+      {/* ── Entity Detail Panel (Spec 11) ────────────── */}
+      <EntityDetailPanel />
     </div>
   );
 }

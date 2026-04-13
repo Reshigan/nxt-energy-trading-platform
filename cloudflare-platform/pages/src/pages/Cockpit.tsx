@@ -9,6 +9,7 @@ import AlertsPanel, { Alert } from '../components/cockpit/AlertsPanel';
 import ActivityFeed, { ActivityItem } from '../components/cockpit/ActivityFeed';
 import CockpitSkeleton from '../components/cockpit/CockpitSkeleton';
 import { FiRefreshCw } from '../lib/fi-icons-shim';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 // Role display names and accent colors
 const ROLE_META: Record<string, { label: string; accent: string }> = {
@@ -49,6 +50,9 @@ export default function Cockpit() {
   const role = activeRole || user?.role || 'trader';
   const meta = ROLE_META[role] || ROLE_META.trader;
 
+  // Spec 11: Real-time cockpit updates via WebSocket + polling
+  const { actionQueue: wsActionQueue, kpis: wsKpis, status: wsStatus, refreshNotifications } = useWebSocket('cockpit');
+
   const fetchCockpit = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -79,6 +83,28 @@ export default function Cockpit() {
     const interval = setInterval(() => fetchCockpit(true), 60_000);
     return () => clearInterval(interval);
   }, [fetchCockpit]);
+
+  // Spec 11: Merge WS action queue items into cockpit data
+  useEffect(() => {
+    if (wsActionQueue.length > 0 && data) {
+      setData(prev => prev ? {
+        ...prev,
+        action_queue: wsActionQueue.map(a => ({
+          id: a.id,
+          urgency: (a.priority as 'critical' | 'high' | 'medium' | 'low') || 'medium',
+          title: a.title,
+          description: a.description,
+          source_module: a.entity_type || 'system',
+          entity_type: a.entity_type,
+          entity_id: a.entity_id,
+          action_type: a.action_type || 'review',
+          action_url: `/${a.entity_type}s/${a.entity_id}`,
+          deadline: a.due_date || null,
+          created_at: a.created_at,
+        })),
+      } : prev);
+    }
+  }, [wsActionQueue]);
 
   if (loading) return (
     <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6">
@@ -124,6 +150,7 @@ export default function Cockpit() {
         >
           <FiRefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           {refreshing ? 'Refreshing...' : 'Refresh'}
+          {wsStatus === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1" title="Real-time connected" />}
         </button>
       </div>
 

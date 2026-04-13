@@ -11,6 +11,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { formatZAR } from '../lib/format';
 import Modal from '../components/Modal';
 import { Button } from '../components/ui/Button';
+import EntityLink from '../components/EntityLink';
 
 interface RawProject {
   id: string; name: string; technology?: string; tech?: string; capacity_mw?: number; capacity?: string;
@@ -167,7 +168,7 @@ export default function IPP() {
                 {p.tech.includes('Wind') ? <FiWind className="w-4 h-4 text-blue-500" /> : <FiSun className="w-4 h-4 text-amber-500" />}
                 <div>
                   <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{p.name}</h3>
-                  <p className="text-xs text-slate-400">{p.id} &middot; {p.capacity}</p>
+                  <p className="text-xs text-slate-400"><EntityLink type="project" id={p.id} label={p.id.substring(0, 8)} /> &middot; {p.capacity}</p>
                 </div>
               </div>
               <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${phaseColors[p.phase] || ''}`}>{p.phase}</span>
@@ -186,7 +187,7 @@ export default function IPP() {
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div><p className="text-xs text-slate-400">Milestones</p><p className="text-sm font-bold text-slate-800 dark:text-slate-200 mono">{p.completed}/{p.milestones}</p></div>
-              <div><p className="text-xs text-slate-400">CPs Met</p><p className="text-sm font-bold text-slate-800 dark:text-slate-200 mono">{p.cps.met}/{p.cps.total}</p></div>
+              <div><p className="text-xs text-slate-400">CPs Met</p><p className="text-sm font-bold text-slate-800 dark:text-slate-200 mono"><EntityLink type="project" id={p.id} label={`${p.cps.met}/${p.cps.total}`} /></p></div>
               <div><p className="text-xs text-slate-400">Disbursed</p><p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mono">{p.disbursed}</p></div>
             </div>
           </div>

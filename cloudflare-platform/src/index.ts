@@ -53,6 +53,8 @@ import announcementsRoute from './routes/announcements';
 import configRoute from './routes/config';
 import paymentsRoute from './routes/payments';
 import amlRoute from './routes/aml';
+import entityRoute from './routes/entity';
+import notificationsWsRoute from './routes/notifications-ws';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -297,6 +299,8 @@ api.route('/surveillance-tools', surveillanceTools);
 
 
 api.route('/lifecycle', lifecycle);
+api.route('/entity', entityRoute);
+api.route('/notifications-ws', notificationsWsRoute);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
