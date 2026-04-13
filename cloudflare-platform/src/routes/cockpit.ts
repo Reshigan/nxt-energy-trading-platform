@@ -171,7 +171,11 @@ cockpit.use('*', authMiddleware({ requireKyc: false }));
 cockpit.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
-    const role = user.role;
+    // Allow admin to preview any role cockpit via ?role= query param
+    const requestedRole = c.req.query('role');
+    const role = (user.role === 'admin' && requestedRole && requestedRole !== 'admin')
+      ? requestedRole
+      : user.role;
     const pid = user.sub;
     const db = c.env.DB as unknown as DB;
 

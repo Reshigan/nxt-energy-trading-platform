@@ -79,11 +79,12 @@ export default function SystemHealth() {
   };
 
   const serviceIcon = (service: string) => {
-    if (service.includes('database') || service.includes('db') || service.includes('d1')) return FiDatabase;
-    if (service.includes('api') || service.includes('worker')) return FiServer;
-    if (service.includes('network') || service.includes('cdn')) return FiWifi;
-    if (service.includes('cpu')) return FiCpu;
-    if (service.includes('storage') || service.includes('r2')) return FiHardDrive;
+    const s = (service || '').toLowerCase();
+    if (s.includes('database') || s.includes('db') || s.includes('d1')) return FiDatabase;
+    if (s.includes('api') || s.includes('worker')) return FiServer;
+    if (s.includes('network') || s.includes('cdn')) return FiWifi;
+    if (s.includes('cpu')) return FiCpu;
+    if (s.includes('storage') || s.includes('r2')) return FiHardDrive;
     return FiActivity;
   };
 
@@ -127,8 +128,8 @@ export default function SystemHealth() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Requests/min', value: metrics?.requests_per_min?.toLocaleString() || '0', icon: FiActivity, color: 'text-blue-500' },
-          { label: 'Error Rate', value: metrics ? `${metrics.error_rate_pct.toFixed(2)}%` : '0%', icon: FiAlertTriangle, color: metrics && metrics.error_rate_pct > 1 ? 'text-rose-500' : 'text-emerald-500' },
-          { label: 'Avg Latency', value: metrics ? `${metrics.avg_latency_ms}ms` : '0ms', icon: FiServer, color: metrics && metrics.avg_latency_ms > 200 ? 'text-amber-500' : 'text-emerald-500' },
+          { label: 'Error Rate', value: metrics ? `${(metrics.error_rate_pct ?? 0).toFixed(2)}%` : '0%', icon: FiAlertTriangle, color: metrics && (metrics.error_rate_pct ?? 0) > 1 ? 'text-rose-500' : 'text-emerald-500' },
+          { label: 'Avg Latency', value: metrics ? `${metrics.avg_latency_ms ?? 0}ms` : '0ms', icon: FiServer, color: metrics && (metrics.avg_latency_ms ?? 0) > 200 ? 'text-amber-500' : 'text-emerald-500' },
           { label: 'Connections', value: metrics?.active_connections?.toString() || '0', icon: FiWifi, color: 'text-blue-500' },
         ].map(kpi => (
           <div key={kpi.label} className={cardCls}>
@@ -186,7 +187,7 @@ export default function SystemHealth() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                     <span>Latency: {c.latency_ms}ms</span>
-                    <span>Uptime: {c.uptime_pct?.toFixed(2)}%</span>
+                    <span>Uptime: {(c.uptime_pct ?? 0).toFixed(2)}%</span>
                   </div>
                   {c.details && <p className="text-xs text-slate-400 mt-1 truncate">{c.details}</p>}
                 </div>
