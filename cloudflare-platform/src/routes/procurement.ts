@@ -154,12 +154,19 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
     // Validate bid exists before mutating state
     const bidExists = await c.env.DB.prepare('SELECT id FROM procurement_bids WHERE id = ? AND rfp_id = ?').bind(bidId, rfpId).first();
     if (!bidExists) return c.json({ success: false, error: 'Bid not found for this RFP' }, 404);
-    await c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ?").bind(bidId, rfpId).run();
-    await c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ?").bind(rfpId, bidId).run();
-    if (isAdmin) {
-      await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ?").bind(nowISO(), rfpId).run();
-    } else {
-      await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), rfpId, user.sub).run();
+    // Atomic batch: select bid, reject others, award RFP — prevents race conditions
+    const now = nowISO();
+    const rfpUpdateStmt = isAdmin
+      ? c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND status = 'published'").bind(now, rfpId)
+      : c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ? AND status = 'published'").bind(now, rfpId, user.sub);
+    const batchResults = await c.env.DB.batch([
+      c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ?").bind(bidId, rfpId),
+      c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ?").bind(rfpId, bidId),
+      rfpUpdateStmt,
+    ]);
+    // Check optimistic lock: if RFP update affected 0 rows, another request already awarded it
+    if (batchResults[2]?.meta?.changes === 0) {
+      return c.json({ success: false, error: 'RFP has already been awarded' }, 409);
     }
 
     // Auto-create LOI

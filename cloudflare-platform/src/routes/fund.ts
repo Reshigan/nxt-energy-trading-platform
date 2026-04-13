@@ -9,13 +9,15 @@ fund.use('*', authMiddleware());
 // GET /fund/performance — Monthly NAV + returns + attribution
 fund.get('/performance', authMiddleware({ roles: ['carbon_fund', 'admin'] }), async (c) => {
   try {
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
     const months = parseInt(c.req.query('months') || '12', 10);
-    const credits = await c.env.DB.prepare(
-      "SELECT SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active'"
-    ).first<{ total_qty: number | null }>();
-    const options = await c.env.DB.prepare(
-      "SELECT COUNT(*) as count, SUM(premium_cents) as total_premium FROM carbon_options WHERE status = 'active'"
-    ).first<{ count: number; total_premium: number | null }>();
+    const credits = isAdmin
+      ? await c.env.DB.prepare("SELECT SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active'").first<{ total_qty: number | null }>()
+      : await c.env.DB.prepare("SELECT SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active' AND owner_id = ?").bind(user.sub).first<{ total_qty: number | null }>();
+    const options = isAdmin
+      ? await c.env.DB.prepare("SELECT COUNT(*) as count, SUM(premium_cents) as total_premium FROM carbon_options WHERE status = 'active'").first<{ count: number; total_premium: number | null }>()
+      : await c.env.DB.prepare("SELECT COUNT(*) as count, SUM(premium_cents) as total_premium FROM carbon_options co JOIN carbon_credits cc ON co.credit_id = cc.id WHERE co.status = 'active' AND cc.owner_id = ?").bind(user.sub).first<{ count: number; total_premium: number | null }>();
 
     const totalQty = credits?.total_qty || 0;
     const avgPrice = 18500;
@@ -55,9 +57,11 @@ fund.get('/performance', authMiddleware({ roles: ['carbon_fund', 'admin'] }), as
 // GET /fund/options-book — All options with MTM + Greeks
 fund.get('/options-book', authMiddleware({ roles: ['carbon_fund', 'admin'] }), async (c) => {
   try {
-    const options = await c.env.DB.prepare(
-      "SELECT co.*, cc.vintage_year, cc.standard FROM carbon_options co LEFT JOIN carbon_credits cc ON co.credit_id = cc.id ORDER BY co.expiry_date ASC"
-    ).all();
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
+    const options = isAdmin
+      ? await c.env.DB.prepare("SELECT co.*, cc.vintage_year, cc.standard FROM carbon_options co LEFT JOIN carbon_credits cc ON co.credit_id = cc.id ORDER BY co.expiry_date ASC").all()
+      : await c.env.DB.prepare("SELECT co.*, cc.vintage_year, cc.standard FROM carbon_options co LEFT JOIN carbon_credits cc ON co.credit_id = cc.id WHERE cc.owner_id = ? ORDER BY co.expiry_date ASC").bind(user.sub).all();
     const book = (options.results || []).map((o: Record<string, unknown>) => {
       const strike = Number(o.strike_price_cents) || 18000;
       const spot = 18500;
@@ -87,9 +91,11 @@ fund.get('/options-book', authMiddleware({ roles: ['carbon_fund', 'admin'] }), a
 // GET /fund/registry-reconciliation — Platform vs registry balance
 fund.get('/registry-reconciliation', authMiddleware({ roles: ['carbon_fund', 'admin'] }), async (c) => {
   try {
-    const platformCredits = await c.env.DB.prepare(
-      "SELECT standard, SUM(quantity) as platform_qty FROM carbon_credits WHERE status = 'active' GROUP BY standard"
-    ).all();
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
+    const platformCredits = isAdmin
+      ? await c.env.DB.prepare("SELECT standard, SUM(quantity) as platform_qty FROM carbon_credits WHERE status = 'active' GROUP BY standard").all()
+      : await c.env.DB.prepare("SELECT standard, SUM(quantity) as platform_qty FROM carbon_credits WHERE status = 'active' AND owner_id = ? GROUP BY standard").bind(user.sub).all();
     const reconciliation = (platformCredits.results || []).map((r: Record<string, unknown>) => ({
       registry: String(r.standard || 'Unknown'),
       platform_balance: Number(r.platform_qty) || 0,
@@ -123,9 +129,11 @@ fund.post('/registry/:name/sync', authMiddleware({ roles: ['carbon_fund', 'admin
 // GET /fund/vintage-ladder — Credits by vintage with fair value
 fund.get('/vintage-ladder', authMiddleware({ roles: ['carbon_fund', 'admin'] }), async (c) => {
   try {
-    const vintages = await c.env.DB.prepare(
-      "SELECT vintage_year, standard, SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active' GROUP BY vintage_year, standard ORDER BY vintage_year DESC"
-    ).all();
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
+    const vintages = isAdmin
+      ? await c.env.DB.prepare("SELECT vintage_year, standard, SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active' GROUP BY vintage_year, standard ORDER BY vintage_year DESC").all()
+      : await c.env.DB.prepare("SELECT vintage_year, standard, SUM(quantity) as total_qty FROM carbon_credits WHERE status = 'active' AND owner_id = ? GROUP BY vintage_year, standard ORDER BY vintage_year DESC").bind(user.sub).all();
     const ladder = (vintages.results || []).map((v: Record<string, unknown>) => {
       const year = Number(v.vintage_year) || 2024;
       const qty = Number(v.total_qty) || 0;
