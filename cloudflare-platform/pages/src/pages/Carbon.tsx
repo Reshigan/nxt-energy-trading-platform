@@ -18,7 +18,7 @@ const TABS = ['Overview', 'Credits', 'Options', 'TCFD', 'Registry', 'Retirement'
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
 interface CreditGroup { name: string; value: number; }
-interface CarbonCredit { id: string; standard: string; quantity: number; status: string; price_per_unit: number; vintage_year: number; project_name: string; }
+interface CarbonCredit { id: string; standard: string; quantity: number; status: string; price_per_unit: number; vintage_year: number; project_name: string; project_id?: string; }
 interface CarbonOption { id: string; type: string; strike_price: number; premium: number; quantity: number; expiry: string; status: string; }
 
 export default function Carbon() {
@@ -219,7 +219,7 @@ export default function Carbon() {
                 {allCredits.map(c => (
                   <tr key={c.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
                     <td className="py-3 font-medium text-slate-800 dark:text-slate-200"><EntityLink type="credit" id={c.id} label={c.standard} /></td>
-                    <td className="py-3 text-slate-600 dark:text-slate-400">{c.project_name ? <EntityLink type="project" id={c.id} label={c.project_name} /> : 'N/A'}</td>
+                    <td className="py-3 text-slate-600 dark:text-slate-400">{c.project_name ? <EntityLink type="project" id={c.project_id || c.id} label={c.project_name} /> : 'N/A'}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{c.quantity?.toLocaleString()}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(c.price_per_unit / 100)}</td>
                     <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${c.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : c.status === 'retired' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500'}`}>{c.status}</span></td>
