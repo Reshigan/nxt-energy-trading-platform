@@ -10,13 +10,21 @@ grid.use('*', authMiddleware());
 // GET /grid/connections — All grid connections by status
 grid.get('/connections', authMiddleware({ roles: ['grid', 'admin'] }), async (c) => {
   try {
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
     const status = c.req.query('status');
     let sql = 'SELECT gc.*, p.name as project_name, app.company_name as applicant_name FROM grid_connections gc LEFT JOIN projects p ON gc.project_id = p.id LEFT JOIN participants app ON gc.applicant_id = app.id';
+    const conditions: string[] = [];
     const params: unknown[] = [];
+    if (!isAdmin) {
+      conditions.push('gc.grid_operator_id = ?');
+      params.push(user.sub);
+    }
     if (status) {
-      sql += ' WHERE gc.status = ?';
+      conditions.push('gc.status = ?');
       params.push(status);
     }
+    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
     sql += ' ORDER BY gc.created_at DESC';
     const results = await c.env.DB.prepare(sql).bind(...params).all();
     return c.json({ success: true, data: results.results || [] });
@@ -173,12 +181,17 @@ grid.post('/metering/batch-validate', authMiddleware({ roles: ['grid', 'admin'] 
 // GET /grid/imbalance — Monthly imbalance between nominated and actual
 grid.get('/imbalance', authMiddleware({ roles: ['grid', 'admin'] }), async (c) => {
   try {
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
     const month = c.req.query('month') || new Date().toISOString().substring(0, 7);
     const startDate = `${month}-01`;
     const endDate = `${month}-31`;
-    const connections = await c.env.DB.prepare(
-      "SELECT gc.id, gc.connection_point, gc.allocated_capacity_mw, p.name as project_name FROM grid_connections gc LEFT JOIN projects p ON gc.project_id = p.id WHERE gc.status = 'energised'"
-    ).all();
+    const imbalanceSql = isAdmin
+      ? "SELECT gc.id, gc.connection_point, gc.allocated_capacity_mw, p.name as project_name FROM grid_connections gc LEFT JOIN projects p ON gc.project_id = p.id WHERE gc.status = 'energised'"
+      : "SELECT gc.id, gc.connection_point, gc.allocated_capacity_mw, p.name as project_name FROM grid_connections gc LEFT JOIN projects p ON gc.project_id = p.id WHERE gc.status = 'energised' AND gc.grid_operator_id = ?";
+    const connections = isAdmin
+      ? await c.env.DB.prepare(imbalanceSql).all()
+      : await c.env.DB.prepare(imbalanceSql).bind(user.sub).all();
     const imbalances = (connections.results || []).map((conn: Record<string, unknown>) => ({
       connection_id: conn.id,
       connection_point: conn.connection_point,
@@ -220,9 +233,14 @@ grid.post('/imbalance/:id/settle', authMiddleware({ roles: ['grid', 'admin'] }),
 // GET /grid/capacity — Available capacity per connection point
 grid.get('/capacity', authMiddleware({ roles: ['grid', 'admin'] }), async (c) => {
   try {
-    const connections = await c.env.DB.prepare(
-      "SELECT connection_point, SUM(applied_capacity_mw) as total_applied, SUM(allocated_capacity_mw) as total_allocated, MAX(applied_capacity_mw) as max_single_application FROM grid_connections WHERE status != 'rejected' GROUP BY connection_point"
-    ).all();
+    const user = c.get('user');
+    const isAdmin = user.role === 'admin';
+    const capacitySql = isAdmin
+      ? "SELECT connection_point, SUM(applied_capacity_mw) as total_applied, SUM(allocated_capacity_mw) as total_allocated, MAX(applied_capacity_mw) as max_single_application FROM grid_connections WHERE status != 'rejected' GROUP BY connection_point"
+      : "SELECT connection_point, SUM(applied_capacity_mw) as total_applied, SUM(allocated_capacity_mw) as total_allocated, MAX(applied_capacity_mw) as max_single_application FROM grid_connections WHERE status != 'rejected' AND grid_operator_id = ? GROUP BY connection_point";
+    const connections = isAdmin
+      ? await c.env.DB.prepare(capacitySql).all()
+      : await c.env.DB.prepare(capacitySql).bind(user.sub).all();
     const capacity = (connections.results || []).map((c2: Record<string, unknown>) => {
       const totalApplied = Number(c2.total_applied) || 0;
       const totalAllocated = Number(c2.total_allocated) || 0;
