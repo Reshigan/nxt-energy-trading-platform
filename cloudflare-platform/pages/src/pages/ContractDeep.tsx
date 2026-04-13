@@ -369,17 +369,17 @@ export default function ContractDeep() {
               {auditTrail.map(entry => (
                 <div key={entry.id} className={`flex items-start gap-3 px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    entry.action.includes('sign') ? 'bg-emerald-50 dark:bg-emerald-500/10' :
-                    entry.action.includes('amend') ? 'bg-amber-50 dark:bg-amber-500/10' :
+                                        (entry.action || '').includes('sign') ? 'bg-emerald-50 dark:bg-emerald-500/10' :
+                                        (entry.action || '').includes('amend') ? 'bg-amber-50 dark:bg-amber-500/10' :
                     'bg-blue-50 dark:bg-blue-500/10'
                   }`}>
-                    {entry.action.includes('sign') ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> :
-                     entry.action.includes('amend') ? <FiEdit3 className="w-4 h-4 text-amber-500" /> :
+                                        {(entry.action || '').includes('sign') ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> :
+                                         (entry.action || '').includes('amend') ? <FiEdit3 className="w-4 h-4 text-amber-500" /> :
                      <FiFileText className="w-4 h-4 text-blue-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{entry.action.replace(/_/g, ' ')}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{(entry.action || '').replace(/_/g, ' ')}</span>
                       <span className="text-[10px] text-slate-400">{new Date(entry.timestamp).toLocaleString('en-ZA')}</span>
                     </div>
                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_name} — {entry.details}</div>

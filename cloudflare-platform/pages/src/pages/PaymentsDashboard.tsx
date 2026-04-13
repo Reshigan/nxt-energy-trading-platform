@@ -305,7 +305,7 @@ export default function PaymentsDashboard() {
                         {formatZAR(cn.amount_cents)}
                       </span>
                       <span className={`text-xs ml-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                        Invoice: {cn.invoice_id.slice(0, 12)}...
+                        Invoice: {(cn.invoice_id || '').slice(0, 12)}...
                       </span>
                     </div>
                     <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>

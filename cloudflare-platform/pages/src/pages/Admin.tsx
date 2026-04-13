@@ -110,7 +110,7 @@ export default function Admin() {
   };
 
   const filteredParticipants = participantData.filter(p =>
-    search === '' || p.name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase())
+    search === '' || (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.email || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (

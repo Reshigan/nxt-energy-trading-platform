@@ -20,6 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_participant ON subscriptions(partic
 CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status);
 
 -- Add rejection_reason column to kyc_documents (used by compliance reject endpoint)
+-- Note: Uses INSERT trick since SQLite has no IF NOT EXISTS for ALTER TABLE ADD COLUMN
+-- If column already exists, this will be a no-op error caught by D1
 ALTER TABLE kyc_documents ADD COLUMN rejection_reason TEXT;
 
 -- Phase 11: Missing indexes on hot columns
@@ -49,7 +51,10 @@ CREATE INDEX IF NOT EXISTS idx_licences_status_expiry ON licences(status, expiry
 CREATE INDEX IF NOT EXISTS idx_kyc_documents_participant ON kyc_documents(participant_id);
 CREATE INDEX IF NOT EXISTS idx_meter_readings_project ON meter_readings(project_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+-- Add created_by column (production table may lack it)
+ALTER TABLE support_tickets ADD COLUMN created_by TEXT;
 CREATE INDEX IF NOT EXISTS idx_support_tickets_creator ON support_tickets(created_by);
 CREATE INDEX IF NOT EXISTS idx_aml_alerts_status ON aml_alerts(status);
 CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_payment_transactions_participant ON payment_transactions(participant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_from ON payment_transactions(from_participant_id);
+CREATE INDEX IF NOT EXISTS idx_payment_transactions_to ON payment_transactions(to_participant_id);
