@@ -472,3 +472,114 @@ export function IconReportingEngine(p: IconProps = defaultProps) {
     <rect x="15" y="5" width="3" height="13" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
   </>);
 }
+
+// ─── Spec 12: World-Leader Icons ────────────────────────
+export function IconTOU(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <circle cx="12" cy="12" r="9" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <polyline points="12 7 12 12 15 14" />
+    <path d="M5 5l1.5 1.5" strokeOpacity="0.4" />
+    <path d="M19 5l-1.5 1.5" strokeOpacity="0.4" />
+    <path d="M12 3v1" strokeOpacity="0.4" />
+  </>);
+}
+
+export function IconCurves(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <polyline points="2 17 7 12 12 14 17 8 22 5" />
+    <path d="M22 5l-4 0 0 4" />
+    <line x1="2" y1="20" x2="22" y2="20" strokeOpacity="0.3" />
+  </>);
+}
+
+export function IconScheduling(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="3" y="4" width="18" height="18" rx="2" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+    <rect x="7" y="14" width="3" height="3" rx="0.5" fill={p.color || 'currentColor'} fillOpacity="0.2" stroke="none" />
+  </>);
+}
+
+export function IconCurrency(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <circle cx="12" cy="12" r="9" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <path d="M15 9.354a4 4 0 1 0 0 5.292" />
+    <line x1="12" y1="7" x2="12" y2="17" strokeOpacity="0.3" />
+  </>);
+}
+
+export function IconValuation(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="2" y="3" width="20" height="18" rx="2" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <path d="M2 9h20" strokeOpacity="0.3" />
+    <path d="M8 15h8" />
+    <path d="M9 12h6" />
+    <path d="M10 18h4" />
+  </>);
+}
+
+export function IconESG(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9" fill={p.color || 'currentColor'} fillOpacity="0.05" stroke={p.color || 'currentColor'} />
+    <path d="M12 3c4.97 0 9 4.03 9 9s-4.03 9-9 9" strokeDasharray="3 2" />
+    <path d="M8 12s1.5-3 4-3 4 3 4 3-1.5 3-4 3-4-3-4-3z" fill={p.color || 'currentColor'} fillOpacity="0.15" stroke={p.color || 'currentColor'} />
+  </>);
+}
+
+export function IconDealRoom(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <path d="M8 9h8" />
+    <path d="M8 13h5" />
+  </>);
+}
+
+export function IconVPP(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+    <circle cx="18" cy="5" r="2.5" fill="#f59e0b" stroke="none" />
+  </>);
+}
+
+export function IconScenario(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="2" y="3" width="8" height="18" rx="1.5" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <rect x="14" y="3" width="8" height="18" rx="1.5" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <path d="M6 8v8" />
+    <path d="M18 10v6" />
+  </>);
+}
+
+export function IconRegulatory(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M9 15l2 2 4-4" />
+  </>);
+}
+
+export function IconRetention(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <rect x="3" y="3" width="7" height="7" rx="1" fill={p.color || 'currentColor'} fillOpacity="0.1" stroke={p.color || 'currentColor'} />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" strokeDasharray="2 2" />
+  </>);
+}
+
+export function IconVintage(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <circle cx="12" cy="12" r="9" strokeDasharray="4 2" />
+    <path d="M12 8v8" />
+    <path d="M8 12h8" />
+    <circle cx="12" cy="12" r="3" fill={p.color || 'currentColor'} fillOpacity="0.12" stroke="none" />
+  </>);
+}
+
+export function IconWhatsApp(p: IconProps = defaultProps) {
+  return wrap(p, <>
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" fill={p.color || 'currentColor'} fillOpacity="0.06" stroke={p.color || 'currentColor'} />
+  </>);
+}

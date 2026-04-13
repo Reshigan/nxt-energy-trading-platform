@@ -13,7 +13,10 @@ import {
   IconSystemHealth, IconTenant, IconAdmin,
   IconVault, IconLender, IconSurveillance, IconTradeJournal,
   IconCarbonDeep, IconIPPDeep, IconOfftakerDeep, IconReportingEngine,
+  IconTOU, IconCurves, IconScheduling, IconCurrency, IconValuation,
+  IconESG, IconDealRoom, IconVPP, IconScenario, IconRegulatory, IconRetention, IconVintage,
 } from '../components/icons';
+import SearchModal from '../components/SearchModal';
 import AIChatWidget from '../components/AIChatWidget';
 import EntityDetailPanel from '../components/EntityDetailPanel';
 import AnnouncementBanner from '../components/AnnouncementBanner';
@@ -38,8 +41,17 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Operations', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+    ]},
+    { label: 'World Leader', items: [
+      { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
+      { name: 'ESG Scoring', href: '/esg', icon: IconESG },
     ]},
     { label: 'Staff', items: [
       { name: 'Staff Management', href: '/staff', icon: IconAdmin },
@@ -49,11 +61,14 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Finance & Compliance', items: [
       { name: 'Payments', href: '/payments', icon: IconInvoices },
       { name: 'AML Monitoring', href: '/aml-dashboard', icon: IconSurveillance },
+      { name: 'Regulatory', href: '/reporting-engine', icon: IconRegulatory },
     ]},
     { label: 'System', items: [
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
       { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+      { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
+      { name: 'Data Retention', href: '/data-retention', icon: IconRetention },
       { name: 'Modules', href: '/modules', icon: IconAdmin },
       { name: 'Changelog', href: '/changelog', icon: IconReports },
     ]},
@@ -65,14 +80,18 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Energy', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Metering', href: '/metering', icon: IconMetering },
       { name: 'Analytics (ODSE)', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
     ]},
     { label: 'Finance', items: [
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'ESG', href: '/esg', icon: IconESG },
     ]},
   ],
   ipp_developer: [
@@ -99,14 +118,18 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Trading', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
       { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
       { name: 'Risk', href: '/risk', icon: IconRisk },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Energy Analytics', href: '/metering-analytics', icon: IconAnalytics },
     ]},
     { label: 'Carbon & Finance', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
     ]},
   ],
   carbon_fund: [
@@ -116,12 +139,15 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Carbon', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Vintage Analysis', href: '/carbon-deep', icon: IconVintage },
       { name: 'Carbon Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Markets', href: '/markets', icon: IconMarkets },
+      { name: 'ESG', href: '/esg', icon: IconESG },
     ]},
     { label: 'Finance', items: [
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
@@ -133,13 +159,16 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Supply', items: [
       { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
       { name: 'Consumption Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
     ]},
     { label: 'Finance', items: [
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
       { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
+      { name: 'ESG', href: '/esg', icon: IconESG },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
@@ -164,8 +193,10 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
     ]},
     { label: 'Compliance', items: [
+      { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
+      { name: 'ESG Scoring', href: '/esg', icon: IconESG },
     ]},
     { label: 'Market', items: [
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
@@ -180,6 +211,8 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Grid Operations', items: [
       { name: 'Metering Analytics', href: '/metering-analytics', icon: IconAnalytics },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
     ]},
@@ -231,6 +264,16 @@ const ALL_MORE_LINKS = [
   { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
   { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
   { name: 'Support', href: '/support', icon: IconNotifications },
+  // Spec 12: World-Leader links
+  { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
+  { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
+  { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
+  { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
+  { name: 'ESG Scoring', href: '/esg', icon: IconESG },
+  { name: 'VPP Dashboard', href: '/vpp', icon: IconVPP },
+  { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
+  { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
+  { name: 'Data Retention', href: '/data-retention', icon: IconRetention },
 ];
 
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund', 'grid'] as const;
@@ -262,6 +305,7 @@ export default function DashboardLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, activeRole, switchRole, logout, isAuthenticated } = useAuthStore();
@@ -366,7 +410,7 @@ export default function DashboardLayout() {
           {/* Right: Search + Actions */}
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm cursor-pointer transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:bg-white/[0.06]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+            <div onClick={() => setSearchOpen(true)} className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm cursor-pointer transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:bg-white/[0.06]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
               <IconSearch size={14} />
               <span className="text-xs">Search...</span>
               <kbd className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-white/[0.06] text-slate-500' : 'bg-white text-slate-400'}`}>⌘K</kbd>
@@ -527,6 +571,9 @@ export default function DashboardLayout() {
 
       {/* ── Entity Detail Panel (Spec 11) ────────────── */}
       <EntityDetailPanel />
+
+      {/* ── Platform-Wide Search (Spec 12) ────────────── */}
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
