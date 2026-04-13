@@ -108,8 +108,13 @@ async function fetchAlerts(pid: string, role: string, db: DB): Promise<Alert[]> 
         alerts.push({ id: `alert-aml-${a.id}`, severity: a.severity === 'high' ? 'critical' : 'warning', title: `AML Alert: ${a.alert_type}`, message: String(a.description), created_at: String(a.created_at) });
       }
     }
-    // Overdue invoices (offtaker, trader, admin)
-    if (['offtaker', 'trader', 'admin'].includes(role)) {
+    // Overdue invoices — admin sees all; offtaker/trader see only their own
+    if (role === 'admin') {
+      const overdue = await db.prepare("SELECT id, invoice_number, total_cents, due_date FROM invoices WHERE status = 'outstanding' AND due_date < date('now') LIMIT 3").all();
+      for (const inv of overdue.results) {
+        alerts.push({ id: `alert-inv-${inv.id}`, severity: 'critical', title: `Invoice overdue: ${inv.invoice_number}`, message: `R${((inv.total_cents as number) / 100).toFixed(0)} past due since ${inv.due_date}`, created_at: String(inv.due_date) });
+      }
+    } else if (['offtaker', 'trader'].includes(role)) {
       const overdue = await db.prepare("SELECT id, invoice_number, total_cents, due_date FROM invoices WHERE to_participant_id = ? AND status = 'outstanding' AND due_date < date('now') LIMIT 3").bind(pid).all();
       for (const inv of overdue.results) {
         alerts.push({ id: `alert-inv-${inv.id}`, severity: 'critical', title: `Invoice overdue: ${inv.invoice_number}`, message: `R${((inv.total_cents as number) / 100).toFixed(0)} past due since ${inv.due_date}`, created_at: String(inv.due_date) });
@@ -122,8 +127,13 @@ async function fetchAlerts(pid: string, role: string, db: DB): Promise<Alert[]> 
         alerts.push({ id: `alert-cp-${cp.id}`, severity: 'warning', title: `CP deadline approaching: ${cp.description}`, message: `${cp.project_name} — due ${cp.due_date}`, created_at: String(cp.due_date) });
       }
     }
-    // Pending settlements (trader)
-    if (['trader', 'admin'].includes(role)) {
+    // Pending settlements — admin sees all stale trades; trader sees their own
+    if (role === 'admin') {
+      const pending = await db.prepare("SELECT COUNT(*) as c FROM trades WHERE status = 'pending' AND created_at <= datetime('now','-1 day')").first<{ c: number }>();
+      if (pending && pending.c > 0) {
+        alerts.push({ id: 'alert-settle', severity: 'warning', title: `${pending.c} trade(s) awaiting settlement`, message: 'Trades older than 24h still pending settlement', created_at: new Date().toISOString() });
+      }
+    } else if (role === 'trader') {
       const pending = await db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending' AND created_at <= datetime('now','-1 day')").bind(pid, pid).first<{ c: number }>();
       if (pending && pending.c > 0) {
         alerts.push({ id: 'alert-settle', severity: 'warning', title: `${pending.c} trade(s) awaiting settlement`, message: 'Trades older than 24h still pending settlement', created_at: new Date().toISOString() });
