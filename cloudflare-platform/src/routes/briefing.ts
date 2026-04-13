@@ -81,7 +81,7 @@ briefing.get('/', async (c) => {
              SELECT id FROM trades WHERE buyer_id = ? OR seller_id = ?
            )
            OR t.entity_type = 'project' AND t.entity_id IN (
-             SELECT id FROM projects WHERE owner_id = ?
+             Select id FROM projects WHERE developer_id = ?
            )
            OR t.participant_id = ?
          )`
