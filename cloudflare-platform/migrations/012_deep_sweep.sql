@@ -49,6 +49,8 @@ CREATE INDEX IF NOT EXISTS idx_licences_status_expiry ON licences(status, expiry
 CREATE INDEX IF NOT EXISTS idx_kyc_documents_participant ON kyc_documents(participant_id);
 CREATE INDEX IF NOT EXISTS idx_meter_readings_project ON meter_readings(project_id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+-- Add created_by column if missing (production table lacks it)
+ALTER TABLE support_tickets ADD COLUMN created_by TEXT REFERENCES participants(id);
 CREATE INDEX IF NOT EXISTS idx_support_tickets_creator ON support_tickets(created_by);
 CREATE INDEX IF NOT EXISTS idx_aml_alerts_status ON aml_alerts(status);
 CREATE INDEX IF NOT EXISTS idx_payment_transactions_status ON payment_transactions(status);
