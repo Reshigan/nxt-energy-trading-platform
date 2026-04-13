@@ -185,7 +185,7 @@ vpp.post('/assets/:id/heartbeat', async (c) => {
     const body = await c.req.json<{ available_kw?: number; status?: string }>();
     await c.env.DB.prepare(
       'UPDATE vpp_assets SET last_heartbeat = ?, available_kw = COALESCE(?, available_kw) WHERE id = ?'
-    ).bind(nowISO(), body.available_kw || null, id).run();
+    ).bind(nowISO(), body.available_kw !== undefined ? body.available_kw : null, id).run();
     return c.json({ success: true });
   } catch (err) {
     captureException(c, err);
