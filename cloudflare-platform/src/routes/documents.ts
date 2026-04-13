@@ -5,6 +5,16 @@ import { authMiddleware } from '../auth/middleware';
 const app = new Hono<HonoEnv>();
 app.use('*', authMiddleware());
 
+// Helper: check if user is a party to the document (creator, counterparty, signatory, or admin)
+async function checkDocumentAccess(db: D1Database, docId: string, userId: string, userRole: string): Promise<boolean> {
+  if (userRole === 'admin') return true;
+  const doc = await db.prepare('SELECT creator_id, counterparty_id FROM contract_documents WHERE id = ?').bind(docId).first<{ creator_id: string; counterparty_id: string | null }>();
+  if (!doc) return false;
+  if (doc.creator_id === userId || doc.counterparty_id === userId) return true;
+  const sig = await db.prepare('SELECT id FROM document_signatories WHERE document_id = ? AND participant_id = ? LIMIT 1').bind(docId, userId).first();
+  return !!sig;
+}
+
 // Spec 13 Shift 5: Document Intelligence — extract and parse commercial terms
 
 // POST /documents/extract — Extract key terms from a contract document
@@ -14,6 +24,8 @@ app.post('/extract', async (c) => {
     if (!document_id) return c.json({ success: false, error: 'document_id required' }, 400);
 
     const db = c.env.DB;
+    const user = c.get('user');
+    if (!await checkDocumentAccess(db, document_id, user.sub, user.role)) return c.json({ success: false, error: 'Not authorized to access this document' }, 403);
     const doc = await db.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(document_id).first();
     if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
@@ -73,6 +85,8 @@ app.get('/:id/terms', async (c) => {
   try {
     const id = c.req.param('id');
     const db = c.env.DB;
+    const user = c.get('user');
+    if (!await checkDocumentAccess(db, id, user.sub, user.role)) return c.json({ success: false, error: 'Not authorized to access this document' }, 403);
     const doc = await db.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(id).first();
     if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
@@ -104,6 +118,12 @@ app.post('/compare', async (c) => {
     if (!doc_a_id || !doc_b_id) return c.json({ success: false, error: 'doc_a_id and doc_b_id required' }, 400);
 
     const db = c.env.DB;
+    const user = c.get('user');
+    const [accessA, accessB] = await Promise.all([
+      checkDocumentAccess(db, doc_a_id, user.sub, user.role),
+      checkDocumentAccess(db, doc_b_id, user.sub, user.role),
+    ]);
+    if (!accessA || !accessB) return c.json({ success: false, error: 'Not authorized to access one or both documents' }, 403);
     const [docA, docB] = await Promise.all([
       db.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(doc_a_id).first(),
       db.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(doc_b_id).first(),
