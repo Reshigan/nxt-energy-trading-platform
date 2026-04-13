@@ -149,8 +149,10 @@ export default function ContractDeep() {
     if (!ctx) return;
     setIsDrawing(true);
     const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = ('touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left) * scaleX;
+    const y = ('touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top) * scaleY;
     ctx.beginPath();
     ctx.moveTo(x, y);
   };
@@ -162,8 +164,10 @@ export default function ContractDeep() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = ('touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left) * scaleX;
+    const y = ('touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top) * scaleY;
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.strokeStyle = isDark ? '#fff' : '#1e293b';
@@ -355,7 +359,7 @@ export default function ContractDeep() {
                       {contract.phase === phase ? <FiCheckCircle className="w-4 h-4 text-blue-500" /> : <FiClock className="w-4 h-4 text-slate-400" />}
                       <span className={`text-sm font-medium capitalize ${contract.phase === phase ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>{phase}</span>
                     </div>
-                    {contract.phase !== phase && contract.phase !== 'completed' && (
+                    {contract.phase !== phase && contract.phase !== 'terminated' && (
                       <button onClick={() => handleAdvancePhase(phase)} disabled={submitting}
                         className="text-xs text-blue-500 hover:text-blue-600 font-medium" aria-label={`Advance to ${phase}`}>
                         Move here
