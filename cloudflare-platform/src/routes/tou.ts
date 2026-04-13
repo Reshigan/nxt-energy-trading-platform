@@ -181,10 +181,10 @@ tou.get('/cost-comparison', async (c) => {
     for (const [period, hours] of Object.entries(periodCounts)) {
       const volumeKwh = annualKwh * (hours / 24);
       const rate = period === 'peak' ? profile.peak_rate_cents as number : period === 'standard' ? profile.standard_rate_cents as number : profile.offpeak_rate_cents as number;
-      gridCostCents += volumeKwh * rate / 100;
+      gridCostCents += volumeKwh * rate;
     }
 
-    const ppaCostCents = annualKwh * ppaTariffCents / 100;
+    const ppaCostCents = annualKwh * ppaTariffCents;
     const savingCents = gridCostCents - ppaCostCents;
 
     return c.json({
