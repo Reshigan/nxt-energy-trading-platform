@@ -66,6 +66,8 @@ export default function Contracts() {
   const [governingLaw, setGoverningLaw] = useState('South Africa');
   const [jurisdiction, setJurisdiction] = useState('Gauteng Division, High Court of South Africa');
   const [creating, setCreating] = useState(false);
+  const [contractTitle, setContractTitle] = useState('');
+  const [documentType, setDocumentType] = useState('ppa_wheeling');
   const navigate = useNavigate();
   // F4: Attachments
   const [showAttachModal, setShowAttachModal] = useState<string | null>(null);
@@ -375,6 +377,24 @@ export default function Contracts() {
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">New Contract</h3>
             <div className="space-y-4">
               <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Contract Title *</label>
+                <input className={inputClass} value={contractTitle} onChange={(e) => setContractTitle(e.target.value)} placeholder="e.g. Solar PPA — Eskom Wheeling Agreement" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Document Type *</label>
+                <select className={inputClass} value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+                  <option value="ppa_wheeling">PPA Wheeling</option>
+                  <option value="ppa_direct">PPA Direct</option>
+                  <option value="forward_contract">Forward Contract</option>
+                  <option value="option_contract">Option Contract</option>
+                  <option value="offtake_agreement">Offtake Agreement</option>
+                  <option value="interconnection_agreement">Interconnection Agreement</option>
+                  <option value="implementation_agreement">Implementation Agreement</option>
+                  <option value="nda">Non-Disclosure Agreement</option>
+                  <option value="mou">Memorandum of Understanding</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Governing Law *</label>
                 <select className={inputClass} value={governingLaw} onChange={(e) => setGoverningLaw(e.target.value)}>
                   {GOVERNING_LAW_OPTIONS.map((opt) => (
@@ -401,8 +421,9 @@ export default function Contracts() {
                 <button type="button" disabled={creating} onClick={async () => {
                   setCreating(true);
                   try {
-                    const res = await contractsAPI.create({ document_type: 'ppa_wheeling', governing_law: governingLaw, jurisdiction, title: 'New Contract' });
-                    if (res.data?.success) { toast.success('Contract created'); setShowCreateModal(false); loadDocuments(); }
+                    if (!contractTitle.trim()) { toast.error('Please enter a contract title'); setCreating(false); return; }
+                    const res = await contractsAPI.create({ document_type: documentType, governing_law: governingLaw, jurisdiction, title: contractTitle.trim() });
+                    if (res.data?.success) { toast.success('Contract created'); setShowCreateModal(false); setContractTitle(''); setDocumentType('ppa_wheeling'); loadDocuments(); }
                     else toast.error(res.data?.error || 'Failed to create contract');
                   } catch { toast.error('Failed to create contract'); }
                   setCreating(false);

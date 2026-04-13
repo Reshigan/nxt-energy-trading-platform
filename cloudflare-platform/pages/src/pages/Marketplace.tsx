@@ -28,7 +28,7 @@ export default function Marketplace() {
   const [showCreate, setShowCreate] = useState(false);
   const [listForm, setListForm] = useState({ title: '', type: 'PPA', technology: 'Solar', price: '', volume: '' });
   const [listCreating, setListCreating] = useState(false);
-  const [bidTarget, setBidTarget] = useState<any>(null);
+  const [bidTarget, setBidTarget] = useState<Listing | null>(null);
   const [bidAmount, setBidAmount] = useState('');
   const [bidSubmitting, setBidSubmitting] = useState(false);
 
