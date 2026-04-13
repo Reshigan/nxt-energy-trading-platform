@@ -61,7 +61,7 @@ export default function IntelligencePanel() {
 
       <div className="flex gap-1 mb-3">
         <button onClick={() => setFilter('')} className={`px-2 py-1 rounded text-xs ${!filter ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>All</button>
-        {['action', 'alert', 'insight', 'positive'].map((cat) => (
+        {['action', 'opportunity', 'risk', 'insight', 'prediction'].map((cat) => (
           <button key={cat} onClick={() => setFilter(cat)} className={`px-2 py-1 rounded text-xs capitalize ${filter === cat ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>{cat}</button>
         ))}
       </div>
