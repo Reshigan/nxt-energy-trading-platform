@@ -89,7 +89,7 @@ export default function AuditTrail() {
     { key: 'resource_type', header: 'Resource', sortable: true, render: (r) => (
       <span className="text-xs">
         <span className="capitalize">{r.resource_type}</span>
-        {r.resource_id && <span className="text-slate-400 ml-1 mono">#{r.resource_id.slice(0, 8)}</span>}
+        {r.resource_id && <span className="text-slate-400 ml-1 mono">#{(r.resource_id || '').slice(0, 8)}</span>}
       </span>
     )},
     { key: 'details', header: 'Details', render: (r) => <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px] block">{r.details || 'N/A'}</span> },

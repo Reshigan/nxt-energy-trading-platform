@@ -99,7 +99,7 @@ export default function Markets() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const filtered = marketData.filter(m => {
-    const matchesSearch = m.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (m.name || '').toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filterPositive === null || m.positive === filterPositive;
     const matchesWatchlist = !showWatchlistOnly || watchlist.has(m.name);
     return matchesSearch && matchesFilter && matchesWatchlist;

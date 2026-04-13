@@ -69,12 +69,12 @@ export default function DocumentVault() {
   const handleVerify = async (id: string) => {
     try {
       const res = await vaultAPI.verifyDocument(id);
-      if (res.data?.success) toast.success(`Verified — Hash: ${res.data.data.integrity_hash.substring(0, 16)}...`);
+      if (res.data?.success) toast.success(`Verified — Hash: ${(res.data.data?.integrity_hash || '').substring(0, 16)}...`);
       else toast.error('Verification failed');
     } catch { toast.error('Verification failed'); }
   };
 
-  const filtered = documents.filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.document_type.toLowerCase().includes(search.toLowerCase()));
+  const filtered = documents.filter(d => !search || (d.title || '').toLowerCase().includes(search.toLowerCase()) || (d.document_type || '').toLowerCase().includes(search.toLowerCase()));
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="space-y-6" role="main" aria-label="Document Vault page">
