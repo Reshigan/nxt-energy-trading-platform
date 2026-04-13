@@ -86,6 +86,11 @@ export default function ContractDeep() {
   const [amendReason, setAmendReason] = useState('');
   const [amendMajor, setAmendMajor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [signName, setSignName] = useState('');
+  const [signDesignation, setSignDesignation] = useState('');
+  const sigCanvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSigned, setHasSigned] = useState(false);
 
   const loadContract = useCallback(async () => {
     if (!id) return;
@@ -137,14 +142,64 @@ export default function ContractDeep() {
     setSubmitting(false);
   };
 
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setIsDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = isDark ? '#fff' : '#1e293b';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setHasSigned(true);
+  };
+
+  const stopDrawing = () => setIsDrawing(false);
+
+  const clearSignature = () => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSigned(false);
+  };
+
   const handleSign = async () => {
     if (!id) return;
+    if (!signName.trim()) { toast.error('Please enter your full name'); return; }
+    if (!signDesignation.trim()) { toast.error('Please enter your designation'); return; }
+    if (!hasSigned) { toast.error('Please draw your signature'); return; }
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const signatureImage = canvas.toDataURL('image/png');
     setSubmitting(true);
     try {
-      const res = await contractsAPI.sign(id, { method: 'electronic' });
+      const res = await contractsAPI.sign(id, { signatory_name: signName, signatory_designation: signDesignation, signature_image: signatureImage });
       if (res.data?.success) {
         toast.success('Contract signed successfully');
         setShowSignModal(false);
+        setSignName('');
+        setSignDesignation('');
+        clearSignature();
         loadContract();
       } else {
         toast.error(res.data?.error || 'Failed to sign contract');
@@ -290,7 +345,7 @@ export default function ContractDeep() {
               <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-10" />)}</div>
             ) : contract ? (
               <div className="space-y-3">
-                {['negotiation', 'review', 'signing', 'active', 'completed'].map(phase => (
+                {['draft', 'loi', 'term_sheet', 'hoa', 'draft_agreement', 'legal_review', 'statutory_check', 'execution', 'active', 'amended', 'terminated'].map(phase => (
                   <div key={phase} className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                     contract.phase === phase
                       ? 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20'
@@ -434,7 +489,7 @@ export default function ContractDeep() {
       </Modal>
 
       {/* Sign Modal */}
-      <Modal isOpen={showSignModal} onClose={() => setShowSignModal(false)} title="Sign Contract" size="sm">
+      <Modal isOpen={showSignModal} onClose={() => { setShowSignModal(false); setSignName(''); setSignDesignation(''); clearSignature(); }} title="Sign Contract" size="md">
         <div className="space-y-4">
           <div className={`p-4 rounded-xl ${c('bg-amber-500/10', 'bg-amber-50')}`}>
             <div className="flex items-center gap-2 mb-2">
@@ -442,12 +497,34 @@ export default function ContractDeep() {
               <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">Legal Notice</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              By signing this contract, you agree to be legally bound by its terms. This constitutes an electronic signature under the Electronic Communications and Transactions Act 25 of 2002 (ECT Act).
+              By signing this contract, you agree to be legally bound by its terms. This constitutes an electronic signature under the Electronic Communications and Transactions Act 25 of 2002 (ECT Act), Section 13.
             </p>
           </div>
+          <div>
+            <label htmlFor="sign-name" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Full Name *</label>
+            <input id="sign-name" value={signName} onChange={e => setSignName(e.target.value)} placeholder="e.g. John Smith"
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+          </div>
+          <div>
+            <label htmlFor="sign-designation" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Designation / Title *</label>
+            <input id="sign-designation" value={signDesignation} onChange={e => setSignDesignation(e.target.value)} placeholder="e.g. Chief Executive Officer"
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Signature *</label>
+              <button type="button" onClick={clearSignature} className="text-[10px] text-blue-500 hover:text-blue-600">Clear</button>
+            </div>
+            <canvas ref={sigCanvasRef} width={400} height={120}
+              onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
+              className={`w-full rounded-xl border cursor-crosshair ${c('bg-white/[0.04] border-white/[0.06]', 'bg-white border-black/[0.06]')}`}
+              style={{ touchAction: 'none' }} />
+            <p className="text-[10px] text-slate-400 mt-1">Draw your signature above using mouse or touch</p>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setShowSignModal(false)} className={`px-4 py-2 rounded-xl text-sm font-medium ${c('text-slate-400 hover:text-white', 'text-slate-500 hover:text-slate-700')}`}>Cancel</button>
-            <button onClick={handleSign} disabled={submitting} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center gap-2">
+            <button onClick={() => { setShowSignModal(false); setSignName(''); setSignDesignation(''); clearSignature(); }} className={`px-4 py-2 rounded-xl text-sm font-medium ${c('text-slate-400 hover:text-white', 'text-slate-500 hover:text-slate-700')}`}>Cancel</button>
+            <button onClick={handleSign} disabled={submitting || !signName.trim() || !signDesignation.trim() || !hasSigned} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center gap-2">
               {submitting && <FiLoader className="w-4 h-4 animate-spin" />} Sign Electronically
             </button>
           </div>
