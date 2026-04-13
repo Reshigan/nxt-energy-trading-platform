@@ -83,6 +83,16 @@ const SupportDashboard = lazy(() => import('./pages/SupportDashboard'));
 const PlatformConfig = lazy(() => import('./pages/PlatformConfig'));
 const AMLDashboard = lazy(() => import('./pages/AMLDashboard'));
 const PaymentsDashboard = lazy(() => import('./pages/PaymentsDashboard'));
+// Spec 12: World-Leader Enhancements
+const ForwardCurves = lazy(() => import('./pages/ForwardCurves'));
+const PPAValuation = lazy(() => import('./pages/PPAValuation'));
+const DealRoom = lazy(() => import('./pages/DealRoom'));
+const DataRetention = lazy(() => import('./pages/DataRetention'));
+const ESGDashboard = lazy(() => import('./pages/ESGDashboard'));
+const VPPDashboard = lazy(() => import('./pages/VPPDashboard'));
+const ScenarioComparison = lazy(() => import('./pages/ScenarioComparison'));
+const SurveillanceDashboard = lazy(() => import('./pages/SurveillanceDashboard'));
+const SchedulingPage = lazy(() => import('./pages/Scheduling'));
 
 function App() {
   return (
@@ -154,6 +164,16 @@ function App() {
         <Route path="/platform-config" element={<ProtectedRoute><PlatformConfig /></ProtectedRoute>} />
         <Route path="/aml-dashboard" element={<ProtectedRoute><AMLDashboard /></ProtectedRoute>} />
         <Route path="/payments" element={<ProtectedRoute><PaymentsDashboard /></ProtectedRoute>} />
+        {/* Spec 12: World-Leader routes */}
+        <Route path="/forward-curves" element={<ProtectedRoute><ForwardCurves /></ProtectedRoute>} />
+        <Route path="/ppa-valuation" element={<ProtectedRoute><PPAValuation /></ProtectedRoute>} />
+        <Route path="/deal-room" element={<ProtectedRoute><DealRoom /></ProtectedRoute>} />
+        <Route path="/data-retention" element={<ProtectedRoute><DataRetention /></ProtectedRoute>} />
+        <Route path="/esg" element={<ProtectedRoute><ESGDashboard /></ProtectedRoute>} />
+        <Route path="/vpp" element={<ProtectedRoute><VPPDashboard /></ProtectedRoute>} />
+        <Route path="/scenarios" element={<ProtectedRoute><ScenarioComparison /></ProtectedRoute>} />
+        <Route path="/surveillance-enhanced" element={<ProtectedRoute><SurveillanceDashboard /></ProtectedRoute>} />
+        <Route path="/scheduling" element={<ProtectedRoute><SchedulingPage /></ProtectedRoute>} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>
