@@ -64,6 +64,8 @@ grid.patch('/connections/:id/status', authMiddleware({ roles: ['grid', 'admin'] 
     const id = c.req.param('id');
     const user = c.get('user');
     const body = await c.req.json() as { status: string; quote_amount_cents?: number; allocated_capacity_mw?: number; notes?: string };
+    const validStatuses = ['applied', 'quoted', 'agreement_signed', 'under_construction', 'energised', 'rejected'];
+    if (!body.status || !validStatuses.includes(body.status)) return c.json({ success: false, error: `status must be one of: ${validStatuses.join(', ')}` }, 400);
     const updates: string[] = ['status = ?', 'updated_at = ?'];
     const params: unknown[] = [body.status, nowISO()];
     if (body.quote_amount_cents !== undefined) { updates.push('quote_amount_cents = ?'); params.push(body.quote_amount_cents); }
