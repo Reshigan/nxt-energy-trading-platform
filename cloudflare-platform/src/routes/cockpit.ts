@@ -89,9 +89,14 @@ type DB = { prepare: (q: string) => { bind: (...a: unknown[]) => { first: <T = R
 async function fetchAlerts(pid: string, role: string, db: DB): Promise<Alert[]> {
   const alerts: Alert[] = [];
   try {
-    // Licence expiry alerts (all roles with licences)
-    if (['admin', 'ipp', 'ipp_developer', 'generator', 'regulator'].includes(role)) {
+    // Licence expiry alerts — admin/regulator see all; IPP/generator see only their own
+    if (['admin', 'regulator'].includes(role)) {
       const expiring = await db.prepare("SELECT l.id, l.type, l.expiry_date, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 5").all();
+      for (const l of expiring.results) {
+        alerts.push({ id: `alert-lic-${l.id}`, severity: 'warning', title: `Licence expiring: ${l.type}`, message: `${l.company_name} — expires ${l.expiry_date}`, created_at: String(l.expiry_date) });
+      }
+    } else if (['ipp', 'ipp_developer', 'generator'].includes(role)) {
+      const expiring = await db.prepare("SELECT l.id, l.type, l.expiry_date, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.participant_id = ? AND l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 5").bind(pid).all();
       for (const l of expiring.results) {
         alerts.push({ id: `alert-lic-${l.id}`, severity: 'warning', title: `Licence expiring: ${l.type}`, message: `${l.company_name} — expires ${l.expiry_date}`, created_at: String(l.expiry_date) });
       }
