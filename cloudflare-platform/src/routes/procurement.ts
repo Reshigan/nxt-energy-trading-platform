@@ -130,9 +130,12 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
   try {
     const { id: rfpId, bidId } = c.req.param();
     const user = c.get('user');
-    await c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ?").bind(bidId).run();
+    // Verify the requesting user owns this RFP
+    const rfpOwner = await c.env.DB.prepare("SELECT id FROM procurement_rfps WHERE id = ? AND offtaker_id = ?").bind(rfpId, user.sub).first();
+    if (!rfpOwner) return c.json({ success: false, error: 'RFP not found or not owned by you' }, 403);
+    await c.env.DB.prepare("UPDATE procurement_bids SET status = 'selected' WHERE id = ? AND rfp_id = ?").bind(bidId, rfpId).run();
     await c.env.DB.prepare("UPDATE procurement_bids SET status = 'rejected' WHERE rfp_id = ? AND id != ?").bind(rfpId, bidId).run();
-    await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ?").bind(nowISO(), rfpId).run();
+    await c.env.DB.prepare("UPDATE procurement_rfps SET status = 'awarded', updated_at = ? WHERE id = ? AND offtaker_id = ?").bind(nowISO(), rfpId, user.sub).run();
 
     // Auto-create LOI
     const bid = await c.env.DB.prepare('SELECT generator_id, tariff_cents, volume_mwh FROM procurement_bids WHERE id = ?').bind(bidId).first<{ generator_id: string; tariff_cents: number; volume_mwh: number | null }>();

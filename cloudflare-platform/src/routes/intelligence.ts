@@ -81,9 +81,9 @@ intelligence.post('/generate', async (c) => {
     const pid = user.sub;
     const generated: string[] = [];
 
-    // Clear existing unacknowledged auto-generated items to prevent duplicates
+    // Clear existing unacknowledged auto-generated items to prevent duplicates (preserve manually-created items)
     await c.env.DB.prepare(
-      "DELETE FROM intelligence_items WHERE participant_id = ? AND acknowledged = 0"
+      "DELETE FROM intelligence_items WHERE participant_id = ? AND acknowledged = 0 AND auto_generated = 1"
     ).bind(pid).run();
 
     // Rule: CP deadline approaching (within 7 days, still outstanding)
