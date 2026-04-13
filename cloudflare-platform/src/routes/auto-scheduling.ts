@@ -21,8 +21,8 @@ app.post('/nominate', async (c) => {
       contracts = await db.prepare(
         `SELECT cd.*, p.name as project_name FROM contract_documents cd
          LEFT JOIN ipp_projects p ON cd.project_id = p.id
-         WHERE cd.id = ? AND cd.phase = 'active'`
-      ).bind(contract_id).all();
+         WHERE cd.id = ? AND cd.phase = 'active' AND (cd.creator_id = ? OR cd.counterparty_id = ?)`
+      ).bind(contract_id, participantId, participantId).all();
     } else {
       contracts = await db.prepare(
         `SELECT cd.*, p.name as project_name FROM contract_documents cd
