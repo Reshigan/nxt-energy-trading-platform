@@ -12,8 +12,43 @@ import { formatZAR } from '../lib/format';
 import Modal from '../components/Modal';
 import { Button } from '../components/ui/Button';
 
-interface Project { id: string; name: string; tech: string; capacity: string; phase: string; location: string; progress: number; disbursed: string; total: string; milestones: number; completed: number; cps: { total: number; met: number }; }
+interface RawProject {
+  id: string; name: string; technology?: string; tech?: string; capacity_mw?: number; capacity?: string;
+  phase: string; location: string; total_cost_cents?: number; progress?: number;
+  disbursed?: string; total?: string; milestones?: number; completed?: number;
+  cps?: { total: number; met: number };
+}
+interface Project {
+  id: string; name: string; tech: string; capacity: string; phase: string;
+  location: string; progress: number; disbursed: string; total: string;
+  milestones: number; completed: number; cps: { total: number; met: number };
+}
 interface DisbursementPoint { name: string; disbursed: number; remaining: number; }
+
+function normalizeProject(raw: RawProject): Project {
+  const totalCents = raw.total_cost_cents || 0;
+  const totalStr = raw.total || (totalCents > 0 ? `R${(totalCents / 100).toLocaleString()}` : 'R0');
+  const disbursedStr = raw.disbursed || 'R0';
+  const phaseMap: Record<string, string> = {
+    development: 'Development', permitting: 'Permitting',
+    financial_close: 'Financial Close', construction: 'Construction',
+    commissioning: 'Operations', commercial_ops: 'Operations',
+  };
+  return {
+    id: raw.id,
+    name: raw.name,
+    tech: raw.tech || raw.technology || 'Solar PV',
+    capacity: raw.capacity || (raw.capacity_mw ? `${raw.capacity_mw} MW` : '0 MW'),
+    phase: phaseMap[raw.phase] || raw.phase || 'Development',
+    location: raw.location || 'South Africa',
+    progress: raw.progress ?? 0,
+    disbursed: disbursedStr,
+    total: totalStr,
+    milestones: raw.milestones ?? 0,
+    completed: raw.completed ?? 0,
+    cps: raw.cps || { total: 0, met: 0 },
+  };
+}
 
 const PHASES = ['All', 'Development', 'Permitting', 'Financial Close', 'Construction', 'Operations'] as const;
 
@@ -45,7 +80,7 @@ export default function IPP() {
     setLoading(true); setError(null);
     try {
       const res = await projectsAPI.list();
-      if (Array.isArray(res.data?.data)) setProjectData(res.data.data);
+      if (Array.isArray(res.data?.data)) setProjectData(res.data.data.map(normalizeProject));
       else setProjectData([]);
     } catch { setError('Failed to load IPP projects.'); }
     setLoading(false);
@@ -76,11 +111,11 @@ export default function IPP() {
   };
 
   const filtered = activePhase === 'All' ? projectData : projectData.filter(p => p.phase === activePhase);
-  const disbursementData: DisbursementPoint[] = projectData.map(p => ({
-    name: p.name.split(' ')[0],
-    disbursed: parseInt(p.disbursed.replace(/[^0-9]/g, '')) || 0,
-    remaining: (parseInt(p.total.replace(/[^0-9]/g, '')) || 0) - (parseInt(p.disbursed.replace(/[^0-9]/g, '')) || 0),
-  }));
+  const disbursementData: DisbursementPoint[] = projectData.map(p => {
+    const disbursedVal = parseInt((p.disbursed || 'R0').replace(/[^0-9]/g, '')) || 0;
+    const totalVal = parseInt((p.total || 'R0').replace(/[^0-9]/g, '')) || 0;
+    return { name: p.name.split(' ')[0], disbursed: disbursedVal, remaining: Math.max(0, totalVal - disbursedVal) };
+  });
 
   return (
     <motion.div
