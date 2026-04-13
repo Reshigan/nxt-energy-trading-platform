@@ -81,6 +81,11 @@ intelligence.post('/generate', async (c) => {
     const pid = user.sub;
     const generated: string[] = [];
 
+    // Clear existing unacknowledged auto-generated items to prevent duplicates
+    await c.env.DB.prepare(
+      "DELETE FROM intelligence_items WHERE participant_id = ? AND acknowledged = 0"
+    ).bind(pid).run();
+
     // Rule: CP deadline approaching (within 7 days, still outstanding)
     try {
       const soon = new Date(Date.now() + 7 * 86400000).toISOString().substring(0, 10);
