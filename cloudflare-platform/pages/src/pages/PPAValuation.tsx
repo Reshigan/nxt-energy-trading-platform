@@ -72,19 +72,19 @@ export default function PPAValuation() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
               <p className="text-[11px] text-slate-400 mb-1">NPV</p>
-              <p className={`text-xl font-bold mono ${(result.npv_rands as number) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>R{((result.npv_rands as number) / 1000000).toFixed(2)}M</p>
+              <p className={`text-xl font-bold mono ${(Number(result.npv_rands) || 0) >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>R{((Number(result.npv_rands) || 0) / 1000000).toFixed(2)}M</p>
             </div>
             <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
               <p className="text-[11px] text-slate-400 mb-1">IRR</p>
-              <p className="text-xl font-bold text-blue-500 mono">{result.irr_pct as number}%</p>
+              <p className="text-xl font-bold text-blue-500 mono">{Number(result.irr_pct) || 0}%</p>
             </div>
             <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
               <p className="text-[11px] text-slate-400 mb-1">LCOE</p>
-              <p className="text-xl font-bold text-purple-500 mono">{result.lcoe_cents_kwh as number} c/kWh</p>
+              <p className="text-xl font-bold text-purple-500 mono">{Number(result.lcoe_cents_kwh) || 0} c/kWh</p>
             </div>
             <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
               <p className="text-[11px] text-slate-400 mb-1">Payback</p>
-              <p className="text-xl font-bold text-amber-500 mono">{result.payback_years as number || 'N/A'} yrs</p>
+              <p className="text-xl font-bold text-amber-500 mono">{result.payback_years != null ? `${Number(result.payback_years)}` : 'N/A'} yrs</p>
             </div>
             <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')} flex items-center gap-2`}>
               {recommendation === 'PROCEED' ? <FiCheckCircle className="w-6 h-6 text-emerald-500" /> : recommendation === 'MARGINAL' ? <FiTrendingUp className="w-6 h-6 text-amber-500" /> : <FiXCircle className="w-6 h-6 text-red-500" />}
@@ -127,8 +127,8 @@ export default function PPAValuation() {
           {/* Grid savings */}
           <div className={`cp-card !p-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')} text-center`}>
             <p className="text-sm text-slate-500 dark:text-slate-400">Estimated Grid Savings over {String(result.tenure_years ?? '')} years</p>
-            <p className="text-3xl font-extrabold text-emerald-500 mono mt-1">R{((result.grid_savings_rands as number) / 1000000).toFixed(2)}M</p>
-            <p className="text-xs text-slate-400 mt-1">Total generation: {((result.total_generation_mwh as number) || 0).toLocaleString()} MWh</p>
+            <p className="text-3xl font-extrabold text-emerald-500 mono mt-1">R{((Number(result.grid_savings_rands) || 0) / 1000000).toFixed(2)}M</p>
+            <p className="text-xs text-slate-400 mt-1">Total generation: {(Number(result.total_generation_mwh) || 0).toLocaleString()} MWh</p>
           </div>
         </>
       )}
