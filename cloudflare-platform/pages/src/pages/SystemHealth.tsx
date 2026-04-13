@@ -180,7 +180,7 @@ export default function SystemHealth() {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <Icon className="w-4 h-4 text-slate-500" />
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 capitalize">{c.service.replace(/_/g, ' ')}</span>
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 capitalize">{(c.service || '').replace(/_/g, ' ')}</span>
                     </div>
                     {statusIcon(c.status)}
                   </div>

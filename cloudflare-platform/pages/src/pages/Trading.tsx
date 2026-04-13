@@ -103,7 +103,7 @@ export default function Trading() {
     if (positions.length === 0) { toast.error('No positions to export'); return; }
     const headers = ['Market', 'Direction', 'Volume (MWh)', 'Avg Entry (ZAR)', 'Current (ZAR)', 'Unrealised P&L (ZAR)'];
     const rows = positions.map(p => [
-      p.market.replace(/_/g, ' '),
+      (p.market || '').replace(/_/g, ' '),
       p.direction,
       p.net_volume,
       ((p.avg_entry_price_cents || p.avg_entry_price || 0) / 100).toFixed(2),
