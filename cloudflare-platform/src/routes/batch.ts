@@ -18,7 +18,7 @@ batch.post('/disbursements/approve', authMiddleware({ roles: ['lender', 'admin']
     let approved = 0;
     for (const id of body.ids) {
       const result = await c.env.DB.prepare(
-        "UPDATE disbursements SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ?"
+        "UPDATE disbursements SET status = 'approved', approved_by = ?, approved_at = ? WHERE id = ? AND status = 'pending'"
       ).bind(user.sub, nowISO(), id).run();
       if (result.meta.changes > 0) approved++;
     }
@@ -127,7 +127,7 @@ batch.post('/invoices/pay', authMiddleware({ roles: ['offtaker', 'lender', 'admi
     let paid = 0;
     for (const id of body.ids) {
       const result = await c.env.DB.prepare(
-        "UPDATE invoices SET status = 'paid', paid_at = ?, payment_reference = ? WHERE id = ? AND (payer_id = ? OR ? IN (SELECT id FROM participants WHERE role = 'admin'))"
+        "UPDATE invoices SET status = 'paid', paid_at = ?, payment_reference = ? WHERE id = ? AND status = 'outstanding' AND (payer_id = ? OR ? IN (SELECT id FROM participants WHERE role = 'admin'))"
       ).bind(nowISO(), body.payment_ref || `BATCH-${Date.now()}`, id, user.sub, user.sub).run();
       if (result.meta.changes > 0) paid++;
     }
