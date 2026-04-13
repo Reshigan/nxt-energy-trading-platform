@@ -25,7 +25,7 @@ notificationsWs.get('/poll', async (c) => {
       'SELECT * FROM notifications WHERE participant_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT 20'
     ).bind(user.sub, since).all(),
     c.env.DB.prepare(
-      "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY priority DESC, created_at ASC"
+      "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY CASE priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC, created_at ASC"
     ).bind(user.sub).all(),
     getKpiSnapshot(c.env.DB, user.sub, user.role),
   ]);
@@ -55,7 +55,7 @@ notificationsWs.get('/stream', async (c) => {
 
   // Send action queue
   const aq = await c.env.DB.prepare(
-    "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY priority DESC, created_at ASC"
+    "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY CASE priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC, created_at ASC"
   ).bind(user.sub).all();
   await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'action_queue_update', data: aq.results })}\n\n`));
 
@@ -66,7 +66,7 @@ notificationsWs.get('/stream', async (c) => {
         'SELECT * FROM notifications WHERE participant_id = ? AND read = 0 ORDER BY created_at DESC LIMIT 5'
       ).bind(user.sub).all();
       const freshAq = await c.env.DB.prepare(
-        "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY priority DESC, created_at ASC LIMIT 10"
+        "SELECT * FROM action_queue WHERE participant_id = ? AND status = 'pending' ORDER BY CASE priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC, created_at ASC LIMIT 10"
       ).bind(user.sub).all();
       await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'entity_update', data: { notifications: fresh.results, action_queue: freshAq.results } })}\n\n`));
     } catch {
@@ -97,7 +97,7 @@ notificationsWs.get('/action-queue', async (c) => {
   const status = c.req.query('status') || 'pending';
 
   const items = await c.env.DB.prepare(
-    'SELECT * FROM action_queue WHERE participant_id = ? AND status = ? ORDER BY priority DESC, created_at ASC'
+    "SELECT * FROM action_queue WHERE participant_id = ? AND status = ? ORDER BY CASE priority WHEN 'critical' THEN 4 WHEN 'high' THEN 3 WHEN 'normal' THEN 2 WHEN 'low' THEN 1 ELSE 0 END DESC, created_at ASC"
   ).bind(user.sub, status).all();
 
   return c.json({ success: true, data: items.results });
@@ -162,8 +162,8 @@ async function getKpiSnapshot(db: D1Database, participantId: string, role: strin
     kpis.recs_issued = Number(recs?.count) || 0;
   } else if (role === 'lender') {
     const [disbursements, pending] = await Promise.all([
-      db.prepare("SELECT COUNT(*) as count, SUM(amount_cents) as total FROM disbursements WHERE status = 'approved'").first(),
-      db.prepare("SELECT COUNT(*) as count FROM disbursements WHERE status IN ('pending', 'ready')").first(),
+      db.prepare("SELECT COUNT(*) as count, SUM(d.amount_cents) as total FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'approved'").bind(participantId).first(),
+      db.prepare("SELECT COUNT(*) as count FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status IN ('pending', 'ready')").bind(participantId).first(),
     ]);
     kpis.approved_disbursements = Number(disbursements?.count) || 0;
     kpis.total_disbursed_cents = Number(disbursements?.total) || 0;

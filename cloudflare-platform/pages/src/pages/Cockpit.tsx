@@ -104,7 +104,7 @@ export default function Cockpit() {
         })),
       } : prev);
     }
-  }, [wsActionQueue, data]);
+  }, [wsActionQueue]);
 
   if (loading) return (
     <div className="max-w-[1440px] mx-auto px-4 sm:px-6 py-6">
