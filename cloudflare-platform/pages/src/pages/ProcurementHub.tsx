@@ -136,7 +136,7 @@ export default function ProcurementHub() {
                       <td className="px-4 py-3 text-slate-300 capitalize">{String(rfp.technology || '-')}</td>
                       <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs ${rfp.status === 'published' ? 'bg-green-500/20 text-green-400' : rfp.status === 'awarded' ? 'bg-blue-500/20 text-blue-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{String(rfp.status || 'draft')}</span></td>
                       <td className="px-4 py-3 flex gap-2">
-                        {rfp.status === 'draft' && <button onClick={() => procurementAPI.publishRFP(String(rfp.id)).then(() => setTab('rfp'))} className="text-blue-400 hover:text-blue-300 text-xs">Publish</button>}
+                        {rfp.status === 'draft' && <button onClick={() => procurementAPI.publishRFP(String(rfp.id)).then(() => procurementAPI.listRFPs().then((r) => setRfps(r.data?.data || [])))} className="text-blue-400 hover:text-blue-300 text-xs">Publish</button>}
                         <button onClick={() => loadBids(String(rfp.id))} className="text-cyan-400 hover:text-cyan-300 text-xs">View Bids</button>
                       </td>
                     </tr>
