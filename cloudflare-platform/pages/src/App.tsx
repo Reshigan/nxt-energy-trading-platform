@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import ErrorBoundary from './components/ErrorBoundary';
 import CookieConsent from './components/CookieConsent';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Loading skeleton for lazy-loaded pages
 function LoadingSkeleton() {
@@ -105,54 +106,54 @@ function App() {
       <Route path="/risk-disclosure" element={<RiskDisclosurePage />} />
       <Route path="/aml" element={<AMLPage />} />
 
-      {/* Dashboard routes */}
+      {/* Dashboard routes — wrapped with ProtectedRoute for RBAC */}
       <Route element={<DashboardLayout />}>
         <Route path="/" element={<Cockpit />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/cockpit" element={<Cockpit />} />
-        <Route path="/markets" element={<Markets />} />
-        <Route path="/trading" element={<Trading />} />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/contracts" element={<Contracts />} />
-        <Route path="/carbon" element={<Carbon />} />
-        <Route path="/ipp" element={<IPP />} />
-        <Route path="/marketplace" element={<Marketplace />} />
-        <Route path="/settlement" element={<Settlement />} />
-        <Route path="/compliance" element={<Compliance />} />
+        <Route path="/markets" element={<ProtectedRoute><Markets /></ProtectedRoute>} />
+        <Route path="/trading" element={<ProtectedRoute><Trading /></ProtectedRoute>} />
+        <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
+        <Route path="/contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
+        <Route path="/carbon" element={<ProtectedRoute><Carbon /></ProtectedRoute>} />
+        <Route path="/ipp" element={<ProtectedRoute><IPP /></ProtectedRoute>} />
+        <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
+        <Route path="/settlement" element={<ProtectedRoute><Settlement /></ProtectedRoute>} />
+        <Route path="/compliance" element={<ProtectedRoute><Compliance /></ProtectedRoute>} />
         <Route path="/notifications" element={<Notifications />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/risk" element={<RiskDashboard />} />
-        <Route path="/metering" element={<Metering />} />
-        <Route path="/p2p" element={<P2PTrading />} />
-        <Route path="/reports" element={<ReportBuilder />} />
-        <Route path="/developer" element={<DeveloperPortal />} />
+        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/risk" element={<ProtectedRoute><RiskDashboard /></ProtectedRoute>} />
+        <Route path="/metering" element={<ProtectedRoute><Metering /></ProtectedRoute>} />
+        <Route path="/p2p" element={<ProtectedRoute><P2PTrading /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><ReportBuilder /></ProtectedRoute>} />
+        <Route path="/developer" element={<ProtectedRoute><DeveloperPortal /></ProtectedRoute>} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/demand" element={<DemandProfile />} />
-        <Route path="/offtaker-cost" element={<OfftakerCost />} />
-        <Route path="/disputes" element={<Disputes />} />
-        <Route path="/tenant-admin" element={<TenantAdmin />} />
-        <Route path="/audit-trail" element={<AuditTrail />} />
-        <Route path="/system-health" element={<SystemHealth />} />
-        <Route path="/invoices" element={<Invoices />} />
-        <Route path="/smart-rules" element={<SmartRules />} />
-        <Route path="/contracts/:id" element={<ContractDeep />} />
-        <Route path="/vault" element={<DocumentVault />} />
-        <Route path="/lender" element={<LenderDashboard />} />
-        <Route path="/surveillance" element={<SurveillancePage />} />
-        <Route path="/trade-journal" element={<TradeJournal />} />
-        <Route path="/carbon-deep" element={<CarbonDeep />} />
-        <Route path="/ipp-deep" element={<IPPDeep />} />
-        <Route path="/offtaker-deep" element={<OfftakerDeep />} />
-        <Route path="/reporting-engine" element={<ReportingEngine />} />
-        <Route path="/modules" element={<ModuleAdmin />} />
-        <Route path="/metering-analytics" element={<MeteringAnalytics />} />
-        <Route path="/staff" element={<StaffManagement />} />
+        <Route path="/demand" element={<ProtectedRoute><DemandProfile /></ProtectedRoute>} />
+        <Route path="/offtaker-cost" element={<ProtectedRoute><OfftakerCost /></ProtectedRoute>} />
+        <Route path="/disputes" element={<ProtectedRoute><Disputes /></ProtectedRoute>} />
+        <Route path="/tenant-admin" element={<ProtectedRoute><TenantAdmin /></ProtectedRoute>} />
+        <Route path="/audit-trail" element={<ProtectedRoute><AuditTrail /></ProtectedRoute>} />
+        <Route path="/system-health" element={<ProtectedRoute><SystemHealth /></ProtectedRoute>} />
+        <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+        <Route path="/smart-rules" element={<ProtectedRoute><SmartRules /></ProtectedRoute>} />
+        <Route path="/contracts/:id" element={<ProtectedRoute><ContractDeep /></ProtectedRoute>} />
+        <Route path="/vault" element={<ProtectedRoute><DocumentVault /></ProtectedRoute>} />
+        <Route path="/lender" element={<ProtectedRoute><LenderDashboard /></ProtectedRoute>} />
+        <Route path="/surveillance" element={<ProtectedRoute><SurveillancePage /></ProtectedRoute>} />
+        <Route path="/trade-journal" element={<ProtectedRoute><TradeJournal /></ProtectedRoute>} />
+        <Route path="/carbon-deep" element={<ProtectedRoute><CarbonDeep /></ProtectedRoute>} />
+        <Route path="/ipp-deep" element={<ProtectedRoute><IPPDeep /></ProtectedRoute>} />
+        <Route path="/offtaker-deep" element={<ProtectedRoute><OfftakerDeep /></ProtectedRoute>} />
+        <Route path="/reporting-engine" element={<ProtectedRoute><ReportingEngine /></ProtectedRoute>} />
+        <Route path="/modules" element={<ProtectedRoute><ModuleAdmin /></ProtectedRoute>} />
+        <Route path="/metering-analytics" element={<ProtectedRoute><MeteringAnalytics /></ProtectedRoute>} />
+        <Route path="/staff" element={<ProtectedRoute><StaffManagement /></ProtectedRoute>} />
         <Route path="/support" element={<SupportTickets />} />
-        <Route path="/support-dashboard" element={<SupportDashboard />} />
-        <Route path="/platform-config" element={<PlatformConfig />} />
-        <Route path="/aml-dashboard" element={<AMLDashboard />} />
-        <Route path="/payments" element={<PaymentsDashboard />} />
+        <Route path="/support-dashboard" element={<ProtectedRoute><SupportDashboard /></ProtectedRoute>} />
+        <Route path="/platform-config" element={<ProtectedRoute><PlatformConfig /></ProtectedRoute>} />
+        <Route path="/aml-dashboard" element={<ProtectedRoute><AMLDashboard /></ProtectedRoute>} />
+        <Route path="/payments" element={<ProtectedRoute><PaymentsDashboard /></ProtectedRoute>} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="*" element={<NotFound />} />
       </Route>
