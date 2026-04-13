@@ -29,11 +29,11 @@ pipeline.get('/', async (c) => {
       FROM demand_matches dm
       JOIN demand_profiles dp ON dm.profile_id = dp.id
       LEFT JOIN projects p ON dm.project_id = p.id
-      WHERE dp.participant_id = ? AND dm.status IN ('matched', 'interested')
+      WHERE dp.participant_id = ? AND dm.status IN ('suggested', 'interested')
     `).bind(pid).all();
 
     const stages: Record<string, unknown[]> = {
-      prospect: matches.results?.filter((m: Record<string, unknown>) => m.status === 'matched') || [],
+      prospect: matches.results?.filter((m: Record<string, unknown>) => m.status === 'suggested') || [],
       interested: matches.results?.filter((m: Record<string, unknown>) => m.status === 'interested') || [],
       loi: [],
       negotiating: [],
