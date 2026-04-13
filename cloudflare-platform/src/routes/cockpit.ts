@@ -642,7 +642,6 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
     })),
   ]);
 
-  const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
   const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * COALESCE(debt_ratio, 0) AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
