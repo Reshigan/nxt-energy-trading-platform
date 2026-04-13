@@ -72,13 +72,25 @@ procurement.patch('/rfp/:id/publish', authMiddleware({ roles: ['offtaker', 'admi
   }
 });
 
-// GET /procurement/rfp/:id/bids — Get bids for an RFP
+// GET /procurement/rfp/:id/bids — Get bids for an RFP (offtaker sees all, generators see only their own)
 procurement.get('/rfp/:id/bids', async (c) => {
   try {
     const rfpId = c.req.param('id');
-    const results = await c.env.DB.prepare(
-      'SELECT pb.*, p.company_name as generator_name FROM procurement_bids pb LEFT JOIN participants p ON pb.generator_id = p.id WHERE pb.rfp_id = ? ORDER BY pb.weighted_score DESC NULLS LAST, pb.tariff_cents ASC'
-    ).bind(rfpId).all();
+    const user = c.get('user');
+    // Check if user is the RFP owner or admin
+    const rfpOwner = await c.env.DB.prepare('SELECT offtaker_id FROM procurement_rfps WHERE id = ?').bind(rfpId).first<{ offtaker_id: string }>();
+    const isOwnerOrAdmin = user.role === 'admin' || rfpOwner?.offtaker_id === user.sub;
+    let results;
+    if (isOwnerOrAdmin) {
+      results = await c.env.DB.prepare(
+        'SELECT pb.*, p.company_name as generator_name FROM procurement_bids pb LEFT JOIN participants p ON pb.generator_id = p.id WHERE pb.rfp_id = ? ORDER BY pb.weighted_score DESC NULLS LAST, pb.tariff_cents ASC'
+      ).bind(rfpId).all();
+    } else {
+      // Generators can only see their own bid
+      results = await c.env.DB.prepare(
+        'SELECT pb.*, p.company_name as generator_name FROM procurement_bids pb LEFT JOIN participants p ON pb.generator_id = p.id WHERE pb.rfp_id = ? AND pb.generator_id = ? ORDER BY pb.created_at DESC'
+      ).bind(rfpId, user.sub).all();
+    }
     return c.json({ success: true, data: results.results || [] });
   } catch (err) {
     captureException(c, err);

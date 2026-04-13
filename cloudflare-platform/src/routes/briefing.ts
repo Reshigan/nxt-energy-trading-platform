@@ -81,11 +81,10 @@ briefing.get('/', async (c) => {
              SELECT id FROM trades WHERE buyer_id = ? OR seller_id = ?
            )
            OR t.entity_type = 'project' AND t.entity_id IN (
-             Select id FROM projects WHERE developer_id = ?
+             SELECT id FROM projects WHERE developer_id = ?
            )
-           OR t.participant_id = ?
          )`
-      ).bind(`%${pid}%`, pid, pid, pid, pid, pid, pid, pid).first<{ count: number }>();
+      ).bind(`%${pid}%`, pid, pid, pid, pid, pid, pid).first<{ count: number }>();
       unreadThreads = result?.count || 0;
     } catch { /* */ }
 
