@@ -3,6 +3,8 @@ import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { captureException } from '../utils/sentry';
+import { sha256 } from '../utils/hash';
+import { computeChainHash } from '../utils/signing-certificate';
 
 const batch = new Hono<HonoEnv>();
 batch.use('*', authMiddleware());
@@ -73,13 +75,40 @@ batch.post('/documents/sign', authMiddleware({ roles: ['ipp', 'generator', 'offt
     const body = await c.req.json() as { ids: string[] };
     if (!body.ids?.length) return c.json({ success: false, error: 'ids required' }, 400);
     let signed = 0;
+    const ipAddress = c.req.header('CF-Connecting-IP') || 'unknown';
     for (const id of body.ids) {
-      // Update existing signatory record for this user on this document
+      // Compute real document hash from R2
+      let documentHash = 'no-document';
+      const doc = await c.env.DB.prepare('SELECT id, title, r2_key FROM contract_documents WHERE id = ?').bind(id).first<{ id: string; title: string; r2_key: string | null }>();
+      if (doc?.r2_key) {
+        try {
+          const obj = await c.env.R2.get(doc.r2_key);
+          if (obj) {
+            const buffer = await obj.arrayBuffer();
+            documentHash = await sha256(buffer);
+          }
+        } catch { /* best-effort hash */ }
+      }
+
+      // Get previous chain hash for hash chain integrity
+      const lastSigned = await c.env.DB.prepare(
+        'SELECT chain_hash FROM document_signatories WHERE document_id = ? AND signed = 1 ORDER BY signed_at DESC LIMIT 1'
+      ).bind(id).first<{ chain_hash: string | null }>();
+
+      const signedAt = nowISO();
+      const chainHash = await computeChainHash(lastSigned?.chain_hash || null, documentHash, user.sub, signedAt, ipAddress);
+
       const result = await c.env.DB.prepare(
-        "UPDATE document_signatories SET signed = 1, signed_at = ?, ip_address = ?, document_hash_at_signing = ? WHERE document_id = ? AND participant_id = ? AND signed = 0"
-      ).bind(nowISO(), c.req.header('CF-Connecting-IP') || 'unknown', `sha256:batch-${Date.now()}`, id, user.sub).run();
+        "UPDATE document_signatories SET signed = 1, signed_at = ?, ip_address = ?, document_hash_at_signing = ?, chain_hash = ? WHERE document_id = ? AND participant_id = ? AND signed = 0"
+      ).bind(signedAt, ipAddress, documentHash, chainHash, id, user.sub).run();
       if (result.meta.changes > 0) {
         signed++;
+        // Audit log
+        try {
+          await c.env.DB.prepare(
+            "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'sign_document', 'contract_document', ?, ?, ?)"
+          ).bind(generateId(), user.sub, id, JSON.stringify({ batch: true, document_hash: documentHash, chain_hash: chainHash }), ipAddress).run();
+        } catch { /* best-effort */ }
       }
     }
     return c.json({ success: true, data: { signed } });
