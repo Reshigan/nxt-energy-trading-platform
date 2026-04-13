@@ -134,14 +134,14 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'verified'").first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(fee_cents),0) as s FROM trades WHERE created_at >= date('now','start of month')").first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(total_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ s: number }>(),
-    db.prepare("SELECT COUNT(*) as c FROM participants WHERE registration_status = 'manual_review'").first<{ c: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'pending'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE phase = 'active'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','withdrawn')").first<{ c: number }>(),
   ]);
 
   // Action queue
   const [pendingApprovals, failedStatutory, expiringLicences] = await Promise.all([
-    db.prepare("SELECT id, company_name, created_at FROM participants WHERE registration_status = 'manual_review' ORDER BY created_at ASC LIMIT 20").all(),
+    db.prepare("SELECT id, company_name, created_at FROM participants WHERE kyc_status = 'pending' ORDER BY created_at ASC LIMIT 20").all(),
     db.prepare("SELECT sc.id, sc.regulation, sc.created_at, p.company_name FROM statutory_checks sc JOIN participants p ON sc.entity_id = p.id WHERE sc.status = 'fail' AND sc.entity_type = 'participant' LIMIT 10").all(),
     db.prepare("SELECT l.id, l.licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 10").all(),
   ]);
@@ -210,11 +210,11 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
 // ══════════════════════════════════════════════════════════════
 async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [projects, capacity, cpsOutstanding, disbPending, generation, odseGenMTD, odseCapFactor, odseHourly, odseDailyTrend] = await Promise.all([
-    db.prepare("SELECT COUNT(*) as c FROM projects WHERE participant_id = ?").bind(pid).first<{ c: number }>(),
-    db.prepare("SELECT COALESCE(SUM(capacity_mw),0) as s FROM projects WHERE participant_id = ?").bind(pid).first<{ s: number }>(),
-    db.prepare("SELECT COUNT(*) as c FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.participant_id = ? AND cp.status = 'outstanding'").bind(pid).first<{ c: number }>(),
-    db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.participant_id = ? AND d.status IN ('pending','pending_fc')").bind(pid).first<{ c: number }>(),
-    db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.participant_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM projects WHERE developer_id = ?").bind(pid).first<{ c: number }>(),
+    db.prepare("SELECT COALESCE(SUM(capacity_mw),0) as s FROM projects WHERE developer_id = ?").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.developer_id = ? AND cp.status = 'outstanding'").bind(pid).first<{ c: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.developer_id = ? AND d.status IN ('pending','pending_fc')").bind(pid).first<{ c: number }>(),
+    db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.developer_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
     // ODSE: Generation MTD from ODSE timeseries
     db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s, COUNT(*) as c FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'generation' AND t.timestamp >= date('now','start of month')").bind(pid).first<{ s: number; c: number }>(),
     // ODSE: Capacity factor (actual gen / theoretical max) — separate subquery for capacity to avoid inflation by reading count
@@ -235,9 +235,9 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
 
   // Action queue
   const [outstandingCPs, pendingSignatures, projectList] = await Promise.all([
-    db.prepare("SELECT cp.id, cp.description, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.participant_id = ? AND cp.status = 'outstanding' ORDER BY cp.created_at ASC LIMIT 10").bind(pid).all(),
+    db.prepare("SELECT cp.id, cp.description, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.developer_id = ? AND cp.status = 'outstanding' ORDER BY cp.created_at ASC LIMIT 10").bind(pid).all(),
     db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 10").bind(pid).all(),
-    db.prepare("SELECT id, name, phase, capacity_mw FROM projects WHERE participant_id = ? ORDER BY created_at DESC").bind(pid).all(),
+    db.prepare("SELECT id, name, phase, capacity_mw FROM projects WHERE developer_id = ? ORDER BY created_at DESC").bind(pid).all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
@@ -256,8 +256,8 @@ async function buildIPPCockpit(pid: string, db: DB): Promise<CockpitData> {
   ]);
 
   // Module cards
-  const phaseGroups = await db.prepare("SELECT phase, COUNT(*) as c FROM projects WHERE participant_id = ? GROUP BY phase").bind(pid).all();
-  const disbursementStats = await db.prepare("SELECT status, COUNT(*) as c, COALESCE(SUM(amount_cents),0) as s FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.participant_id = ? GROUP BY status").bind(pid).all();
+  const phaseGroups = await db.prepare("SELECT phase, COUNT(*) as c FROM projects WHERE developer_id = ? GROUP BY phase").bind(pid).all();
+  const disbursementStats = await db.prepare("SELECT status, COUNT(*) as c, COALESCE(SUM(amount_cents),0) as s FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.developer_id = ? GROUP BY status").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
     { module: 'pipeline', title: 'Project Pipeline', summary: { byPhase: phaseGroups.results, projects: projectList.results }, chart_type: 'bar', action_count: 0, link: '/ipp' },
@@ -314,7 +314,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
 
   // Action queue
   const [partialOrders, pendingSetts, pendingSignatures] = await Promise.all([
-    db.prepare("SELECT id, market, filled_qty, quantity, created_at FROM orders WHERE participant_id = ? AND status = 'partial' LIMIT 10").bind(pid).all(),
+    db.prepare("SELECT id, market, filled_volume, volume, created_at FROM orders WHERE participant_id = ? AND status = 'partial' LIMIT 10").bind(pid).all(),
     db.prepare("SELECT t.id, t.created_at FROM trades t WHERE (t.buyer_id = ? OR t.seller_id = ?) AND t.status = 'pending' AND t.created_at <= datetime('now','-1 day') LIMIT 10").bind(pid, pid).all(),
     db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
@@ -322,7 +322,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const action_queue: ActionItem[] = sortActions([
     ...partialOrders.results.map((o) => ({
       id: `partial-${o.id}`, urgency: 'medium' as const, title: `Order partially filled: ${o.market}`,
-      description: `${o.filled_qty}/${o.quantity} filled`, source_module: 'trading',
+      description: `${o.filled_volume}/${o.volume} filled`, source_module: 'trading',
       entity_type: 'order', entity_id: String(o.id), action_type: 'review',
       action_url: `/trading?order=${o.id}`, deadline: null, created_at: String(o.created_at),
     })),
@@ -341,7 +341,7 @@ async function buildTraderCockpit(pid: string, db: DB): Promise<CockpitData> {
   ]);
 
   // Module cards
-  const recentTrades = await db.prepare("SELECT id, market, price_cents, quantity, side, created_at FROM trades WHERE (buyer_id = ? OR seller_id = ?) ORDER BY created_at DESC LIMIT 10").bind(pid, pid).all();
+  const recentTrades = await db.prepare("SELECT id, market, price_cents, volume, CASE WHEN buyer_id = ? THEN 'buy' ELSE 'sell' END as side, created_at FROM trades WHERE (buyer_id = ? OR seller_id = ?) ORDER BY created_at DESC LIMIT 10").bind(pid, pid, pid).all();
 
   const netBalance = sum(odseGenTotal) - sum(odseConsTotal);
 
@@ -443,7 +443,7 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COALESCE(SUM(value_kwh),0) as s FROM meter_readings mr JOIN projects p ON mr.project_id = p.id WHERE p.offtaker_id = ? AND mr.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM invoices WHERE to_participant_id = ? AND status = 'outstanding'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE counterparty_id = ? AND phase = 'active'").bind(pid).first<{ c: number }>(),
-    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE beneficiary_id = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(quantity),0) as s FROM carbon_credits WHERE retirement_beneficiary = ? AND status = 'retired' AND retirement_date >= date('now','start of year')").bind(pid).first<{ s: number }>(),
     // ODSE: Consumption MTD
     db.prepare("SELECT COALESCE(SUM(t.kwh),0) as s FROM odse_timeseries t JOIN odse_assets a ON t.asset_id = a.asset_id WHERE a.participant_id = ? AND t.direction = 'consumption' AND t.timestamp >= date('now','start of month')").bind(pid).first<{ s: number }>(),
     // ODSE: Peak vs off-peak tariff split
@@ -508,7 +508,7 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
 // ══════════════════════════════════════════════════════════════
 async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [facilities, drawn, approvalsPending, cpRate] = await Promise.all([
-    db.prepare("SELECT COALESCE(SUM(debt_cents),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(d.amount_cents),0) as s FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'approved'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'ie_certified'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(CASE WHEN cp.status IN ('satisfied','waived') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*),0), 0) as s FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.lender_id = ?").bind(pid).first<{ s: number }>(),
@@ -544,7 +544,7 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
     })),
   ]);
 
-  const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(debt_cents),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
+  const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
     { module: 'portfolio', title: 'Portfolio Overview', summary: { byPhase: projectsByPhase.results, total: sum(facilities), drawn: sum(drawn), undrawn }, chart_type: 'bar', action_count: 0, link: '/lender' },
