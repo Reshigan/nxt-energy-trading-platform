@@ -139,12 +139,14 @@ procurement.post('/rfp/:id/select/:bidId', authMiddleware({ roles: ['offtaker', 
 
     // Auto-create LOI
     const bid = await c.env.DB.prepare('SELECT generator_id, tariff_cents, volume_mwh FROM procurement_bids WHERE id = ?').bind(bidId).first<{ generator_id: string; tariff_cents: number; volume_mwh: number | null }>();
+    const rfpVolume = await c.env.DB.prepare('SELECT volume_mwh FROM procurement_rfps WHERE id = ?').bind(rfpId).first<{ volume_mwh: number }>();
     let loiId: string | null = null;
     if (bid) {
       loiId = generateId();
+      const volumeMwh = bid.volume_mwh || rfpVolume?.volume_mwh || 0;
       await c.env.DB.prepare(
         "INSERT INTO contract_documents (id, creator_id, counterparty_id, document_type, phase, title, value_cents, created_at, updated_at) VALUES (?, ?, ?, 'loi', 'loi', ?, ?, ?, ?)"
-      ).bind(loiId, user.sub, bid.generator_id, `LOI from RFP ${rfpId}`, (bid.tariff_cents || 0) * (bid.volume_mwh || 0) * 1000, nowISO(), nowISO()).run();
+      ).bind(loiId, user.sub, bid.generator_id, `LOI from RFP ${rfpId}`, (bid.tariff_cents || 0) * volumeMwh * 1000, nowISO(), nowISO()).run();
       // Notify bidders
       try {
         await c.env.DB.prepare(
