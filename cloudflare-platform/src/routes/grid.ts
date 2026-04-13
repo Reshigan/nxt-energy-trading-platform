@@ -219,15 +219,23 @@ grid.post('/imbalance/:id/settle', authMiddleware({ roles: ['grid', 'admin'] }),
 grid.get('/capacity', authMiddleware({ roles: ['grid', 'admin'] }), async (c) => {
   try {
     const connections = await c.env.DB.prepare(
-      "SELECT connection_point, SUM(applied_capacity_mw) as total_applied, SUM(allocated_capacity_mw) as total_allocated FROM grid_connections WHERE status != 'rejected' GROUP BY connection_point"
+      "SELECT connection_point, SUM(applied_capacity_mw) as total_applied, SUM(allocated_capacity_mw) as total_allocated, MAX(applied_capacity_mw) as max_single_application FROM grid_connections WHERE status != 'rejected' GROUP BY connection_point"
     ).all();
-    const capacity = (connections.results || []).map((c2: Record<string, unknown>) => ({
-      connection_point: c2.connection_point,
-      total_applied_mw: Number(c2.total_applied) || 0,
-      total_allocated_mw: Number(c2.total_allocated) || 0,
-      available_mw: Math.max(0, 100 - (Number(c2.total_allocated) || 0)),
-      utilisation_pct: Math.round(((Number(c2.total_allocated) || 0) / 100) * 100),
-    }));
+    const capacity = (connections.results || []).map((c2: Record<string, unknown>) => {
+      const totalApplied = Number(c2.total_applied) || 0;
+      const totalAllocated = Number(c2.total_allocated) || 0;
+      // Derive max capacity from applied capacity (use 1.5x total applied as estimated substation capacity, minimum 10 MW)
+      const estimatedMaxMw = Math.max(10, Math.ceil(totalApplied * 1.5));
+      return {
+        connection_point: c2.connection_point,
+        total_applied_mw: totalApplied,
+        total_allocated_mw: totalAllocated,
+        estimated_max_mw: estimatedMaxMw,
+        available_mw: Math.max(0, estimatedMaxMw - totalAllocated),
+        utilisation_pct: Math.min(100, Math.round((totalAllocated / estimatedMaxMw) * 100)),
+        estimated: true,
+      };
+    });
     return c.json({ success: true, data: capacity });
   } catch (err) {
     captureException(c, err);
