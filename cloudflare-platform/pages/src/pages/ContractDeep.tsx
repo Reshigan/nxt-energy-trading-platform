@@ -174,7 +174,7 @@ export default function ContractDeep() {
   };
 
   const statusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch ((status || '').toLowerCase()) {
       case 'active': case 'signed': case 'completed': return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
       case 'draft': case 'pending': return 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400';
       case 'expired': case 'cancelled': return 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400';

@@ -54,7 +54,7 @@ export default function Cockpit() {
       if (!silent) setLoading(true);
       else setRefreshing(true);
       setError(null);
-      const res = await cockpitAPI.get();
+      const res = await cockpitAPI.get(role);
       const json = res.data as CockpitResponse;
       if (json.success && json.data) {
         setData(json.data);
@@ -68,7 +68,7 @@ export default function Cockpit() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     fetchCockpit();
