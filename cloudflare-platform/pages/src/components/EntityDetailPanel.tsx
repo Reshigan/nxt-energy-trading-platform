@@ -151,7 +151,7 @@ export default function EntityDetailPanel() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail?.type && detail?.id) {
-        setHistory(prev => [...prev, { type: entityType, id: entityId }]);
+        if (entityId) setHistory(prev => [...prev, { type: entityType, id: entityId }]);
         loadEntity(detail.type, detail.id);
       }
     };
