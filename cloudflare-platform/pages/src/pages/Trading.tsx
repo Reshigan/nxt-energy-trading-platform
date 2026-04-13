@@ -10,6 +10,7 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import EntityLink from '../components/EntityLink';
 
 interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; avg_entry_price_cents?: number; current_price_cents?: number; unrealised_pnl_cents?: number; }
 interface OrderBookEntry { price: number; size: number; total: number; volume?: number; orderCount?: number; }
@@ -274,7 +275,7 @@ export default function Trading() {
             <tbody>
               {positions.map((p, i) => { const pnlPositive = (p.unrealised_pnl_cents ?? p.unrealised_pnl ?? 0) >= 0; return (
                 <tr key={i} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize">{(p.market || '').replace(/_/g, ' ')}</td>
+                  <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize"><EntityLink type="trade" id={`${p.market}-${i}`} label={(p.market || '').replace(/_/g, ' ')} /></td>
                   <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${p.direction === 'buy' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{p.direction === 'buy' ? 'Long' : 'Short'}</span></td>
                   <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{p.net_volume?.toLocaleString()} MWh</td>
                   <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(p.avg_entry_price_cents || p.avg_entry_price || 0)}</td>

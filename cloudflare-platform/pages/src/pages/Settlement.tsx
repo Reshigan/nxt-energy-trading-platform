@@ -11,6 +11,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner';
 import Modal from '../components/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Button } from '../components/ui/Button';
+import EntityLink from '../components/EntityLink';
 
 const TABS = ['Invoices', 'Escrows', 'Disputes'] as const;
 
@@ -149,8 +150,8 @@ export default function Settlement() {
               </tr></thead>
               <tbody>{invoiceData.map(inv => (
                 <tr key={inv.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{inv.id}</td>
-                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{inv.counterparty}</td>
+                  <td className="py-3.5 px-5"><EntityLink type="invoice" id={inv.id} label={inv.id.substring(0, 12)} /></td>
+                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300"><EntityLink type="participant" id={inv.counterparty || inv.id} label={inv.counterparty || 'N/A'} /></td>
                   <td className="py-3.5 px-4 text-slate-500">{inv.type}</td>
                   <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{formatZAR((inv.amount || 0) / 100)}</td>
                   <td className="py-3.5 px-4"><Badge status={inv.status} /></td>
@@ -173,7 +174,7 @@ export default function Settlement() {
               </tr></thead>
               <tbody>{escrowData.map(e => (
                 <tr key={e.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{e.id}</td>
+                  <td className="py-3.5 px-5"><EntityLink type="escrow" id={e.id} label={e.id.substring(0, 12)} /></td>
                   <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{e.parties}</td>
                   <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{formatZAR((e.amount || 0) / 100)}</td>
                   <td className="py-3.5 px-4"><Badge status={e.status} /></td>
