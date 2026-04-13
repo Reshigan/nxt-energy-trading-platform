@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer' | 'lender';
+export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer' | 'lender' | 'grid';
 
 interface User {
   id: string;

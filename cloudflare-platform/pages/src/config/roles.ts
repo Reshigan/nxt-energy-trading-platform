@@ -1,4 +1,4 @@
-export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender' | 'carbon_fund';
+export type PlatformRole = 'generator' | 'trader' | 'offtaker' | 'ipp_developer' | 'regulator' | 'admin' | 'lender' | 'carbon_fund' | 'grid';
 
 export interface RoleConfig {
   label: string;
@@ -143,6 +143,25 @@ export const ROLE_CONFIGS: Record<PlatformRole, RoleConfig> = {
       { label: 'Check CP Status', icon: 'check-circle' },
       { label: 'Portfolio Analytics', icon: 'bar-chart' },
       { label: 'Generate Reports', icon: 'file-text' },
+    ],
+  },
+  grid: {
+    label: 'Grid Operator',
+    accent: 'text-orange-600',
+    accentBg: 'bg-orange-500',
+    accentHex: '#EA580C',
+    allowedPaths: ['/', '/metering', '/metering-analytics', '/analytics', '/contracts', '/compliance', '/reports', '/notifications', '/settings', '/vault', '/reporting-engine', '/support'],
+    kpis: [
+      { label: 'Active Connections', value: '1,247', change: '+23', positive: true },
+      { label: 'Energy Wheeled MTD', value: '4.8 GWh', change: '+12%', positive: true },
+      { label: 'Grid Availability', value: '99.1%', change: '+0.2%', positive: true },
+      { label: 'Pending Meters', value: '8', change: '-3', positive: true },
+    ],
+    actions: [
+      { label: 'Validate Meter Readings', icon: 'check-circle' },
+      { label: 'Review Connection Apps', icon: 'users' },
+      { label: 'Grid Status Update', icon: 'activity' },
+      { label: 'Download Wheeling Report', icon: 'download' },
     ],
   },
   carbon_fund: {
