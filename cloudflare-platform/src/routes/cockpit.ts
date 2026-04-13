@@ -229,6 +229,7 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'verified'").first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(fee_cents),0) as s FROM trades WHERE created_at >= date('now','start of month')").first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(total_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ s: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'pending'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'manual_review'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE phase = 'active'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','withdrawn')").first<{ c: number }>(),
@@ -236,6 +237,7 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
 
   // Action queue
   const [pendingApprovals, failedStatutory, expiringLicences] = await Promise.all([
+    db.prepare("SELECT id, company_name, created_at FROM participants WHERE kyc_status = 'pending' ORDER BY created_at ASC LIMIT 20").all(),
     db.prepare("SELECT id, company_name, created_at FROM participants WHERE kyc_status = 'manual_review' ORDER BY created_at ASC LIMIT 20").all(),
     db.prepare("SELECT sc.id, sc.regulation, sc.created_at, p.company_name FROM statutory_checks sc JOIN participants p ON sc.entity_id = p.id WHERE sc.status = 'fail' AND sc.entity_type = 'participant' LIMIT 10").all(),
     db.prepare("SELECT l.id, l.type as licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 10").all(),
@@ -603,6 +605,7 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
 // ══════════════════════════════════════════════════════════════
 async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [facilities, drawn, approvalsPending, cpRate] = await Promise.all([
+    db.prepare("SELECT COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(CAST(total_cost_cents * COALESCE(debt_ratio, 0) AS INTEGER)),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(d.amount_cents),0) as s FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'approved'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'ie_certified'").bind(pid).first<{ c: number }>(),
@@ -639,6 +642,7 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
     })),
   ]);
 
+  const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
   const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * COALESCE(debt_ratio, 0) AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
