@@ -279,7 +279,9 @@ export default function DashboardLayout() {
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);
   const { isEnabled: isModuleEnabled } = useModules();
-  const roleGroups = ROLE_NAV[activeRole || 'trader'] || ROLE_NAV.trader;
+  // Map ipp → generator nav (same project-based workflow)
+  const navRole = activeRole === 'ipp' ? 'generator' : (activeRole || 'trader');
+  const roleGroups = ROLE_NAV[navRole] || ROLE_NAV.trader;
 
   // Filter nav items by module status — hide items whose module is disabled
   const filterByModule = (items: NavItem[]) =>
