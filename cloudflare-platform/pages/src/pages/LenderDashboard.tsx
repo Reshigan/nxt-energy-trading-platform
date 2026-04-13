@@ -38,7 +38,7 @@ interface Covenant {
   insurance: { required: boolean; current: boolean; expiry: string };
 }
 
-const TABS = ['Overview', 'Disbursements', 'Covenants'] as const;
+const TABS = ['Portfolio', 'CP Matrix', 'Disbursements', 'Covenants', 'Utilisation', 'Watchlist'] as const;
 
 export default function LenderDashboard() {
   const toast = useToast();
@@ -49,7 +49,7 @@ export default function LenderDashboard() {
   const [data, setData] = useState<LenderData | null>(null);
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
   const [covenants, setCovenants] = useState<Covenant[]>([]);
-  const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Overview');
+  const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Portfolio');
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -93,7 +93,7 @@ export default function LenderDashboard() {
       <div className="flex flex-col sm:flex-row items-start justify-between gap-3" style={{ animation: 'cardFadeUp 500ms ease both' }}>
         <div>
           <h1 className="text-3xl sm:text-[42px] font-extrabold tracking-tight text-slate-900 dark:text-white">Lender Dashboard</h1>
-          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Project finance portfolio, disbursements &amp; covenant monitoring</p>
+          <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Project finance portfolio, CP tracking, disbursements, covenants, utilisation &amp; watchlist</p>
         </div>
         <button onClick={loadData} className={`px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all flex items-center gap-2 ${c('bg-white/[0.06] text-slate-300 hover:bg-white/[0.1]', 'bg-slate-100 text-slate-600 hover:bg-slate-200')}`} aria-label="Refresh">
           <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
@@ -125,18 +125,46 @@ export default function LenderDashboard() {
         ))}
       </div>
 
-      {activeTab === 'Overview' && (
+      {activeTab === 'Portfolio' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
           {loading ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-32" />) : data?.projects?.length ? data.projects.map((p, i) => (
             <div key={String(p.id)} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${300 + i * 60}ms both` }}>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">{String(p.name)}</h3>
-              <p className="text-xs text-slate-400 mt-1">{String(p.technology)} &middot; {String(p.capacity_mw)} MW &middot; {String(p.phase)}</p>
+              <p className="text-xs text-slate-400 mt-1">{String(p.technology || '')} &middot; {String(p.capacity_mw || '')} MW &middot; {String(p.phase || '')}</p>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                <div><span className="text-slate-400">Phase</span><p className="font-semibold text-slate-700 dark:text-slate-300 capitalize">{String(p.phase)}</p></div>
+                <div><span className="text-slate-400">Phase</span><p className="font-semibold text-slate-700 dark:text-slate-300 capitalize">{String(p.phase || '')}</p></div>
                 <div><span className="text-slate-400">Created</span><p className="font-semibold text-slate-700 dark:text-slate-300">{p.created_at ? new Date(String(p.created_at)).toLocaleDateString('en-ZA') : '\u2014'}</p></div>
               </div>
             </div>
           )) : <EmptyState title="No projects" description="No project finance facilities found." />}
+        </div>
+      )}
+
+      {activeTab === 'CP Matrix' && (
+        <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
+          {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="w-full h-24" />) : !data?.projects?.length ? <EmptyState title="No CP data" description="No conditions precedent tracked yet." /> : data.projects.map((p) => {
+            const cps = [
+              { name: 'Environmental Approval', status: String(p.env_approval || 'pending') },
+              { name: 'Grid Connection', status: String(p.grid_status || 'pending') },
+              { name: 'Generation Licence', status: String(p.licence_status || 'pending') },
+              { name: 'Insurance', status: covenants.find((cv) => cv.project_id === String(p.id))?.insurance?.current ? 'met' : 'pending' },
+              { name: 'Financial Close', status: String(p.phase) === 'execution' || String(p.phase) === 'operational' ? 'met' : 'pending' },
+            ];
+            return (
+              <div key={String(p.id)} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3">{String(p.name)}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+                  {cps.map((cp) => (
+                    <div key={cp.name} className={`rounded-lg p-2.5 text-center ${cp.status === 'met' ? 'bg-emerald-500/10 border border-emerald-500/20' : cp.status === 'waived' ? 'bg-blue-500/10 border border-blue-500/20' : 'bg-amber-500/10 border border-amber-500/20'}`}>
+                      <div className={`text-xs font-semibold ${cp.status === 'met' ? 'text-emerald-400' : cp.status === 'waived' ? 'text-blue-400' : 'text-amber-400'}`}>
+                        {cp.status === 'met' ? '\u2713' : cp.status === 'waived' ? 'W' : '\u25CB'} {cp.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -181,6 +209,79 @@ export default function LenderDashboard() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {activeTab === 'Utilisation' && (
+        <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
+          {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="w-full h-20" />) : !data?.projects?.length ? <EmptyState title="No facilities" description="No facility utilisation data." /> : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { label: 'Total Facility', value: formatZAR(data.projects.reduce((s, p) => s + (Number(p.facility_amount_cents) || 0), 0) / 100), color: 'text-slate-900 dark:text-white' },
+                  { label: 'Total Drawn', value: formatZAR(data.projects.reduce((s, p) => s + (Number(p.drawn_amount_cents) || 0), 0) / 100), color: 'text-emerald-500' },
+                  { label: 'Total Available', value: formatZAR(data.projects.reduce((s, p) => s + ((Number(p.facility_amount_cents) || 0) - (Number(p.drawn_amount_cents) || 0)), 0) / 100), color: 'text-blue-500' },
+                ].map((kpi) => (
+                  <div key={kpi.label} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+                    <p className="text-xs text-slate-400">{kpi.label}</p>
+                    <p className={`text-2xl font-bold mono ${kpi.color}`}>{kpi.value}</p>
+                  </div>
+                ))}
+              </div>
+              {data.projects.map((p, i) => {
+                const facility = Number(p.facility_amount_cents) || 0;
+                const drawn = Number(p.drawn_amount_cents) || 0;
+                const pct = facility > 0 ? Math.round((drawn / facility) * 100) : 0;
+                return (
+                  <div key={i} className={`cp-card !p-5 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{String(p.name || '')}</span>
+                      <span className="text-xs text-slate-400">{pct}% drawn</span>
+                    </div>
+                    <div className="w-full bg-slate-700 dark:bg-slate-600/30 rounded-full h-3">
+                      <div className={`h-3 rounded-full transition-all ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-400 mt-1">
+                      <span>Facility: {formatZAR(facility / 100)}</span>
+                      <span>Drawn: {formatZAR(drawn / 100)}</span>
+                      <span>Available: {formatZAR((facility - drawn) / 100)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'Watchlist' && (
+        <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
+          {loading ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="w-full h-16" />) : (() => {
+            const watchlistItems = [
+              ...covenants.filter((cv) => cv.dscr.actual < cv.dscr.target || cv.llcr.actual < cv.llcr.target || !cv.insurance.current).map((cv) => ({
+                project: cv.project_name,
+                reason: cv.dscr.actual < cv.dscr.target ? `DSCR breach (${cv.dscr.actual.toFixed(2)} < ${cv.dscr.target})` : cv.llcr.actual < cv.llcr.target ? `LLCR breach (${cv.llcr.actual.toFixed(2)} < ${cv.llcr.target})` : 'Insurance expired',
+                severity: cv.dscr.actual < cv.dscr.target * 0.9 ? 'critical' : 'warning',
+              })),
+              ...disbursements.filter((d) => d.status === 'pending').map((d) => ({
+                project: d.project_name,
+                reason: `Pending disbursement: ${formatZAR((d.amount_cents || 0) / 100)}`,
+                severity: 'info',
+              })),
+            ];
+            return watchlistItems.length === 0 ? <EmptyState title="Clean watchlist" description="No projects require special attention." /> : (
+              <>{watchlistItems.map((item, i) => (
+                <div key={i} className={`cp-card !p-4 flex items-center gap-4 ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: `cardFadeUp 400ms ease ${i * 60}ms both` }}>
+                  <div className={`w-3 h-3 rounded-full flex-shrink-0 ${item.severity === 'critical' ? 'bg-red-500' : item.severity === 'warning' ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                  <div className="flex-1">
+                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{item.project}</div>
+                    <div className="text-xs text-slate-400">{item.reason}</div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${item.severity === 'critical' ? 'bg-red-500/10 text-red-400' : item.severity === 'warning' ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'}`}>{item.severity}</span>
+                </div>
+              ))}</>
+            );
+          })()}
         </div>
       )}
     </motion.div>
