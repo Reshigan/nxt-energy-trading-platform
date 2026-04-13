@@ -85,6 +85,85 @@ function sortActions(items: ActionItem[]): ActionItem[] {
 
 type DB = { prepare: (q: string) => { bind: (...a: unknown[]) => { first: <T = Record<string, unknown>>() => Promise<T | null>; all: () => Promise<{ results: Record<string, unknown>[] }> }; first: <T = Record<string, unknown>>() => Promise<T | null>; all: () => Promise<{ results: Record<string, unknown>[] }> } };
 
+// ── Shared: Alerts & Recent Activity ────────────────────────
+async function fetchAlerts(pid: string, role: string, db: DB): Promise<Alert[]> {
+  const alerts: Alert[] = [];
+  try {
+    // Licence expiry alerts — admin/regulator see all; IPP/generator see only their own
+    if (['admin', 'regulator'].includes(role)) {
+      const expiring = await db.prepare("SELECT l.id, l.type, l.expiry_date, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 5").all();
+      for (const l of expiring.results) {
+        alerts.push({ id: `alert-lic-${l.id}`, severity: 'warning', title: `Licence expiring: ${l.type}`, message: `${l.company_name} — expires ${l.expiry_date}`, created_at: String(l.expiry_date) });
+      }
+    } else if (['ipp', 'ipp_developer', 'generator'].includes(role)) {
+      const expiring = await db.prepare("SELECT l.id, l.type, l.expiry_date, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.participant_id = ? AND l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 5").bind(pid).all();
+      for (const l of expiring.results) {
+        alerts.push({ id: `alert-lic-${l.id}`, severity: 'warning', title: `Licence expiring: ${l.type}`, message: `${l.company_name} — expires ${l.expiry_date}`, created_at: String(l.expiry_date) });
+      }
+    }
+    // Surveillance / AML alerts (admin, regulator)
+    if (['admin', 'regulator'].includes(role)) {
+      const aml = await db.prepare("SELECT id, alert_type, severity, description, created_at FROM aml_alerts WHERE status = 'open' ORDER BY created_at DESC LIMIT 5").all();
+      for (const a of aml.results) {
+        alerts.push({ id: `alert-aml-${a.id}`, severity: (a.severity === 'high' || a.severity === 'critical') ? 'critical' : 'warning', title: `AML Alert: ${a.alert_type}`, message: String(a.description), created_at: String(a.created_at) });
+      }
+    }
+    // Overdue invoices — admin sees all; offtaker/trader see only their own
+    if (role === 'admin') {
+      const overdue = await db.prepare("SELECT id, invoice_number, total_cents, due_date FROM invoices WHERE status = 'outstanding' AND due_date < date('now') LIMIT 3").all();
+      for (const inv of overdue.results) {
+        alerts.push({ id: `alert-inv-${inv.id}`, severity: 'critical', title: `Invoice overdue: ${inv.invoice_number}`, message: `R${((inv.total_cents as number) / 100).toFixed(0)} past due since ${inv.due_date}`, created_at: String(inv.due_date) });
+      }
+    } else if (['offtaker', 'trader'].includes(role)) {
+      const overdue = await db.prepare("SELECT id, invoice_number, total_cents, due_date FROM invoices WHERE to_participant_id = ? AND status = 'outstanding' AND due_date < date('now') LIMIT 3").bind(pid).all();
+      for (const inv of overdue.results) {
+        alerts.push({ id: `alert-inv-${inv.id}`, severity: 'critical', title: `Invoice overdue: ${inv.invoice_number}`, message: `R${((inv.total_cents as number) / 100).toFixed(0)} past due since ${inv.due_date}`, created_at: String(inv.due_date) });
+      }
+    }
+    // CP deadline approaching (IPP, lender)
+    if (['ipp', 'ipp_developer', 'generator', 'lender'].includes(role)) {
+      const cps = await db.prepare("SELECT cp.id, cp.description, cp.due_date, p.name as project_name FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE (p.developer_id = ? OR p.lender_id = ?) AND cp.status = 'outstanding' AND cp.due_date <= date('now','+7 days') LIMIT 3").bind(pid, pid).all();
+      for (const cp of cps.results) {
+        alerts.push({ id: `alert-cp-${cp.id}`, severity: 'warning', title: `CP deadline approaching: ${cp.description}`, message: `${cp.project_name} — due ${cp.due_date}`, created_at: String(cp.due_date) });
+      }
+    }
+    // Pending settlements — admin sees all stale trades; trader sees their own
+    if (role === 'admin') {
+      const pending = await db.prepare("SELECT COUNT(*) as c FROM trades WHERE status = 'pending' AND created_at <= datetime('now','-1 day')").first<{ c: number }>();
+      if (pending && pending.c > 0) {
+        alerts.push({ id: 'alert-settle', severity: 'warning', title: `${pending.c} trade(s) awaiting settlement`, message: 'Trades older than 24h still pending settlement', created_at: new Date().toISOString() });
+      }
+    } else if (role === 'trader') {
+      const pending = await db.prepare("SELECT COUNT(*) as c FROM trades WHERE (buyer_id = ? OR seller_id = ?) AND status = 'pending' AND created_at <= datetime('now','-1 day')").bind(pid, pid).first<{ c: number }>();
+      if (pending && pending.c > 0) {
+        alerts.push({ id: 'alert-settle', severity: 'warning', title: `${pending.c} trade(s) awaiting settlement`, message: 'Trades older than 24h still pending settlement', created_at: new Date().toISOString() });
+      }
+    }
+  } catch (e) {
+    console.error('fetchAlerts error:', e);
+  }
+  return alerts;
+}
+
+async function fetchRecentActivity(pid: string, role: string, db: DB): Promise<ActivityItem[]> {
+  try {
+    // Admin sees all activity; other roles see activity related to them
+    const query = role === 'admin'
+      ? "SELECT id, action, entity_type, entity_id, created_at as timestamp, actor_id as actor FROM audit_log ORDER BY created_at DESC LIMIT 10"
+      : "SELECT id, action, entity_type, entity_id, created_at as timestamp, actor_id as actor FROM audit_log WHERE actor_id = ? ORDER BY created_at DESC LIMIT 10";
+    const result = role === 'admin'
+      ? await db.prepare(query).all()
+      : await db.prepare(query).bind(pid).all();
+    return result.results.map((r) => ({
+      id: String(r.id), action: String(r.action || ''), entity_type: String(r.entity_type || ''),
+      entity_id: String(r.entity_id || ''), timestamp: String(r.timestamp || ''), actor: String(r.actor || ''),
+    }));
+  } catch (e) {
+    console.error('fetchRecentActivity error:', e);
+    return [];
+  }
+}
+
 // ── Route ────────────────────────────────────────────────────
 const cockpit = new Hono<HonoEnv>();
 cockpit.use('*', authMiddleware({ requireKyc: false }));
@@ -92,7 +171,6 @@ cockpit.use('*', authMiddleware({ requireKyc: false }));
 cockpit.get('/', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
-    const role = user.role;
     const pid = user.sub;
     const db = c.env.DB as unknown as DB;
 
@@ -109,8 +187,23 @@ cockpit.get('/', authMiddleware(), async (c) => {
       regulator: buildRegulatorCockpit,
     };
 
+    // Allow admin to preview any role cockpit via ?role= query param
+    const requestedRole = c.req.query('role');
+    const validRoles = Object.keys(builders);
+    const role = (user.role === 'admin' && requestedRole && requestedRole !== 'admin' && validRoles.includes(requestedRole))
+      ? requestedRole
+      : user.role;
+
     const builder = builders[role] || builders.trader;
-    const cockpitData = await builder(pid, db);
+    const [cockpitData, alerts, recent_activity] = await Promise.all([
+      builder(pid, db),
+      fetchAlerts(pid, role, db),
+      fetchRecentActivity(pid, role, db),
+    ]);
+
+    // Merge shared alerts/activity with any builder-specific ones
+    const mergedAlerts = [...(cockpitData.alerts || []), ...alerts];
+    const mergedActivity = cockpitData.recent_activity.length > 0 ? cockpitData.recent_activity : recent_activity;
 
     return c.json({
       success: true,
@@ -118,6 +211,8 @@ cockpit.get('/', authMiddleware(), async (c) => {
         role,
         participant: { id: pid, name: user.company_name || '' },
         ...cockpitData,
+        alerts: mergedAlerts,
+        recent_activity: mergedActivity,
       },
     });
   } catch (err) {
@@ -135,6 +230,7 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
     db.prepare("SELECT COALESCE(SUM(fee_cents),0) as s FROM trades WHERE created_at >= date('now','start of month')").first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(total_cents),0) as s FROM trades WHERE created_at >= datetime('now','-1 day')").first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'pending'").first<{ c: number }>(),
+    db.prepare("SELECT COUNT(*) as c FROM participants WHERE kyc_status = 'manual_review'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM contract_documents WHERE phase = 'active'").first<{ c: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disputes WHERE status NOT IN ('resolved','withdrawn')").first<{ c: number }>(),
   ]);
@@ -142,8 +238,9 @@ async function buildAdminCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Action queue
   const [pendingApprovals, failedStatutory, expiringLicences] = await Promise.all([
     db.prepare("SELECT id, company_name, created_at FROM participants WHERE kyc_status = 'pending' ORDER BY created_at ASC LIMIT 20").all(),
+    db.prepare("SELECT id, company_name, created_at FROM participants WHERE kyc_status = 'manual_review' ORDER BY created_at ASC LIMIT 20").all(),
     db.prepare("SELECT sc.id, sc.regulation, sc.created_at, p.company_name FROM statutory_checks sc JOIN participants p ON sc.entity_id = p.id WHERE sc.status = 'fail' AND sc.entity_type = 'participant' LIMIT 10").all(),
-    db.prepare("SELECT l.id, l.licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 10").all(),
+    db.prepare("SELECT l.id, l.type as licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date <= date('now','+30 days') AND l.status = 'active' LIMIT 10").all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
@@ -389,7 +486,7 @@ async function buildCarbonFundCockpit(pid: string, db: DB): Promise<CockpitData>
 
   // Action queue
   const [expiringOptions, pendingTransfers] = await Promise.all([
-    db.prepare("SELECT id, option_type, underlying, expiry_date, created_at FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active' AND expiry_date <= date('now','+30 days') LIMIT 10").bind(pid, pid).all(),
+    db.prepare("SELECT id, type as option_type, underlying_credit_id as underlying, expiry as expiry_date, created_at FROM carbon_options WHERE (writer_id = ? OR holder_id = ?) AND status = 'active' AND expiry <= date('now','+30 days') LIMIT 10").bind(pid, pid).all(),
     db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
@@ -509,6 +606,7 @@ async function buildOfftakerCockpit(pid: string, db: DB): Promise<CockpitData> {
 async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   const [facilities, drawn, approvalsPending, cpRate] = await Promise.all([
     db.prepare("SELECT COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
+    db.prepare("SELECT COALESCE(SUM(CAST(total_cost_cents * COALESCE(debt_ratio, 0) AS INTEGER)),0) as s FROM projects WHERE lender_id = ?").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COALESCE(SUM(d.amount_cents),0) as s FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'approved'").bind(pid).first<{ s: number }>(),
     db.prepare("SELECT COUNT(*) as c FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'ie_certified'").bind(pid).first<{ c: number }>(),
     db.prepare("SELECT COALESCE(SUM(CASE WHEN cp.status IN ('satisfied','waived') THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*),0), 0) as s FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.lender_id = ?").bind(pid).first<{ s: number }>(),
@@ -519,7 +617,7 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   // Action queue
   const [pendingDisb, approachingCPs, pendingSignatures] = await Promise.all([
     db.prepare("SELECT d.id, d.amount_cents, p.name as project_name, d.created_at FROM disbursements d JOIN projects p ON d.project_id = p.id WHERE p.lender_id = ? AND d.status = 'ie_certified' LIMIT 10").bind(pid).all(),
-    db.prepare("SELECT cp.id, cp.description, cp.target_date, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.lender_id = ? AND cp.status = 'outstanding' AND cp.target_date <= date('now','+14 days') LIMIT 10").bind(pid).all(),
+    db.prepare("SELECT cp.id, cp.description, cp.due_date as target_date, p.name as project_name, cp.created_at FROM conditions_precedent cp JOIN projects p ON cp.project_id = p.id WHERE p.lender_id = ? AND cp.status = 'outstanding' AND cp.due_date <= date('now','+14 days') LIMIT 10").bind(pid).all(),
     db.prepare("SELECT cd.id, cd.title, cd.created_at FROM contract_documents cd JOIN document_signatories cs ON cd.id = cs.document_id WHERE cs.participant_id = ? AND cs.signed_at IS NULL LIMIT 5").bind(pid).all(),
   ]);
 
@@ -545,6 +643,7 @@ async function buildLenderCockpit(pid: string, db: DB): Promise<CockpitData> {
   ]);
 
   const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * debt_ratio AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
+  const projectsByPhase = await db.prepare("SELECT phase, COUNT(*) as c, COALESCE(SUM(CAST(total_cost_cents * COALESCE(debt_ratio, 0) AS INTEGER)),0) as s FROM projects WHERE lender_id = ? GROUP BY phase").bind(pid).all();
 
   const module_cards: ModuleCard[] = [
     { module: 'portfolio', title: 'Portfolio Overview', summary: { byPhase: projectsByPhase.results, total: sum(facilities), drawn: sum(drawn), undrawn }, chart_type: 'bar', action_count: 0, link: '/lender' },
@@ -620,7 +719,7 @@ async function buildRegulatorCockpit(_pid: string, db: DB): Promise<CockpitData>
   // Action queue
   const [failedChecks, expiredLicences] = await Promise.all([
     db.prepare("SELECT sc.id, sc.regulation, sc.created_at, p.company_name FROM statutory_checks sc JOIN participants p ON sc.entity_id = p.id WHERE sc.status = 'fail' AND sc.entity_type = 'participant' LIMIT 10").all(),
-    db.prepare("SELECT l.id, l.licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date < date('now') AND l.status = 'active' LIMIT 10").all(),
+    db.prepare("SELECT l.id, l.type as licence_type, l.expiry_date, l.created_at, p.company_name FROM licences l JOIN participants p ON l.participant_id = p.id WHERE l.expiry_date < date('now') AND l.status = 'active' LIMIT 10").all(),
   ]);
 
   const action_queue: ActionItem[] = sortActions([
