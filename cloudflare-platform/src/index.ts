@@ -71,6 +71,19 @@ import whatsappRoute from './routes/whatsapp';
 import searchRoute from './routes/search';
 import alertsRoute from './routes/alerts';
 import surveillanceEnhancedRoute from './routes/surveillance-enhanced';
+import pipelineRoute from './routes/pipeline';
+import threadsRoute from './routes/threads';
+import calendarRoute from './routes/calendar';
+import intelligenceRoute from './routes/intelligence';
+import networkRoute from './routes/network';
+import briefingRoute from './routes/briefing';
+import conciergeRoute from './routes/concierge';
+import gridRoute from './routes/grid';
+import fundRoute from './routes/fund';
+import procurementRoute from './routes/procurement';
+import batchRoute from './routes/batch';
+import documentsRoute from './routes/documents';
+import autoSchedulingRoute from './routes/auto-scheduling';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -335,6 +348,21 @@ api.route('/whatsapp', whatsappRoute);
 api.route('/search', searchRoute);
 api.route('/alerts', alertsRoute);
 api.route('/surveillance/enhanced', surveillanceEnhancedRoute);
+
+// Spec 13+14: Platform Evolution + Role-Complete
+api.route('/pipeline', pipelineRoute);
+api.route('/threads', threadsRoute);
+api.route('/calendar', calendarRoute);
+api.route('/intelligence', intelligenceRoute);
+api.route('/network', networkRoute);
+api.route('/briefing', briefingRoute);
+api.route('/concierge', conciergeRoute);
+api.route('/grid', gridRoute);
+api.route('/fund', fundRoute);
+api.route('/procurement', procurementRoute);
+api.route('/batch', batchRoute);
+api.route('/documents', documentsRoute);
+api.route('/auto-scheduling', autoSchedulingRoute);
 
 // Dashboard summary (role-adaptive)
 api.get('/dashboard/summary', authMiddleware({ requireKyc: false }), async (c) => {
