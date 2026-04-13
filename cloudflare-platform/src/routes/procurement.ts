@@ -113,8 +113,9 @@ procurement.post('/rfp/:id/bids', authMiddleware({ roles: ['ipp', 'generator', '
     if (!body.tariff_cents) return c.json({ success: false, error: 'tariff_cents required' }, 400);
     const id = generateId();
     // Weighted score: 40% tariff, 20% BBBEE, 20% ESG, 20% track record
-    const rfp = await c.env.DB.prepare('SELECT max_tariff_cents FROM procurement_rfps WHERE id = ?').bind(rfpId).first<{ max_tariff_cents: number | null }>();
-    const maxTariff = rfp?.max_tariff_cents || body.tariff_cents * 1.5;
+    const rfp = await c.env.DB.prepare('SELECT max_tariff_cents, status FROM procurement_rfps WHERE id = ?').bind(rfpId).first<{ max_tariff_cents: number | null; status: string }>();
+    if (!rfp || rfp.status !== 'published') return c.json({ success: false, error: 'RFP not found or not accepting bids' }, 400);
+    const maxTariff = rfp.max_tariff_cents || body.tariff_cents * 1.5;
     const tariffScore = Math.max(0, 100 - ((body.tariff_cents / maxTariff) * 100));
     const bbbeeScore = body.bbbee_level ? Math.max(0, (5 - body.bbbee_level) * 25) : 50;
     const esgScore = body.esg_score || 50;

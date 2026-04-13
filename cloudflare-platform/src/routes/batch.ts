@@ -4,7 +4,7 @@ import { authMiddleware } from '../auth/middleware';
 import { generateId, nowISO } from '../utils/id';
 import { captureException } from '../utils/sentry';
 import { sha256 } from '../utils/hash';
-import { computeChainHash } from '../utils/signing-certificate';
+import { computeChainHash, computeIntegritySeal } from '../utils/signing-certificate';
 
 const batch = new Hono<HonoEnv>();
 batch.use('*', authMiddleware());
@@ -109,6 +109,29 @@ batch.post('/documents/sign', authMiddleware({ roles: ['ipp', 'generator', 'offt
             "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, 'sign_document', 'contract_document', ?, ?, ?)"
           ).bind(generateId(), user.sub, id, JSON.stringify({ batch: true, document_hash: documentHash, chain_hash: chainHash }), ipAddress).run();
         } catch { /* best-effort */ }
+
+        // Check if all signatories have signed → compute integrity seal and auto-advance
+        try {
+          const allSigs = await c.env.DB.prepare(
+            'SELECT signed, chain_hash, signed_at FROM document_signatories WHERE document_id = ?'
+          ).bind(id).all();
+          const allSigned = allSigs.results.every((s) => s.signed === 1);
+          if (allSigned) {
+            const signatureHashes = allSigs.results
+              .filter((s) => s.chain_hash && s.signed_at)
+              .map((s) => ({ hash: s.chain_hash as string, timestamp: s.signed_at as string }));
+            const seal = await computeIntegritySeal(documentHash, signatureHashes);
+            await c.env.DB.prepare(
+              'UPDATE contract_documents SET integrity_seal = ?, updated_at = ? WHERE id = ?'
+            ).bind(seal, nowISO(), id).run();
+            const currentDoc = await c.env.DB.prepare('SELECT phase FROM contract_documents WHERE id = ?').bind(id).first<{ phase: string }>();
+            if (currentDoc?.phase === 'execution') {
+              await c.env.DB.prepare(
+                "UPDATE contract_documents SET phase = 'active', updated_at = ? WHERE id = ?"
+              ).bind(nowISO(), id).run();
+            }
+          }
+        } catch { /* best-effort post-sign check */ }
       }
     }
     return c.json({ success: true, data: { signed } });
