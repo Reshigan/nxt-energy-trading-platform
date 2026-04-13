@@ -39,7 +39,7 @@ whatsapp.post('/verify', authMiddleware(), async (c) => {
     const body = await c.req.json<{ otp: string }>();
 
     const link = await c.env.DB.prepare(
-      'SELECT * FROM whatsapp_links WHERE participant_id = ? AND otp_code = ? AND otp_expires_at > datetime(?)'
+      'SELECT * FROM whatsapp_links WHERE participant_id = ? AND otp_code = ? AND datetime(otp_expires_at) > datetime(?)'
     ).bind(user.sub, body.otp, nowISO()).first();
 
     if (!link) return c.json({ success: false, error: 'Invalid or expired OTP' }, 400);

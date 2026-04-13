@@ -33,7 +33,7 @@ function getTrend(historicalPrices: Array<{ price_cents: number }>, tenorMonths:
   if (historicalPrices.length < 2) return 1.0;
   const first = historicalPrices[0].price_cents;
   const last = historicalPrices[historicalPrices.length - 1].price_cents;
-  const monthlyGrowth = first > 0 ? Math.pow(last / first, 1 / Math.max(historicalPrices.length, 1)) : 1.0;
+  const monthlyGrowth = last > 0 ? Math.pow(first / last, 1 / Math.max(historicalPrices.length, 1)) : 1.0;
   return Math.pow(monthlyGrowth, tenorMonths);
 }
 
