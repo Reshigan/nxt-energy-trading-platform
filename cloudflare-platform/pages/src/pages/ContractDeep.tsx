@@ -216,19 +216,27 @@ export default function ContractDeep() {
 
   const handleDownloadPdf = async () => {
     if (!id) return;
+    // Open tab synchronously (before await) to avoid popup blocker
+    const tab = window.open('', '_blank');
     try {
       const res = await contractsAPI.getPdf(id);
-      if (res.data) {
-        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+      // The response is a blob (HTML or PDF binary from R2)
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        // Fallback: trigger download if popup was blocked
         const a = document.createElement('a');
         a.href = url;
-        a.download = `contract-${id}.pdf`;
+        a.download = `contract-${id}.html`;
         a.click();
-        URL.revokeObjectURL(url);
-        toast.success('PDF downloaded');
       }
+      // Revoke after a short delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast.success('Document opened in new tab');
     } catch {
+      if (tab) tab.close();
       toast.error('Failed to download PDF');
     }
   };
