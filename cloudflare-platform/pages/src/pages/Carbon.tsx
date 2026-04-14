@@ -313,7 +313,7 @@ export default function Carbon() {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div><p className="text-xl font-bold text-slate-900 dark:text-white mono">{totalHoldings.toLocaleString()} t</p><p className="text-[10px] text-slate-400">Total Holdings</p></div>
               <div><p className="text-xl font-bold text-slate-900 dark:text-white mono">{retiredTotal.toLocaleString()} t</p><p className="text-[10px] text-slate-400">Retired YTD</p></div>
-              <div><p className="text-xl font-bold text-slate-900 dark:text-white mono">{formatZAR(avgPrice / 100)}</p><p className="text-[10px] text-slate-400">Avg Price/t</p></div>
+              <div><p className="text-xl font-bold text-slate-900 dark:text-white mono">{formatZAR(avgPrice)}</p><p className="text-[10px] text-slate-400">Avg Price/t</p></div>
             </div>
           </div>
         </div>
