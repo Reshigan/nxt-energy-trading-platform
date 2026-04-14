@@ -330,14 +330,15 @@ export default function Contracts() {
                             <FiEye className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={async () => {
+                            const tab = window.open('', '_blank');
                             try {
                               const res = await contractsAPI.getPdf(d.id);
                               const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
                               const url = URL.createObjectURL(blob);
-                              window.open(url, '_blank');
+                              if (tab) { tab.location.href = url; } else { const a = document.createElement('a'); a.href = url; a.download = `contract-${d.id}.html`; a.click(); }
                               setTimeout(() => URL.revokeObjectURL(url), 10000);
                               toast.success('Document opened in new tab');
-                            } catch { toast.error('PDF not available for this contract'); }
+                            } catch { if (tab) tab.close(); toast.error('PDF not available for this contract'); }
                           }} title="Download PDF"
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label={`Download PDF for ${d.title}`}>
                             <FiDownload className="w-3.5 h-3.5" />
