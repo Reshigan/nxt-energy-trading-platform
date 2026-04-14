@@ -35,7 +35,9 @@ export function useApi<T>(
 }
 
 export function formatZAR(cents: number): string {
-  return 'R ' + (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const val = Number(cents);
+  if (!Number.isFinite(val)) return 'R0.00';
+  return 'R ' + (val / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function formatNumber(n: number): string {

@@ -18,7 +18,7 @@ const TABS = ['Overview', 'Credits', 'Options', 'TCFD', 'Registry', 'Retirement'
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
 
 interface CreditGroup { name: string; value: number; }
-interface CarbonCredit { id: string; standard: string; quantity: number; status: string; price_per_unit: number; vintage_year: number; project_name: string; project_id?: string; }
+interface CarbonCredit { id: string; standard: string; quantity: number; status: string; price_per_unit?: number; price_cents?: number; vintage_year: number; project_name: string; project_id?: string; }
 interface CarbonOption { id: string; type: string; strike_price: number; premium: number; quantity: number; expiry: string; status: string; }
 
 export default function Carbon() {
@@ -30,7 +30,7 @@ export default function Carbon() {
   const [creditGroups, setCreditGroups] = useState<CreditGroup[]>([]);
   const [allCredits, setAllCredits] = useState<CarbonCredit[]>([]);
   const [options, setOptions] = useState<CarbonOption[]>([]);
-  const [navData, setNavData] = useState<{ nav: number; units: number } | null>(null);
+  const [navData, setNavData] = useState<{ nav_cents?: number; nav?: number; units?: number; total_credits?: number; credits_value_cents?: number } | null>(null);
   const [retiring, setRetiring] = useState<string | null>(null);
   const [transferTarget, setTransferTarget] = useState<string | null>(null);
   const [transferTo, setTransferTo] = useState('');
@@ -115,7 +115,7 @@ export default function Carbon() {
   const totalHoldings = allCredits.reduce((sum, c) => sum + (c.quantity || 0), 0);
   const retiredCredits = allCredits.filter(c => c.status === 'retired');
   const retiredTotal = retiredCredits.reduce((sum, c) => sum + (c.quantity || 0), 0);
-  const avgPrice = allCredits.length > 0 ? allCredits.reduce((sum, c) => sum + (c.price_per_unit || 0), 0) / allCredits.length : 0;
+  const avgPrice = allCredits.length > 0 ? allCredits.reduce((sum, c) => sum + (c.price_cents ?? c.price_per_unit ?? 0), 0) / allCredits.length : 0;
 
   return (
     <motion.div
@@ -149,7 +149,7 @@ export default function Carbon() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
         {[{ label: 'Total Holdings', value: loading ? null : `${totalHoldings.toLocaleString()} t`, icon: FiGlobe },
-          { label: 'Avg Carbon Price', value: loading ? null : formatZAR(avgPrice / 100), icon: FiTrendingUp },
+          { label: 'Avg Carbon Price', value: loading ? null : formatZAR(avgPrice), icon: FiTrendingUp },
           { label: 'Retired YTD', value: loading ? null : `${retiredTotal.toLocaleString()} t`, icon: FiAward },
           { label: 'Options Active', value: loading ? null : String(options.filter(o => o.status === 'active').length), icon: FiRefreshCw },
         ].map((kpi, i) => (
@@ -193,9 +193,9 @@ export default function Carbon() {
           <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Carbon Fund NAV</h3>
           {loading ? <Skeleton className="w-full h-[220px]" /> : navData ? (
             <div className="flex flex-col items-center justify-center h-[220px]">
-              <p className="text-4xl font-bold text-slate-900 dark:text-white mono">{formatZAR(navData.nav / 100)}</p>
-              <p className="text-sm text-slate-400 mt-2">Net Asset Value</p>
-              <p className="text-lg font-semibold text-emerald-500 mt-1">{navData.units?.toLocaleString()} units</p>
+                            <p className="text-4xl font-bold text-slate-900 dark:text-white mono">{formatZAR(navData.nav_cents ?? navData.credits_value_cents ?? navData.nav ?? 0)}</p>
+                            <p className="text-sm text-slate-400 mt-2">Net Asset Value</p>
+                            <p className="text-lg font-semibold text-emerald-500 mt-1">{(navData.total_credits ?? navData.units ?? 0).toLocaleString()} units</p>
             </div>
           ) : <EmptyState title="No fund data" description="Carbon fund NAV will appear once the fund is initialised." />}
         </div>
@@ -221,7 +221,7 @@ export default function Carbon() {
                     <td className="py-3 font-medium text-slate-800 dark:text-slate-200"><EntityLink type="credit" id={c.id} label={c.standard} /></td>
                     <td className="py-3 text-slate-600 dark:text-slate-400">{c.project_name ? <EntityLink type="project" id={c.project_id || c.id} label={c.project_name} /> : 'N/A'}</td>
                     <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{c.quantity?.toLocaleString()}</td>
-                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(c.price_per_unit / 100)}</td>
+                    <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(c.price_cents ?? c.price_per_unit ?? 0)}</td>
                     <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${c.status === 'active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : c.status === 'retired' ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-white/[0.04] text-slate-500'}`}>{c.status}</span></td>
                     <td className="py-3 text-right">{c.status === 'active' && <button onClick={() => handleRetire(c.id)} disabled={retiring === c.id} className="text-xs font-semibold text-emerald-500 hover:text-emerald-600 disabled:opacity-50 flex items-center gap-1 ml-auto" aria-label={`Retire credit ${c.id}`}>{retiring === c.id && <FiLoader className="w-3 h-3 animate-spin" />} Retire</button>}</td>
                   </tr>
