@@ -251,50 +251,6 @@ const ALL_MAIN_TABS = [
   { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
 ];
 
-const ALL_MORE_LINKS = [
-  { name: 'Markets', href: '/markets', icon: IconMarkets },
-  { name: 'AI Portfolio', href: '/portfolio', icon: IconPortfolio },
-  { name: 'Risk Dashboard', href: '/risk', icon: IconRisk },
-  { name: 'Metering & IoT', href: '/metering', icon: IconMetering },
-  { name: 'P2P Trading', href: '/p2p', icon: IconP2P },
-  { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
-  { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
-  { name: 'Settlement', href: '/settlement', icon: IconSettlement },
-  { name: 'Compliance', href: '/compliance', icon: IconCompliance },
-  { name: 'Report Builder', href: '/reports', icon: IconReports },
-  { name: 'Developer Portal', href: '/developer', icon: IconDeveloper },
-  { name: 'Demand Profile', href: '/demand', icon: IconDemand },
-  { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
-  { name: 'Disputes', href: '/disputes', icon: IconDisputes },
-  { name: 'Invoices', href: '/invoices', icon: IconInvoices },
-  { name: 'Smart Rules', href: '/smart-rules', icon: IconSmartRules },
-  { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
-  { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
-  { name: 'Tenant Admin', href: '/tenant-admin', icon: IconTenant },
-  { name: 'Notifications', href: '/notifications', icon: IconNotifications },
-  { name: 'Admin', href: '/admin', icon: IconAdmin },
-  { name: 'Settings', href: '/settings', icon: IconSettings },
-  { name: 'Document Vault', href: '/vault', icon: IconVault },
-  { name: 'Lender Dashboard', href: '/lender', icon: IconLender },
-  { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
-  { name: 'Trade Journal', href: '/trade-journal', icon: IconTradeJournal },
-  { name: 'Carbon Deep', href: '/carbon-deep', icon: IconCarbonDeep },
-  { name: 'IPP Deep', href: '/ipp-deep', icon: IconIPPDeep },
-  { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
-  { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
-  { name: 'Support', href: '/support', icon: IconNotifications },
-  // Spec 12: World-Leader links
-  { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
-  { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
-  { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
-  { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
-  { name: 'ESG Scoring', href: '/esg', icon: IconESG },
-  { name: 'VPP Dashboard', href: '/vpp', icon: IconVPP },
-  { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
-  { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
-  { name: 'Data Retention', href: '/data-retention', icon: IconRetention },
-];
-
 const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund', 'grid'] as const;
 
 // Map nav hrefs to module names for feature-flag filtering
@@ -355,11 +311,12 @@ export default function DashboardLayout() {
     });
   // Primary tabs: first group items (cockpit + primary module), filtered by module status
   const mainTabs = filterByModule(roleGroups[0]?.items || ALL_MAIN_TABS.filter(t => allowed.has(t.href)));
-  // More links: remaining groups flattened + settings/notifications, filtered by module status
-  const moreLinks = filterByModule([
-    ...roleGroups.slice(1).flatMap(g => g.items),
-    ...ALL_MORE_LINKS.filter(l => allowed.has(l.href) && !roleGroups.flatMap(g => g.items).some(i => i.href === l.href)),
-  ].filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx));
+  // More links: ONLY items from ROLE_NAV groups (no generic ALL_MORE_LINKS leakage)
+  const moreGroups = roleGroups.slice(1).map(g => ({
+    ...g,
+    items: filterByModule(g.items),
+  })).filter(g => g.items.length > 0);
+  const moreLinks = moreGroups.flatMap(g => g.items);
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
@@ -540,20 +497,26 @@ export default function DashboardLayout() {
               left: moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect().left : 0,
             }}
             onClick={e => e.stopPropagation()}>
-            {moreLinks.map(link => {
-              const LinkIcon = link.icon;
-              return (
-                <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
-                    location.pathname === link.href
-                      ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
-                      : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
-                  }`}>
-                  <LinkIcon size={16} />
-                  {link.name}
-                </Link>
-              );
-            })}
+            {moreGroups.map((group, gi) => (
+              <div key={group.label}>
+                {gi > 0 && <div className={`mx-3 my-1.5 border-t ${isDark ? 'border-white/[0.06]' : 'border-black/[0.06]'}`} />}
+                <div className={`px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{group.label}</div>
+                {group.items.map(link => {
+                  const LinkIcon = link.icon;
+                  return (
+                    <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
+                      className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                        location.pathname === link.href
+                          ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
+                          : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
+                      }`}>
+                      <LinkIcon size={16} />
+                      {link.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>,
         document.body
