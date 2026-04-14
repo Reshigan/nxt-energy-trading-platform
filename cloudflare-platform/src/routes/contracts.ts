@@ -546,7 +546,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
       "SELECT regulation, status FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
     ).bind(id).all();
 
-    // If document has R2 key, return the actual document
+    // If document has R2 key, return the actual stored document
     if (doc.r2_key) {
       const obj = await c.env.R2.get(doc.r2_key as string);
       if (obj) {
@@ -557,29 +557,17 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
       }
     }
 
-    // Otherwise return metadata cover page as JSON (for MVP)
-    return c.json({
-      success: true,
-      data: {
-        cover_page: {
-          document_id: doc.id,
-          title: doc.title,
-          document_type: doc.document_type,
-          version: doc.version,
-          phase: doc.phase,
-          created_at: doc.created_at,
-          parties: sigs.results.map((s) => ({
-            name: s.signatory_name,
-            designation: s.signatory_designation,
-            signed: s.signed === 1,
-            signed_at: s.signed_at,
-          })),
-          statutory_compliance: checks.results.map((ch) => ({
-            regulation: ch.regulation,
-            status: ch.status,
-          })),
-          document_hash: 'N/A',
-        },
+    // Fall back to generating an HTML document (print-optimised for PDF)
+    const html = generateContractPDF(
+      doc as unknown as Parameters<typeof generateContractPDF>[0],
+      sigs.results as unknown as Parameters<typeof generateContractPDF>[1],
+      checks.results as unknown as Parameters<typeof generateContractPDF>[2],
+    );
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `inline; filename="${(doc.title as string || 'contract').replace(/["\r\n]/g, '_')}.html"`,
       },
     });
   } catch (err) {
@@ -922,50 +910,7 @@ contracts.post('/documents/:id/verify-2fa', authMiddleware(), async (c) => {
   }
 });
 
-// GET /contracts/documents/:id/pdf — Generate contract PDF (HTML-based)
-contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
-  try {
-    const { id } = c.req.param();
-
-    const doc = await c.env.DB.prepare(
-      'SELECT * FROM contract_documents WHERE id = ?'
-    ).bind(id).first();
-    if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
-
-    // Authorization: non-admin users can only view documents where they are creator or counterparty
-    const user = c.get('user');
-    if (user.role !== 'admin') {
-      const pid = user.sub;
-      if (doc.creator_id !== pid && doc.counterparty_id !== pid) {
-        return c.json({ success: false, error: 'Not authorized to view this document' }, 403);
-      }
-    }
-
-    const sigs = await c.env.DB.prepare(
-      'SELECT * FROM document_signatories WHERE document_id = ?'
-    ).bind(id).all();
-
-    const checks = await c.env.DB.prepare(
-      "SELECT * FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
-    ).bind(id).all();
-
-    const html = generateContractPDF(
-      doc as unknown as Parameters<typeof generateContractPDF>[0],
-      sigs.results as unknown as Parameters<typeof generateContractPDF>[1],
-      checks.results as unknown as Parameters<typeof generateContractPDF>[2],
-    );
-
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': `inline; filename="contract-${id}.html"`,
-      },
-    });
-  } catch (err) {
-    captureException(c, err);
-    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
-  }
-});
+// NOTE: Duplicate /documents/:id/pdf route removed — merged into the handler above (line ~528)
 
 // ═══════════════════════════════════════════════════════════════════════
 // Contract Agreements — CRUD + Digital Signature Workflow + Activity Feed

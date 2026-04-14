@@ -218,16 +218,14 @@ export default function ContractDeep() {
     if (!id) return;
     try {
       const res = await contractsAPI.getPdf(id);
-      if (res.data) {
-        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `contract-${id}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success('PDF downloaded');
-      }
+      // The response is a blob (HTML or PDF binary from R2)
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      // Open in new tab so the browser renders HTML (user can print-to-PDF)
+      window.open(url, '_blank');
+      // Revoke after a short delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast.success('Document opened in new tab');
     } catch {
       toast.error('Failed to download PDF');
     }
