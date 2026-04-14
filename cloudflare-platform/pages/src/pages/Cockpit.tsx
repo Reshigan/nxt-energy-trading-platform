@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '../lib/store';
 import { cockpitAPI } from '../lib/api';
 import { useTheme } from '../contexts/ThemeContext';
@@ -11,18 +12,145 @@ import CockpitSkeleton from '../components/cockpit/CockpitSkeleton';
 import { FiRefreshCw } from '../lib/fi-icons-shim';
 import { useWebSocket } from '../hooks/useWebSocket';
 
-// Role display names and accent colors
-const ROLE_META: Record<string, { label: string; accent: string }> = {
-  admin: { label: 'Platform Admin', accent: '#d4e157' },
-  generator: { label: 'IPP Developer', accent: '#66bb6a' },
-  ipp: { label: 'IPP Developer', accent: '#66bb6a' },
-  ipp_developer: { label: 'IPP Developer', accent: '#66bb6a' },
-  trader: { label: 'Energy Trader', accent: '#42a5f5' },
-  carbon_fund: { label: 'Carbon Fund Manager', accent: '#26a69a' },
-  offtaker: { label: 'Offtaker', accent: '#ffa726' },
-  lender: { label: 'Lender / Investor', accent: '#ab47bc' },
-  grid: { label: 'Grid Operator', accent: '#ef5350' },
-  regulator: { label: 'Regulator', accent: '#78909c' },
+// Role display names, accent colors, descriptions, and quick-access links
+interface RoleMeta {
+  label: string;
+  accent: string;
+  description: string;
+  quickLinks: { name: string; href: string; description: string }[];
+}
+
+const ROLE_META: Record<string, RoleMeta> = {
+  admin: {
+    label: 'Platform Admin',
+    accent: '#d4e157',
+    description: 'Platform administration, participant management, compliance oversight and system monitoring.',
+    quickLinks: [
+      { name: 'Admin Panel', href: '/admin', description: 'Manage participants & KYC queue' },
+      { name: 'System Health', href: '/system-health', description: 'Monitor platform status' },
+      { name: 'AML Monitoring', href: '/aml-dashboard', description: 'Anti-money laundering alerts' },
+      { name: 'Staff Management', href: '/staff', description: 'Manage platform staff' },
+      { name: 'Audit Trail', href: '/audit-trail', description: 'View all platform activity' },
+      { name: 'Platform Config', href: '/platform-config', description: 'Configure platform settings' },
+    ],
+  },
+  generator: {
+    label: 'IPP / Generator',
+    accent: '#66bb6a',
+    description: 'Manage renewable energy projects, track generation output, PPA contracts and grid scheduling.',
+    quickLinks: [
+      { name: 'IPP Projects', href: '/ipp', description: 'View & manage your projects' },
+      { name: 'Metering', href: '/metering', description: 'Submit generation data' },
+      { name: 'ODSE Analytics', href: '/metering-analytics', description: 'Generation analytics (ODSE)' },
+      { name: 'Trading', href: '/trading', description: 'Trade energy & carbon' },
+      { name: 'Contracts', href: '/contracts', description: 'View PPA contracts' },
+      { name: 'Deal Pipeline', href: '/pipeline', description: 'Track project pipeline' },
+    ],
+  },
+  ipp: {
+    label: 'IPP Developer',
+    accent: '#66bb6a',
+    description: 'Manage renewable energy projects, track generation output, PPA contracts and grid scheduling.',
+    quickLinks: [
+      { name: 'IPP Projects', href: '/ipp', description: 'View & manage your projects' },
+      { name: 'Metering', href: '/metering', description: 'Submit generation data' },
+      { name: 'ODSE Analytics', href: '/metering-analytics', description: 'Generation analytics (ODSE)' },
+      { name: 'Trading', href: '/trading', description: 'Trade energy & carbon' },
+      { name: 'Contracts', href: '/contracts', description: 'View PPA contracts' },
+      { name: 'Deal Pipeline', href: '/pipeline', description: 'Track project pipeline' },
+    ],
+  },
+  ipp_developer: {
+    label: 'IPP Developer',
+    accent: '#66bb6a',
+    description: 'Project development lifecycle — milestones, conditions precedent, disbursements and compliance.',
+    quickLinks: [
+      { name: 'IPP Projects', href: '/ipp', description: 'View & manage your projects' },
+      { name: 'Metering', href: '/metering', description: 'Submit & review meter readings' },
+      { name: 'ODSE Analytics', href: '/metering-analytics', description: 'Generation analytics (ODSE)' },
+      { name: 'Contracts', href: '/contracts', description: 'View & sign contracts' },
+      { name: 'Compliance', href: '/compliance', description: 'Check compliance status' },
+      { name: 'Deal Pipeline', href: '/pipeline', description: 'Track project pipeline' },
+    ],
+  },
+  trader: {
+    label: 'Energy Trader',
+    accent: '#42a5f5',
+    description: 'Energy and carbon trading — order book, portfolio management, risk analytics and forward curves.',
+    quickLinks: [
+      { name: 'Trading', href: '/trading', description: 'Place & manage orders' },
+      { name: 'Markets', href: '/markets', description: 'Live market data' },
+      { name: 'Portfolio', href: '/portfolio', description: 'AI portfolio analytics' },
+      { name: 'Risk Dashboard', href: '/risk', description: 'Risk exposure & VaR' },
+      { name: 'Forward Curves', href: '/forward-curves', description: 'Price curves & forecasts' },
+      { name: 'Deal Room', href: '/deal-room', description: 'Negotiate bilateral deals' },
+    ],
+  },
+  carbon_fund: {
+    label: 'Carbon Fund Manager',
+    accent: '#26a69a',
+    description: 'Carbon credit portfolio — options book, vintage analysis, registry reconciliation and ESG reporting.',
+    quickLinks: [
+      { name: 'Fund Dashboard', href: '/fund-dashboard', description: 'Portfolio performance & NAV' },
+      { name: 'Carbon Credits', href: '/carbon', description: 'View & trade credits' },
+      { name: 'Vintage Analysis', href: '/carbon-deep', description: 'Vintage ladder & pricing' },
+      { name: 'ESG Scoring', href: '/esg', description: 'ESG impact metrics' },
+      { name: 'Deal Room', href: '/deal-room', description: 'Negotiate carbon deals' },
+      { name: 'Deal Pipeline', href: '/pipeline', description: 'Track fund pipeline' },
+    ],
+  },
+  offtaker: {
+    label: 'Offtaker',
+    accent: '#ffa726',
+    description: 'Energy procurement — RFP management, consumption tracking, sustainability metrics and cost analysis.',
+    quickLinks: [
+      { name: 'Procurement Hub', href: '/procurement', description: 'RFPs, bids & contracts' },
+      { name: 'Demand Profile', href: '/demand', description: 'View consumption patterns' },
+      { name: 'Consumption Analytics', href: '/metering-analytics', description: 'ODSE consumption analytics' },
+      { name: 'Offtaker Cost', href: '/offtaker-cost', description: 'Cost breakdown & trends' },
+      { name: 'Marketplace', href: '/marketplace', description: 'Browse energy offers' },
+      { name: 'PPA Valuation', href: '/ppa-valuation', description: 'Evaluate PPA pricing' },
+    ],
+  },
+  lender: {
+    label: 'Lender / Investor',
+    accent: '#ab47bc',
+    description: 'Project finance — facility management, CP tracking, disbursements, covenants and portfolio monitoring.',
+    quickLinks: [
+      { name: 'Lender Dashboard', href: '/lender', description: 'Portfolio & CP matrix' },
+      { name: 'IPP Projects', href: '/ipp', description: 'Monitor financed projects' },
+      { name: 'Contracts', href: '/contracts', description: 'View facility agreements' },
+      { name: 'Deal Pipeline', href: '/pipeline', description: 'Track deal pipeline' },
+      { name: 'Network Map', href: '/network', description: 'Counterparty relationships' },
+      { name: 'Settlement', href: '/settlement', description: 'Disbursement settlements' },
+    ],
+  },
+  grid: {
+    label: 'Grid Operator',
+    accent: '#ef5350',
+    description: 'Grid management — connections, wheeling, metering validation, imbalance settlement and capacity.',
+    quickLinks: [
+      { name: 'Grid Dashboard', href: '/grid-dashboard', description: 'Connections & wheeling' },
+      { name: 'Metering', href: '/metering', description: 'Validate meter readings' },
+      { name: 'Metering Analytics', href: '/metering-analytics', description: 'Grid analytics (ODSE)' },
+      { name: 'Scheduling', href: '/scheduling', description: 'Energy scheduling' },
+      { name: 'VPP', href: '/vpp', description: 'Virtual power plant dispatch' },
+      { name: 'Network Map', href: '/network', description: 'Grid network topology' },
+    ],
+  },
+  regulator: {
+    label: 'Regulator',
+    accent: '#78909c',
+    description: 'Market oversight — surveillance, compliance monitoring, audit trail and ESG scoring review.',
+    quickLinks: [
+      { name: 'Surveillance', href: '/surveillance', description: 'Market surveillance' },
+      { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', description: 'Advanced market monitoring' },
+      { name: 'Compliance', href: '/compliance', description: 'Compliance checks & KYC' },
+      { name: 'Audit Trail', href: '/audit-trail', description: 'Full activity audit log' },
+      { name: 'ESG Scoring', href: '/esg', description: 'Participant ESG scores' },
+      { name: 'Reports', href: '/reports', description: 'Regulatory reports' },
+    ],
+  },
 };
 
 interface CockpitResponse {
@@ -51,7 +179,7 @@ export default function Cockpit() {
   const meta = ROLE_META[role] || ROLE_META.trader;
 
   // Spec 11: Real-time cockpit updates via WebSocket + polling
-  const { actionQueue: wsActionQueue, kpis: wsKpis, status: wsStatus, refreshNotifications } = useWebSocket('cockpit');
+  const { actionQueue: wsActionQueue, status: wsStatus } = useWebSocket('cockpit');
 
   const fetchCockpit = useCallback(async (silent = false) => {
     try {
@@ -130,12 +258,18 @@ export default function Cockpit() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
-            {meta.label} Cockpit
-          </h1>
-          <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+          <div className="flex items-center gap-3">
+            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: meta.accent }} />
+            <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {meta.label} Cockpit
+            </h1>
+          </div>
+          <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             {data.participant.name || 'Ionvex'}
             {' — '}
+            {meta.description}
+          </p>
+          <p className={`text-[10px] mt-0.5 ${isDark ? 'text-slate-600' : 'text-slate-300'}`}>
             Last updated {lastRefresh.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
@@ -159,6 +293,34 @@ export default function Cockpit() {
 
       {/* ── KPI Row ──────────────────────────────────────── */}
       <KPIRow kpis={data.kpis} accentHex={meta.accent} />
+
+      {/* ── Role Quick-Access Links ──────────────────────── */}
+      <div>
+        <h2 className={`text-sm font-semibold mb-3 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+          Quick Access
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {meta.quickLinks.map((link, i) => (
+            <Link
+              key={link.href}
+              to={link.href}
+              className={`group rounded-xl p-3.5 transition-all border ${
+                isDark
+                  ? 'bg-[#151F32] border-white/[0.06] hover:border-white/[0.12] hover:bg-[#1a2744]'
+                  : 'bg-white border-black/[0.06] hover:border-black/[0.1] hover:shadow-sm'
+              }`}
+              style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}
+            >
+              <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white group-hover:text-blue-400' : 'text-slate-800 group-hover:text-blue-600'} transition-colors`}>
+                {link.name}
+              </div>
+              <div className={`text-[11px] leading-tight ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                {link.description}
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
 
       {/* ── Action Queue + Module Cards ──────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
