@@ -5,7 +5,9 @@
 
 /** Format cents to ZAR display string: 2480 → "R24.80" */
 export function formatZAR(cents: number): string {
-  return 'R' + (cents / 100).toLocaleString('en-ZA', {
+  const val = Number(cents);
+  if (!Number.isFinite(val)) return 'R0.00';
+  return 'R' + (val / 100).toLocaleString('en-ZA', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
