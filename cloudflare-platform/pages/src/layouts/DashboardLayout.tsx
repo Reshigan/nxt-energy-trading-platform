@@ -321,7 +321,9 @@ export default function DashboardLayout() {
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
-    return location.pathname.startsWith(href);
+    // Exact match OR path continues with '/' to avoid prefix collisions
+    // e.g. '/surveillance' must NOT match '/surveillance-enhanced'
+    return location.pathname === href || location.pathname.startsWith(href + '/');
   };
 
   const isMoreActive = moreLinks.some(l => location.pathname === l.href);
