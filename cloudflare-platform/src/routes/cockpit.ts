@@ -187,10 +187,11 @@ cockpit.get('/', authMiddleware(), async (c) => {
       regulator: buildRegulatorCockpit,
     };
 
-    // Allow admin to preview any role cockpit via ?role= query param
+    // Allow any authenticated user to switch cockpit view via ?role= query param
+    // (the frontend role switcher sends the activeRole as a query param)
     const requestedRole = c.req.query('role');
     const validRoles = Object.keys(builders);
-    const role = (user.role === 'admin' && requestedRole && requestedRole !== 'admin' && validRoles.includes(requestedRole))
+    const role = (requestedRole && validRoles.includes(requestedRole))
       ? requestedRole
       : user.role;
 
