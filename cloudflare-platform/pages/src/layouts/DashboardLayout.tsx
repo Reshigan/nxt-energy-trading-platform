@@ -105,6 +105,7 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Development', items: [
       { name: 'Metering', href: '/metering', icon: IconMetering },

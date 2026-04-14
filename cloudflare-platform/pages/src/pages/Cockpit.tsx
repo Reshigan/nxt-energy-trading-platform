@@ -11,6 +11,22 @@ import ActivityFeed, { ActivityItem } from '../components/cockpit/ActivityFeed';
 import CockpitSkeleton from '../components/cockpit/CockpitSkeleton';
 import { FiRefreshCw } from '../lib/fi-icons-shim';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useModules } from '../hooks/useModules';
+
+// Maps quick-link hrefs to module feature-flag names (same as DashboardLayout)
+const HREF_TO_MODULE: Record<string, string> = {
+  '/trading': 'spot_trading',
+  '/carbon': 'carbon_credits',
+  '/p2p': 'p2p_trading',
+  '/settlement': 'settlement',
+  '/marketplace': 'marketplace',
+  '/metering': 'metering',
+  '/developer': 'developer_api',
+  '/reports': 'report_builder',
+  '/ai': 'ai_portfolio',
+  '/recs': 'recs',
+  '/tokens': 'tokenization',
+};
 
 // Role display names, accent colors, descriptions, and quick-access links
 interface RoleMeta {
@@ -177,6 +193,12 @@ export default function Cockpit() {
 
   const role = activeRole || user?.role || 'trader';
   const meta = ROLE_META[role] || ROLE_META.trader;
+  const { isEnabled } = useModules();
+
+  // Filter quick links by module feature flags — hide links whose module is disabled
+  const visibleQuickLinks = meta.quickLinks.filter(
+    link => !HREF_TO_MODULE[link.href] || isEnabled(HREF_TO_MODULE[link.href])
+  );
 
   // Spec 11: Real-time cockpit updates via WebSocket + polling
   const { actionQueue: wsActionQueue, status: wsStatus } = useWebSocket('cockpit');
@@ -300,7 +322,7 @@ export default function Cockpit() {
           Quick Access
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {meta.quickLinks.map((link, i) => (
+          {visibleQuickLinks.map((link, i) => (
             <Link
               key={link.href}
               to={link.href}
