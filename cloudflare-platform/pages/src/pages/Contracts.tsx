@@ -332,13 +332,11 @@ export default function Contracts() {
                           <button onClick={async () => {
                             try {
                               const res = await contractsAPI.getPdf(d.id);
-                              const content = res.data?.data || res.data;
-                              const blob = new Blob([typeof content === 'string' ? content : JSON.stringify(content, null, 2)], { type: 'application/pdf' });
+                              const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
                               const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url; a.download = `INV-${d.id}.pdf`; a.click();
-                              URL.revokeObjectURL(url);
-                              toast.success('PDF downloaded');
+                              window.open(url, '_blank');
+                              setTimeout(() => URL.revokeObjectURL(url), 10000);
+                              toast.success('Document opened in new tab');
                             } catch { toast.error('PDF not available for this contract'); }
                           }} title="Download PDF"
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label={`Download PDF for ${d.title}`}>
