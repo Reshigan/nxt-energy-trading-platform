@@ -539,7 +539,7 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
     }
 
     const sigs = await c.env.DB.prepare(
-      'SELECT signatory_name, signatory_designation, signed, signed_at FROM document_signatories WHERE document_id = ?'
+      'SELECT signatory_name, signatory_designation, signed, signed_at, ip_address FROM document_signatories WHERE document_id = ?'
     ).bind(id).all();
 
     const checks = await c.env.DB.prepare(
