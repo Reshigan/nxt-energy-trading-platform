@@ -57,6 +57,11 @@ export default function EntityDetailPanel() {
         if (data.related && Array.isArray(data.related)) {
           related.push(...data.related);
         } else {
+          // The backend returns related as an object with named fields.
+          // Look in both data and data.related for entity references.
+          const source = (data.related && typeof data.related === 'object' && !Array.isArray(data.related))
+            ? { ...data, ...data.related } : data;
+
           // Build related entities from named fields
           const relatedFields: Array<{ key: string; type: EntityType; labelKey: string }> = [
             { key: 'buyer', type: 'participant', labelKey: 'company_name' },
@@ -80,7 +85,7 @@ export default function EntityDetailPanel() {
           ];
 
           for (const field of relatedFields) {
-            const val = data[field.key];
+            const val = source[field.key];
             if (val && typeof val === 'object' && (val as Record<string, unknown>).id) {
               const v = val as Record<string, unknown>;
               related.push({
@@ -101,17 +106,24 @@ export default function EntityDetailPanel() {
             { key: 'projects', type: 'project', labelKey: 'name' },
             { key: 'credits', type: 'credit', labelKey: 'standard' },
             { key: 'milestones', type: 'project', labelKey: 'name' },
+            { key: 'signatories', type: 'participant', labelKey: 'company_name' },
+            { key: 'statutory_checks', type: 'contract', labelKey: 'check_name' },
+            { key: 'version_chain', type: 'contract', labelKey: 'title' },
+            { key: 'conditions_precedent', type: 'project', labelKey: 'description' },
+            { key: 'disbursements', type: 'project', labelKey: 'status' },
+            { key: 'trades_as_buyer', type: 'trade', labelKey: 'market' },
+            { key: 'trades_as_seller', type: 'trade', labelKey: 'market' },
           ];
 
           for (const field of arrayFields) {
-            const arr = data[field.key];
+            const arr = source[field.key];
             if (Array.isArray(arr)) {
               for (const item of arr.slice(0, 5)) {
                 if (item && typeof item === 'object' && item.id) {
                   related.push({
                     type: field.type,
                     id: item.id,
-                    label: `${field.key}: ${item[field.labelKey] || item.id.substring(0, 8)}`,
+                    label: `${field.key.replace(/_/g, ' ')}: ${item[field.labelKey] || item.id.substring(0, 8)}`,
                     status: item.status || undefined,
                   });
                 }
