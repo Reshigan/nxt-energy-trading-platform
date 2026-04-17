@@ -634,6 +634,7 @@ export const surveillanceEnhancedAPI = {
 export const pipelineAPI = {
   getDeals: () => api.get('/pipeline'),
   getStats: () => api.get('/pipeline/stats'),
+  updateStage: (dealId: string, data: { stage: string }) => api.patch(`/pipeline/${dealId}/stage`, data),
 };
 
 // Entity Threads (Conversations)

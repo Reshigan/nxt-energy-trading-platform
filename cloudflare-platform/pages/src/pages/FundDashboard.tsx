@@ -103,7 +103,7 @@ export default function FundDashboard() {
                         />
                         <Tooltip 
                           contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#fff' }} 
-                          formatter={(v) => [formatZAR(v), 'NAV']} 
+                          formatter={(v) => [formatZAR(v as number), 'NAV']} 
                         />
                         <Area type="monotone" dataKey="nav" stroke="#0891b2" fillOpacity={1} fill="url(#colorNav)" strokeWidth={2} />
                       </AreaChart>
