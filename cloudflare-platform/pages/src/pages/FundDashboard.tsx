@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { fundAPI } from '../lib/api';
-
-type Tab = 'performance' | 'options' | 'registry' | 'vintage' | 'reporting';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { useTheme } from '../contexts/ThemeContext';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, LineChart, Line, PieChart, Pie } from 'recharts';
 import { formatZAR } from '../lib/format';
 
+type Tab = 'performance' | 'options' | 'registry' | 'vintage' | 'reporting';
 
 export default function FundDashboard() {
+  const { isDark } = useTheme();
+  const c = (d: string, l: string) => isDark ? d : l;
   const [tab, setTab] = useState<Tab>('performance');
   const [perf, setPerf] = useState<Record<string, unknown>>({});
   const [options, setOptions] = useState<Record<string, unknown>[]>([]);
@@ -34,8 +36,59 @@ export default function FundDashboard() {
     { key: 'reporting', label: 'Investor Reporting' },
   ];
 
+  // NAV history data for chart
+  const navHistoryData = Array.isArray(perf.nav_history) 
+    ? (perf.nav_history as Array<Record<string, unknown>>).map(h => ({
+        month: String(h.month || ''),
+        nav: (Number(h.nav) || 0) / 100,
+        returns: Number(h.returns_pct) || 0,
+      }))
+    : [];
+
+  // Portfolio allocation pie data
+  const allocationData = Array.isArray(perf.allocation) 
+    ? (perf.allocation as Array<Record<string, unknown>>).map((a, i) => ({
+        name: String(a.type || 'Other'),
+        value: Number(a.value_cents) / 100,
+        color: ['#0891b2', '#22c55e', '#a855f7', '#f97316', '#ef4444'][i % 5],
+      }))
+    : [];
+
+  // Returns distribution data
+  const returnsData = Array.isArray(perf.returns_distribution)
+    ? (perf.returns_distribution as Array<Record<string, unknown>>).map(r => ({
+        bucket: String(r.bucket || ''),
+        count: Number(r.count) || 0,
+      }))
+    : [];
+
+  // Vintage ladder data (credits by vintage year)
+  const vintageData = vintage.map(v => ({
+    year: String(v.vintage_year || v.year || ''),
+    credits: Number(v.credits) || 0,
+    value: (Number(v.value_cents) || 0) / 100,
+  }));
+
+  // Options book data
+  const optionsByType = options.reduce((acc: Record<string, number>, o) => {
+    const type = String(o.type || 'Other');
+    acc[type] = (acc[type] || 0) + 1;
+    return acc;
+  }, {});
+
   const handleGenerateReport = (type: string) => {
     fundAPI.generateReport(type).then(() => alert(`${type} report generated`)).catch(() => {});
+  };
+
+  const handleExportReport = (type: 'quarterly' | 'annual' | 'tax') => {
+    const data = type === 'quarterly' ? perf.quarterly_report : type === 'annual' ? perf.annual_report : perf.tax_statement;
+    if (data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `fund_${type}_report.json`; a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
