@@ -9,6 +9,8 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { Button } from '../components/ui/Button';
 
+import ThreadPanel from '../components/ThreadPanel';
+
 interface DealRoomItem { id: string; contract_id: string; status: string; created_at: string; document_type?: string; counterparty_name?: string; created_by_name?: string; }
 interface Message { id: string; participant_id: string; message_type: string; content: string; sender_name?: string; field_changes?: string; created_at: string; }
 
@@ -149,6 +151,13 @@ export default function DealRoom() {
             </div>
           )}
         </div>
+
+      {selectedRoom && (
+        <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+          <ThreadPanel entityType="dealroom" entityId={selectedRoom} />
+        </div>
+      )}
+
       </div>
     </motion.div>
   );

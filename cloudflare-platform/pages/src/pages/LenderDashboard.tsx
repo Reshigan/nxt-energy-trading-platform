@@ -9,6 +9,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+
 interface LenderData {
   total_facilities: number;
   total_disbursed_cents: number;
@@ -50,6 +52,24 @@ export default function LenderDashboard() {
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
   const [covenants, setCovenants] = useState<Covenant[]>([]);
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Portfolio');
+  const [selectedDisbursements, setSelectedDisbursements] = useState<string[]>([]);
+
+  const handleBatchApprove = async () => {
+    if (selectedDisbursements.length === 0) return;
+    setLoading(true);
+    try {
+      const results = await Promise.all(selectedDisbursements.map(id => lenderAPI.approveDisbursement(id)));
+      const successCount = results.filter(r => r.data?.success).length;
+      toast.success(`Successfully approved ${successCount} disbursements`);
+      setSelectedDisbursements([]);
+      loadData();
+    } catch (err) {
+      toast.error('Batch approval failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
