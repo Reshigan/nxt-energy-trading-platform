@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { procurementAPI } from '../lib/api';
 
 type Tab = 'contracts' | 'rfp' | 'consumption' | 'sustainability' | 'billing';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
+import { formatZAR } from '../lib/format';
+
 
 export default function ProcurementHub() {
   const [tab, setTab] = useState<Tab>('contracts');
@@ -144,51 +147,100 @@ export default function ProcurementHub() {
                 </table>
               </div>
               {selectedRfp && bids.length > 0 && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-900/50 text-sm text-white font-medium">Bids for RFP</div>
-                  <table className="w-full text-sm">
-                    <thead><tr className="bg-slate-900/30 text-slate-400 text-left">
-                      <th className="px-4 py-3">Generator</th><th className="px-4 py-3">Tariff</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">BBBEE</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th>
-                    </tr></thead>
-                    <tbody>{bids.map((bid, i) => (
-                      <tr key={i} className="border-t border-slate-700/50">
-                        <td className="px-4 py-3 text-white">{String(bid.generator_name || bid.generator_id)}</td>
-                        <td className="px-4 py-3 text-slate-300">R{((Number(bid.tariff_cents) || 0) / 100).toFixed(2)}/kWh</td>
-                        <td className="px-4 py-3 text-green-400">{Number(bid.weighted_score || 0).toFixed(1)}</td>
-                        <td className="px-4 py-3 text-slate-300">Level {Number(bid.bbbee_level) || '-'}</td>
-                        <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs ${bid.status === 'selected' ? 'bg-green-500/20 text-green-400' : bid.status === 'rejected' ? 'bg-red-500/20 text-red-400' : 'bg-slate-600/30 text-slate-400'}`}>{String(bid.status || 'submitted')}</span></td>
-                        <td className="px-4 py-3">{String(bid.status) === 'submitted' && <button onClick={() => procurementAPI.selectBid(selectedRfp, String(bid.id)).then(() => loadBids(selectedRfp))} className="text-green-400 hover:text-green-300 text-xs">Select</button>}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-white font-semibold">Weighted Bid Comparison Matrix</h3>
+                    <span className="text-xs text-slate-400">Sourced from {bids.length} qualified generators</span>
+                  </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={bids}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis dataKey="generator_name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} domain={[0, 100]} />
+                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#fff' }} />
+                        <Bar dataKey="weighted_score" radius={[4, 4, 0, 0]}>
+                          {bids.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={Number(entry.weighted_score) > 80 ? '#10B981' : Number(entry.weighted_score) > 60 ? '#F59E0B' : '#EF4444'} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="bg-slate-900/50 rounded-xl border border-slate-700 p-4">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-900/30 text-slate-400 text-left">
+                        <tr className="border-b border-slate-700">
+                          <th className="px-4 py-3">Generator</th><th className="px-4 py-3">Tariff</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Selection</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bids.map((bid, i) => (
+                          <tr key={i} className="border-t border-slate-700/50 hover:bg-slate-700/20">
+                            <td className="px-4 py-3 text-white">{String(bid.generator_name)}</td>
+                            <td className="px-4 py-3 text-slate-300">{formatZAR((Number(bid.tariff_cents) || 0) / 100)}/kWh</td>
+                            <td className="px-4 py-3 font-bold text-green-400">{Number(bid.weighted_score).toFixed(1)}</td>
+                            <td className="px-4 py-3">
+                              {String(bid.status) === 'submitted' && <button onClick={() => procurementAPI.selectBid(selectedRfp, String(bid.id)).then(() => loadBids(selectedRfp))} className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-xs">Select</button>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
           {tab === 'consumption' && (
-            <div className="space-y-4">
-              {consumption.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">No active consumption contracts</div>
-              ) : consumption.map((ct, i) => (
-                <div key={i} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-white font-medium">{String(ct.contract_title || ct.contract_id)}</span>
-                    <span className={`px-2 py-0.5 rounded text-xs ${ct.status === 'over' ? 'bg-red-500/20 text-red-400' : ct.status === 'under' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
-                      {ct.status === 'on_track' ? 'On Track' : ct.status === 'over' ? 'Over-Consuming' : 'Under-Consuming'}
-                    </span>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {consumption.length === 0 ? (
+                  <div className="col-span-3 text-center py-12 text-slate-500">No active consumption contracts</div>
+                ) : consumption.map((ct, i) => (
+                  <div key={i} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-white font-medium truncate mr-2">{String(ct.contract_title || ct.contract_id)}</span>
+                      <span className={`px-2 py-0.5 rounded text-xs ${ct.status === 'over' ? 'bg-red-500/20 text-red-400' : ct.status === 'under' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'}`}>
+                        {ct.status === 'on_track' ? 'On Track' : ct.status === 'over' ? 'Over-Consuming' : 'Under-Consuming'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mb-3">
+                      <div className="flex justify-between"><span className="text-slate-400">Contracted:</span> <span className="text-white">{Number(ct.contracted_mwh).toLocaleString()} MWh</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Actual:</span> <span className="text-white">{Number(ct.actual_mwh).toLocaleString()} MWh</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Variance:</span> <span className={`text-white ${Number(ct.variance_mwh) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{Number(ct.variance_mwh)} MWh</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Variance %:</span> <span className={`text-white ${Number(ct.variance_pct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{Number(ct.variance_pct)}%</span></div>
+                    </div>
+                    <div className="w-full bg-slate-700 rounded-full h-2">
+                      <div className={`h-2 rounded-full transition-all ${ct.status === 'over' ? 'bg-red-500' : ct.status === 'under' ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (Number(ct.actual_mwh) / Math.max(1, Number(ct.contracted_mwh))) * 100)}%` }} />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-4 text-sm">
-                    <div><span className="text-slate-400">Contracted:</span> <span className="text-white ml-1">{Number(ct.contracted_mwh).toLocaleString()} MWh</span></div>
-                    <div><span className="text-slate-400">Actual:</span> <span className="text-white ml-1">{Number(ct.actual_mwh).toLocaleString()} MWh</span></div>
-                    <div><span className="text-slate-400">Variance:</span> <span className={`ml-1 ${Number(ct.variance_mwh) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{Number(ct.variance_mwh)} MWh</span></div>
-                    <div><span className="text-slate-400">Variance %:</span> <span className={`ml-1 ${Number(ct.variance_pct) >= 0 ? 'text-green-400' : 'text-red-400'}`}>{Number(ct.variance_pct)}%</span></div>
-                  </div>
-                  <div className="mt-2 w-full bg-slate-700 rounded-full h-2">
-                    <div className={`h-2 rounded-full ${ct.status === 'over' ? 'bg-red-500' : ct.status === 'under' ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${Math.min(100, (Number(ct.actual_mwh) / Math.max(1, Number(ct.contracted_mwh))) * 100)}%` }} />
-                  </div>
+                ))}
+              </div>
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                <h3 className="text-white font-semibold mb-4">Portfolio Consumption Overlay</h3>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={consumption.map(ct => ({
+                      name: String(ct.contract_title || ct.contract_id).substring(0, 10),
+                      actual: Number(ct.actual_mwh),
+                      contracted: Number(ct.contracted_mwh)
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#fff' }} />
+                      <Area type="monotone" dataKey="actual" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} strokeWidth={2} />
+                      <Area type="monotone" dataKey="contracted" stroke="#94a3b8" fill="transparent" strokeDasharray="5 5" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
+                <div className="flex gap-4 mt-4 text-xs text-slate-400">
+                  <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500" /> Actual Consumption</div>
+                  <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-500" /> Contracted Ceiling</div>
+                </div>
+              </div>
             </div>
           )}
 

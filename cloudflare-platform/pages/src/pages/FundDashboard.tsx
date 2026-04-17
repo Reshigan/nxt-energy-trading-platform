@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { fundAPI } from '../lib/api';
 
 type Tab = 'performance' | 'options' | 'registry' | 'vintage' | 'reporting';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { formatZAR } from '../lib/format';
+
 
 export default function FundDashboard() {
   const [tab, setTab] = useState<Tab>('performance');
@@ -68,19 +71,43 @@ export default function FundDashboard() {
                 ))}
               </div>
               {Array.isArray(perf.nav_history) && (perf.nav_history as Array<Record<string, unknown>>).length > 0 && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 p-4">
-                  <h3 className="text-white font-semibold text-sm mb-4">NAV History</h3>
-                  <div className="flex items-end gap-1 h-40">
-                    {(perf.nav_history as Array<Record<string, unknown>>).map((h, i) => {
-                      const maxNav = Math.max(...(perf.nav_history as Array<Record<string, unknown>>).map((x) => Number(x.nav) || 0));
-                      const height = maxNav > 0 ? ((Number(h.nav) || 0) / maxNav) * 100 : 0;
-                      return (
-                        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                          <div className="w-full bg-cyan-500/60 rounded-t" style={{ height: `${height}%` }} title={`${h.month}: R${((Number(h.nav) || 0) / 100).toLocaleString()}`} />
-                          <span className="text-[8px] text-slate-500 rotate-45">{String(h.month || '').substring(5)}</span>
-                        </div>
-                      );
-                    })}
+                <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-white font-semibold text-sm">Net Asset Value (NAV) Evolution</h3>
+                    <div className="text-xs text-slate-400">Currency: ZAR</div>
+                  </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={(perf.nav_history as Array<Record<string, unknown>>).map(h => ({
+                        month: String(h.month || ''),
+                        nav: (Number(h.nav) || 0) / 100
+                      }))}>
+                        <defs>
+                          <linearGradient id="colorNav" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                        <XAxis 
+                          dataKey="month" 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fill: '#94a3b8' }} 
+                        />
+                        <YAxis 
+                          axisLine={false} 
+                          tickLine={false} 
+                          tick={{ fontSize: 10, fill: '#94a3b8' }} 
+                          tickFormatter={(v) => `R${(v / 1000000).toFixed(1)}M`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#fff' }} 
+                          formatter={(v) => [formatZAR(v), 'NAV']} 
+                        />
+                        <Area type="monotone" dataKey="nav" stroke="#0891b2" fillOpacity={1} fill="url(#colorNav)" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               )}
@@ -135,24 +162,52 @@ export default function FundDashboard() {
           )}
 
           {tab === 'vintage' && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead><tr className="bg-slate-900/50 text-slate-400 text-left">
-                  <th className="px-4 py-3">Vintage</th><th className="px-4 py-3">Standard</th><th className="px-4 py-3">Quantity</th><th className="px-4 py-3">Fair Value</th><th className="px-4 py-3">Total Value</th><th className="px-4 py-3">Age Discount</th>
-                </tr></thead>
-                <tbody>{vintage.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-slate-500">No vintage data</td></tr>
-                ) : vintage.map((v, i) => (
-                  <tr key={i} className="border-t border-slate-700/50">
-                    <td className="px-4 py-3 text-white font-medium">{Number(v.vintage_year)}</td>
-                    <td className="px-4 py-3 text-slate-300">{String(v.standard)}</td>
-                    <td className="px-4 py-3 text-slate-300">{Number(v.quantity).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-green-400">R{((Number(v.fair_value_cents) || 0) / 100).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-green-400">R{((Number(v.total_value_cents) || 0) / 100).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-yellow-400">{Number(v.age_discount_pct)}%</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+            <div className="space-y-6">
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-white font-semibold text-sm">Vintage Distribution (Quantity)</h3>
+                  <div className="text-xs text-slate-400">Total Credits: {vintage.reduce((s, v) => s + (Number(v.quantity) || 0), 0).toLocaleString()}</div>
+                </div>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={vintage}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                      <XAxis dataKey="vintage_year" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <Tooltip 
+                        contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12, color: '#fff' }} 
+                        formatter={(v) => [`${v} Credits`, 'Quantity']} 
+                      />
+                      <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
+                        {vintage.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={Number(entry.vintage_year) < 2020 ? '#6366f1' : '#06b6d4'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-900/50 text-slate-400 text-left">
+                    <tr>
+                      <th className="px-4 py-3">Vintage</th><th className="px-4 py-3">Standard</th><th className="px-4 py-3">Quantity</th><th className="px-4 py-3">Fair Value</th><th className="px-4 py-3">Total Value</th><th className="px-4 py-3">Age Discount</th>
+                    </tr>
+                  </thead>
+                  <tbody>{vintage.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-8 text-slate-500">No vintage data</td></tr>
+                  ) : vintage.map((v, i) => (
+                    <tr key={i} className="border-t border-slate-700/50 hover:bg-slate-700/20">
+                      <td className="px-4 py-3 text-white font-medium">{Number(v.vintage_year)}</td>
+                      <td className="px-4 py-3 text-slate-300">{String(v.standard)}</td>
+                      <td className="px-4 py-3 text-slate-300">{Number(v.quantity).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-green-400">{formatZAR((Number(v.fair_value_cents) || 0) / 100)}</td>
+                      <td className="px-4 py-3 text-green-400">{formatZAR((Number(v.total_value_cents) || 0) / 100)}</td>
+                      <td className="px-4 py-3 text-yellow-400">{Number(v.age_discount_pct)}%</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
             </div>
           )}
 
