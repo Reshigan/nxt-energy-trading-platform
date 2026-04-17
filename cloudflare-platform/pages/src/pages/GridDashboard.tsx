@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { gridAPI } from '../lib/api';
 
 type Tab = 'connections' | 'wheeling' | 'metering' | 'imbalance' | 'capacity';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
 
 export default function GridDashboard() {
   const [tab, setTab] = useState<Tab>('connections');
@@ -57,26 +59,46 @@ export default function GridDashboard() {
       ) : (
         <>
           {tab === 'connections' && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead><tr className="bg-slate-900/50 text-slate-400 text-left">
-                  <th className="px-4 py-3">Project</th><th className="px-4 py-3">Connection Point</th><th className="px-4 py-3">Applied MW</th><th className="px-4 py-3">Allocated MW</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Applicant</th>
-                </tr></thead>
-                <tbody>{connections.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-slate-500">No connections</td></tr>
-                ) : connections.map((conn, i) => (
-                  <tr key={i} className="border-t border-slate-700/50 hover:bg-slate-700/20">
-                    <td className="px-4 py-3 text-white">{String(conn.project_name || conn.project_id || '-')}</td>
-                    <td className="px-4 py-3 text-slate-300">{String(conn.connection_point || '-')}</td>
-                    <td className="px-4 py-3 text-slate-300">{Number(conn.applied_capacity_mw) || 0}</td>
-                    <td className="px-4 py-3 text-slate-300">{Number(conn.allocated_capacity_mw) || 0}</td>
-                    <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs ${statusColors[String(conn.status)] || 'bg-slate-600/30 text-slate-400'}`}>{String(conn.status || '-')}</span></td>
-                    <td className="px-4 py-3 text-slate-300">{String(conn.applicant_name || '-')}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-          )}
+        <div className="space-y-6" style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Kanban Pipeline for Connections */}
+            {['applied', 'quoted', 'agreement_signed', 'under_construction', 'energised', 'rejected'].map(status => (
+              <div key={status} className="flex flex-col gap-3">
+                <div className="flex items-center justify-between px-2">
+                  <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider">{status.replace('_', ' ')}</h3>
+                  <span className="text-xs bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">
+                    {connections.filter(c => String(c.status) === status).length}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-3 min-h-[400px]">
+                  {connections.filter(c => String(c.status) === status).map((conn, i) => (
+                    <div key={i} className="bg-slate-800 border border-slate-700 p-4 rounded-xl hover:border-blue-500/50 transition-all cursor-pointer group">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">{String(conn.project_name || conn.project_id || '-')}</span>
+                        <span className="text-[10px] text-slate-500">{String(conn.applicant_name || '-')}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-400">
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <span>{Number(conn.applied_capacity_mw) || 0} MW</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          <span>{Number(conn.allocated_capacity_mw) || 0} MW</span>
+                        </div>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-slate-700/50 flex justify-between items-center">
+                        <span className="text-[10px] text-slate-500 truncate max-w-[120px]">{String(conn.connection_point || '-')}</span>
+                        <button className="text-[10px] bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded hover:bg-blue-600/30 transition-colors">Details</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
           {tab === 'wheeling' && (
             <div className="space-y-4">

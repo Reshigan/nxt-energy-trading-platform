@@ -353,6 +353,201 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       execute: async (env, event) => {
         const { from_id, to_id, tonnes } = event.data;
         await notifyParticipant(env.DB, from_id as string, 'Credit Transferred', `${tonnes}t transferred out.`, 'carbon', 'credit', event.entity_id);
+
+    // ── Grid Operations ─────────────────────────────────────────────────────────
+    
+    'grid.connection_applied': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { applicant_id, project_name } = event.data;
+          const operators = await env.DB.prepare('SELECT id FROM participants WHERE role = ?').bind('GRID_OPERATOR').all();
+          for (const op of operators.results) {
+            await notifyParticipant(env.DB, op.id, 'Grid Connection Application', `Application received for project: ${project_name}.`, 'grid', 'connection', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'grid.connection_energised': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, offtaker_id, project_name } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Grid Energised', `Your project ${project_name} is now energised and connected to the grid.`, 'grid', 'connection', event.entity_id);
+          await notifyParticipant(env.DB, offtaker_id as string, 'Grid Energised', `The energy source ${project_name} is now energised and available.`, 'grid', 'connection', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          await env.DB.prepare('UPDATE wheeling_agreements SET status = ? WHERE connection_id = ?').bind('active', event.entity_id).run();
+        },
+      },
+    ],
+
+    'grid.metering_validated': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, period } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Metering Validated', `Metering data for period ${period} has been validated.`, 'grid', 'metering', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          await env.DB.prepare('UPDATE settlements SET status = ? WHERE period = ? AND status = ?').bind('unlocked', event.data.period, 'locked').run();
+        },
+      },
+    ],
+
+    'grid.imbalance_settled': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, amount_cents } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Imbalance Settled', `Imbalance settlement of R${(Number(amount_cents) / 100).toFixed(2)} processed.`, 'grid', 'imbalance', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const invoiceId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO invoices (id, participant_id, amount_cents, status, type, created_at)
+             VALUES (?, ?, ?, ?, ?, datetime('now'))`
+          ).bind(invoiceId, event.data.generator_id, event.data.amount_cents, 'pending', 'imbalance_settlement').run();
+        },
+      },
+    ],
+
+    // ── Procurement ──────────────────────────────────────────────────────────────
+
+    'procurement.rfp_published': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { rfp_title } = event.data;
+          const matchedGens = await env.DB.prepare('SELECT id FROM participants WHERE role = ?').bind('GENERATOR').all();
+          for (const gen of matchedGens.results) {
+            await notifyParticipant(env.DB, gen.id, 'New RFP Published', `New request for proposal: ${rfp_title}. Please review if you match the criteria.`, 'procurement', 'rfp', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'procurement.bid_received': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { offtaker_id, bidder_name, bid_amount } = event.data;
+          await notifyParticipant(env.DB, offtaker_id as string, 'Bid Received', `${bidder_name} has submitted a bid of R${(Number(bid_amount) / 100).toFixed(2)} for RFP.`, 'procurement', 'bid', event.entity_id);
+        },
+      },
+    ],
+
+    'procurement.bid_selected': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { bidder_id, rfp_title } = event.data;
+          await notifyParticipant(env.DB, bidder_id as string, 'Bid Selected', `Congratulations! Your bid for "${rfp_title}" has been selected.`, 'procurement', 'bid', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const loiId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO lois (id, rfp_id, bidder_id, status, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`
+          ).bind(loiId, event.data.rfp_id, event.data.bidder_id, 'draft').run();
+        },
+      },
+    ],
+
+    'procurement.consumption_warning': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { offtaker_id, current_consumption, limit } = event.data;
+          await notifyParticipant(env.DB, offtaker_id as string, 'Consumption Warning', `Consumption has reached ${current_consumption}% of limit (${limit} MWh).`, 'procurement', 'consumption', event.entity_id);
+        },
+      },
+    ],
+
+    // ── Fund Management ──────────────────────────────────────────────────────────
+
+    'fund.nav_recalculated': [
+      {
+        type: 'db_update',
+        execute: async (env, event) => {
+          const { fund_id, nav_cents } = event.data;
+          const snapshotId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO fund_nav_snapshots (id, fund_id, nav_cents, created_at)
+             VALUES (?, ?, ?, datetime('now'))`
+          ).bind(snapshotId, fund_id, nav_cents).run();
+        },
+      },
+    ],
+
+    'fund.registry_discrepancy': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { fund_manager_id, discrepancy_details } = event.data;
+          await notifyParticipant(env.DB, fund_manager_id as string, 'Registry Discrepancy', `Alert: ${discrepancy_details}.`, 'fund', 'registry', event.entity_id);
+        },
+      },
+    ],
+
+    // ── Threads & Intelligence ────────────────────────────────────────────────────
+
+    'thread.new_comment': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { thread_id, participants } = event.data;
+          for (const pid of participants as string[]) {
+            if (pid === event.actor_id) continue;
+            await notifyParticipant(env.DB, pid, 'New Comment', `New reply in thread ${thread_id}.`, 'thread', 'thread', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'intelligence.generated': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { insight_title, participant_id } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'New Intelligence Insight', `Insight: ${insight_title}.`, 'intelligence', 'insight', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const actionId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO cockpit_actions (id, participant_id, action_type, status, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`
+          ).bind(actionId, event.data.participant_id, 'intelligence_insight', 'pending').run();
+        },
+      },
+    ],
+
+    'concierge.step_completed': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { participant_id, step_number, project_name } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'Concierge Step Completed', `Step ${step_number} completed for ${project_name}. Great progress!`, 'concierge', 'step', event.entity_id);
+        },
+      },
+    ],
+
         await notifyParticipant(env.DB, to_id as string, 'Credit Received', `${tonnes}t received.`, 'carbon', 'credit', event.entity_id);
       },
     },
@@ -1164,10 +1359,204 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         const email = await getParticipantEmail(env.DB, event.actor_id);
         if (email) {
           await sendEmail(env, { to: email, subject: `Financial Close: ${project_name}`, html: `<p>Congratulations! Project "${project_name}" has achieved financial close and is now in the construction phase.</p>` });
-        }
+          }
+        },
       },
-    },
-  ],
+    ],
+
+    // ── Grid Operations ─────────────────────────────────────────────────────────
+    
+    'grid.connection_applied': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { project_name } = event.data;
+          const operators = await env.DB.prepare('SELECT id FROM participants WHERE role = ?').bind('GRID_OPERATOR').all();
+          for (const op of operators.results) {
+            await notifyParticipant(env.DB, op.id, 'Grid Connection Application', `Application received for project: ${project_name}.`, 'grid', 'connection', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'grid.connection_energised': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, offtaker_id, project_name } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Grid Energised', `Your project ${project_name} is now energised and connected to the grid.`, 'grid', 'connection', event.entity_id);
+          await notifyParticipant(env.DB, offtaker_id as string, 'Grid Energised', `The energy source ${project_name} is now energised and available.`, 'grid', 'connection', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          await env.DB.prepare('UPDATE wheeling_agreements SET status = ? WHERE connection_id = ?').bind('active', event.entity_id).run();
+        },
+      },
+    ],
+
+    'grid.metering_validated': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, period } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Metering Validated', `Metering data for period ${period} has been validated.`, 'grid', 'metering', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          await env.DB.prepare('UPDATE settlements SET status = ? WHERE period = ? AND status = ?').bind('unlocked', event.data.period, 'locked').run();
+        },
+      },
+    ],
+
+    'grid.imbalance_settled': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { generator_id, amount_cents } = event.data;
+          await notifyParticipant(env.DB, generator_id as string, 'Imbalance Settled', `Imbalance settlement of R${(Number(amount_cents) / 100).toFixed(2)} processed.`, 'grid', 'imbalance', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const invoiceId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO invoices (id, participant_id, amount_cents, status, type, created_at)
+             VALUES (?, ?, ?, ?, ?, datetime('now'))`
+          ).bind(invoiceId, event.data.generator_id, event.data.amount_cents, 'pending', 'imbalance_settlement').run();
+        },
+      },
+    ],
+
+    // ── Procurement ──────────────────────────────────────────────────────────────
+
+    'procurement.rfp_published': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { rfp_title } = event.data;
+          const matchedGens = await env.DB.prepare('SELECT id FROM participants WHERE role = ?').bind('GENERATOR').all();
+          for (const gen of matchedGens.results) {
+            await notifyParticipant(env.DB, gen.id, 'New RFP Published', `New request for proposal: ${rfp_title}. Please review if you match the criteria.`, 'procurement', 'rfp', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'procurement.bid_received': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { offtaker_id, bidder_name, bid_amount } = event.data;
+          await notifyParticipant(env.DB, offtaker_id as string, 'Bid Received', `${bidder_name} has submitted a bid of R${(Number(bid_amount) / 100).toFixed(2)} for RFP.`, 'procurement', 'bid', event.entity_id);
+        },
+      },
+    ],
+
+    'procurement.bid_selected': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { bidder_id, rfp_title } = event.data;
+          await notifyParticipant(env.DB, bidder_id as string, 'Bid Selected', `Congratulations! Your bid for "${rfp_title}" has been selected.`, 'procurement', 'bid', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const loiId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO lois (id, rfp_id, bidder_id, status, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`
+          ).bind(loiId, event.data.rfp_id, event.data.bidder_id, 'draft').run();
+        },
+      },
+    ],
+
+    'procurement.consumption_warning': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { offtaker_id, current_consumption, limit } = event.data;
+          await notifyParticipant(env.DB, offtaker_id as string, 'Consumption Warning', `Consumption has reached ${current_consumption}% of limit (${limit} MWh).`, 'procurement', 'consumption', event.entity_id);
+        },
+      },
+    ],
+
+    // ── Fund Management ──────────────────────────────────────────────────────────
+
+    'fund.nav_recalculated': [
+      {
+        type: 'db_update',
+        execute: async (env, event) => {
+          const { fund_id, nav_cents } = event.data;
+          const snapshotId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO fund_nav_snapshots (id, fund_id, nav_cents, created_at)
+             VALUES (?, ?, ?, datetime('now'))`
+          ).bind(snapshotId, fund_id, nav_cents).run();
+        },
+      },
+    ],
+
+    'fund.registry_discrepancy': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { fund_manager_id, discrepancy_details } = event.data;
+          await notifyParticipant(env.DB, fund_manager_id as string, 'Registry Discrepancy', `Alert: ${discrepancy_details}.`, 'fund', 'registry', event.entity_id);
+        },
+      },
+    ],
+
+    // ── Threads & Intelligence ────────────────────────────────────────────────────
+
+    'thread.new_comment': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { thread_id, participants } = event.data;
+          for (const pid of participants as string[]) {
+            if (pid === event.actor_id) continue;
+            await notifyParticipant(env.DB, pid, 'New Comment', `New reply in thread ${thread_id}.`, 'thread', 'thread', event.entity_id);
+          }
+        },
+      },
+    ],
+
+    'intelligence.generated': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { insight_title, participant_id } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'New Intelligence Insight', `Insight: ${insight_title}.`, 'intelligence', 'insight', event.entity_id);
+        },
+      },
+      {
+        type: 'cross_module',
+        execute: async (env, event) => {
+          const actionId = crypto.randomUUID();
+          await env.DB.prepare(
+            `INSERT INTO cockpit_actions (id, participant_id, action_type, status, created_at)
+             VALUES (?, ?, ?, ?, datetime('now'))`
+          ).bind(actionId, event.data.participant_id, 'intelligence_insight', 'pending').run();
+        },
+      },
+    ],
+
+    'concierge.step_completed': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { participant_id, step_number, project_name } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'Concierge Step Completed', `Step ${step_number} completed for ${project_name}. Great progress!`, 'concierge', 'step', event.entity_id);
+        },
+      },
+    ],
 };
 
 // ─── MAIN CASCADE FUNCTION ───────────────────────────────────────────────────

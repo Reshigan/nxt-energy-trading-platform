@@ -168,6 +168,18 @@ INSERT INTO orders (id, participant_id, market, order_type, side, volume_mwh, pr
 
 -- ============================================================
 -- ESCROWS (3)
+
+-- ============================================================
+-- FEE SCHEDULE (6 rows)
+-- ============================================================
+INSERT INTO fee_schedule (id, fee_type, rate_bps, minimum_cents, maximum_cents, active, created_at, updated_at) VALUES
+('FEE001', 'trading', 15, 5000, 100000, 1, datetime('now'), datetime('now')),
+('FEE002', 'carbon_trading', 20, 10000, 200000, 1, datetime('now'), datetime('now')),
+('FEE003', 'document_generation', 10, 2000, 50000, 1, datetime('now'), datetime('now')),
+('FEE004', 'settlement', 5, 1000, 20000, 1, datetime('now'), datetime('now')),
+('FEE005', 'compliance_check', 0, 0, 0, 1, datetime('now'), datetime('now')),
+('FEE006', 'fund_management', 100, 100000, NULL, 1, datetime('now'), datetime('now'));
+
 -- ============================================================
 INSERT INTO escrows (id, trade_id, buyer_id, seller_id, amount, status, created_at) VALUES
 ('ESC001', 'TRD003', 'P003', 'P007', 276000.00, 'held', '2024-06-10T14:05:00Z'),

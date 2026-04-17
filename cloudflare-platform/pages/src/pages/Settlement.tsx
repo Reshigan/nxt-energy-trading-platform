@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Button } from '../components/ui/Button';
 import EntityLink from '../components/EntityLink';
 
+import ThreadPanel from '../components/ThreadPanel';
+
 const TABS = ['Invoices', 'Escrows', 'Disputes'] as const;
 
 interface Invoice { id: string; counterparty: string; amount: number; status: string; due_date: string; type: string; }
@@ -206,6 +208,11 @@ export default function Settlement() {
                 </tr>
               ))}</tbody>
             </table>)
+
+      <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+        <ThreadPanel entityType="dispute" entityId={disputeData[0]?.id || ''} />
+      </div>
+
           )}
         </div>
       </div>
