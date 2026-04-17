@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { pipelineAPI } from '../lib/api';
+import { useToast } from '../contexts/ToastContext';
 
 const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   prospect: { label: 'Prospect', color: 'text-blue-400', bg: 'bg-blue-500/20 border-blue-500/30' },
@@ -15,6 +16,28 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }>
 };
 
 export default function Pipeline() {
+import { useToast } from '../contexts/ToastContext';
+
+  const moveDeal = async (dealId: string, newStage: string) => {
+    try {
+      await pipelineAPI.updateStage(dealId, { stage: newStage });
+      toast.success(`Deal moved to ${STAGE_CONFIG[newStage].label}`);
+      loadPipeline();
+    } catch {
+      toast.error('Failed to move deal');
+    }
+  };
+
+  const loadPipeline = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [dealsRes, statsRes] = await Promise.all([pipelineAPI.getDeals(), pipelineAPI.getStats()]);
+      setStages(dealsRes.data?.data?.stages || {});
+      setStats(statsRes.data?.data || {});
+    } catch { /* */ }
+    setLoading(false);
+  }, []);
+
   const [stages, setStages] = useState<Record<string, unknown[]>>({});
   const [stats, setStats] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);

@@ -12,6 +12,8 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { Modal } from '../components/ui/Modal';
 
+import ThreadPanel from '../components/ThreadPanel';
+
 interface ContractDetail {
   id: string;
   title: string;
@@ -290,6 +292,11 @@ export default function ContractDeep() {
         {!loading && contract && (
           <div className="flex flex-wrap gap-2">
             <button onClick={handleDownloadPdf} className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${c('bg-white/[0.04] hover:bg-white/[0.08] text-slate-300', 'bg-slate-100 hover:bg-slate-200 text-slate-600')}`} aria-label="Download PDF">
+
+      <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+        <ThreadPanel entityType="contract" entityId={id || ''} />
+      </div>
+
               <FiDownload className="w-3.5 h-3.5" /> PDF
             </button>
             <button onClick={() => setShowAmendModal(true)} className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${c('bg-white/[0.04] hover:bg-white/[0.08] text-slate-300', 'bg-slate-100 hover:bg-slate-200 text-slate-600')}`} aria-label="Amend contract">
