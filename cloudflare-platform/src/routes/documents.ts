@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HonoEnv } from '../utils/types';
 import { authMiddleware } from '../auth/middleware';
+import { generateId } from '../utils/id';
 
 const app = new Hono<HonoEnv>();
 app.use('*', authMiddleware());
@@ -46,17 +47,18 @@ app.post('/extract', async (c) => {
     Contract Text:
     ${content.substring(0, 10000)}`; // limit context window
 
-    const aiResponse = await c.env.AI.run('llama-3-8b-instruct', {
+    const aiResponse = await c.env.AI.run('@cf/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
       prompt: prompt
     });
 
     // Parse AI response into our structured format
     let aiData: any = {};
+    const aiResponseText = (aiResponse as { response: string }).response;
     try {
-      aiData = JSON.parse(aiResponse.response);
+      aiData = JSON.parse(aiResponseText);
     } catch {
       // Fallback if AI returns non-JSON text
-      aiData = { raw: aiResponse.response };
+      aiData = { raw: aiResponseText };
     }
 
     const extractedTerms = {
