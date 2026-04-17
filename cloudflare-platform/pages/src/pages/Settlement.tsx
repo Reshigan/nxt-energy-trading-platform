@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiShield, FiAlertTriangle, FiRefreshCw, FiLoader } from '../lib/fi-icons-shim';
+import { FiFileText, FiShield, FiAlertTriangle, FiRefreshCw, FiLoader, FiArrowRight, FiActivity } from '../lib/fi-icons-shim';
 import { useTheme } from '../contexts/ThemeContext';
 import { settlementAPI } from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
@@ -15,11 +15,13 @@ import EntityLink from '../components/EntityLink';
 
 import ThreadPanel from '../components/ThreadPanel';
 
-const TABS = ['Invoices', 'Escrows', 'Disputes'] as const;
+const TABS = ['Invoices', 'Escrows', 'Netting', 'Disputes'] as const;
 
 interface Invoice { id: string; counterparty: string; amount: number; status: string; due_date: string; type: string; }
 interface Escrow { id: string; parties: string; amount: number; status: string; conditions_met: number; conditions_total: number; created_at: string; }
 interface Dispute { id: string; parties: string; type: string; amount: number; status: string; filed_at: string; }
+// Bilateral Netting Flow
+interface NettingFlow { id: string; counterparties: string[]; gross_total: number; netting_amount: number; savings: number; status: 'pending' | 'calculated' | 'settled'; created_at: string; }
 
 const sc: Record<string, { bg: string; text: string }> = {
   Paid: { bg: 'bg-emerald-50 dark:bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
@@ -49,12 +51,17 @@ export default function Settlement() {
   const [invoiceData, setInvoiceData] = useState<Invoice[]>([]);
   const [escrowData, setEscrowData] = useState<Escrow[]>([]);
   const [disputeData, setDisputeData] = useState<Dispute[]>([]);
+  const [nettingFlows, setNettingFlows] = useState<NettingFlow[]>([]);
   const [paying, setPaying] = useState<string | null>(null);
   const [showGenInvoice, setShowGenInvoice] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({ counterparty: '', amount: '', type: 'Energy Trade', due_date: '' });
   const [generating, setGenerating] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // D1 optimization: Client-side cache
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+  const [cacheStore] = useState(() => new Map<string, { data: unknown; timestamp: number }>());
+  const [cacheHit, setCacheHit] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -185,6 +192,103 @@ export default function Settlement() {
                 </tr>
               ))}</tbody>
             </table>)
+          )}
+          {activeTab === 'Netting' && (
+            <div className="space-y-4" style={{ animation: 'cardFadeUp 400ms ease both' }}>
+              {/* Netting Flow Diagram */}
+              <div className={`cp-card !p-5 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FiActivity className="w-5 h-5 text-blue-500" />
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Bilateral Netting Flows</h3>
+                    {cacheHit && <span className="text-xs text-emerald-400">• Cached</span>}
+                  </div>
+                  <button onClick={() => { cacheStore.clear(); loadData(); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'bg-white/[0.06] hover:bg-white/[0.1]' : 'bg-slate-100 hover:bg-slate-200'}`}>
+                    <FiRefreshCw className="w-3 h-3 inline mr-1" /> Refresh
+                  </button>
+                </div>
+                
+                {nettingFlows.length === 0 ? (
+                  <div className="text-center py-8">
+                    <EmptyState title="No netting flows" description="Netting flows will appear when bilateral offsets are calculated." />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {nettingFlows.map((flow) => (
+                      <div key={flow.id} className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-mono text-slate-500">{flow.id}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            flow.status === 'settled' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                            flow.status === 'calculated' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                            'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                          }`}>{flow.status}</span>
+                        </div>
+                        
+                        {/* Visual Netting Flow */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          {flow.counterparties.slice(0, 3).map((cp, i) => (
+                            <React.Fragment key={cp}>
+                              <div className={`w-16 h-16 rounded-full flex items-center justify-center text-xs font-semibold ${
+                                i === 0 ? 'bg-blue-500 text-white' : i === 1 ? 'bg-emerald-500 text-white' : 'bg-purple-500 text-white'
+                              }`}>
+                                {cp.substring(0, 4)}
+                              </div>
+                              {i < flow.counterparties.slice(0, 3).length - 1 && (
+                                <FiArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                              )}
+                            </React.Fragment>
+                          ))}
+                          {flow.counterparties.length > 3 && (
+                            <span className="text-xs text-slate-500">+{flow.counterparties.length - 3} more</span>
+                          )}
+                        </div>
+                        
+                        {/* Flow Metrics */}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white mono">{formatZAR(flow.gross_total / 100)}</p>
+                            <p className="text-[10px] text-slate-400">Gross Total</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-blue-500 mono">{formatZAR(flow.netting_amount / 100)}</p>
+                            <p className="text-[10px] text-slate-400">Net Amount</p>
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-emerald-500 mono">{formatZAR(flow.savings / 100)}</p>
+                            <p className="text-[10px] text-slate-400">Savings</p>
+                          </div>
+                        </div>
+                        
+                        {/* Savings Bar */}
+                        <div className="mt-3">
+                          <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (flow.savings / flow.gross_total) * 100)}%` }} />
+                          </div>
+                          <p className="text-[10px] text-slate-500 mt-1 text-right">{((flow.savings / flow.gross_total) * 100).toFixed(1)}% savings from netting</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className={`cp-card !p-4 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`}>
+                  <p className="text-xs text-slate-400 mb-1">Total Gross Volume</p>
+                  <p className="text-xl font-bold text-slate-900 dark:text-white mono">{formatZAR(nettingFlows.reduce((s, f) => s + f.gross_total, 0) / 100)}</p>
+                </div>
+                <div className={`cp-card !p-4 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`}>
+                  <p className="text-xs text-slate-400 mb-1">Net Settlement</p>
+                  <p className="text-xl font-bold text-blue-500 mono">{formatZAR(nettingFlows.reduce((s, f) => s + f.netting_amount, 0) / 100)}</p>
+                </div>
+                <div className={`cp-card !p-4 ${isDark ? '!bg-[#151F32] !border-white/[0.06]' : ''}`}>
+                  <p className="text-xs text-slate-400 mb-1">Total Savings</p>
+                  <p className="text-xl font-bold text-emerald-500 mono">{formatZAR(nettingFlows.reduce((s, f) => s + f.savings, 0) / 100)}</p>
+                </div>
+              </div>
+            </div>
           )}
           {activeTab === 'Disputes' && (
             disputeData.length === 0 ? <div className="p-8"><EmptyState title="No disputes" description="Disputes will appear once filed between counterparties." /></div> : (
