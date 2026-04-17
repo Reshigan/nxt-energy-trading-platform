@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus, FiLoader, FiFileText, FiUpload, FiDownload } from '../lib/fi-icons-shim';
+import { FiGlobe, FiTrendingUp, FiAward, FiRefreshCw, FiPlus, FiLoader, FiFileText, FiUpload, FiDownload, FiClock } from '../lib/fi-icons-shim';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, AreaChart, Area } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { carbonAPI } from '../lib/api';
@@ -16,6 +16,10 @@ import EntityLink from '../components/EntityLink';
 
 const TABS = ['Overview', 'Credits', 'Options', 'TCFD', 'Registry', 'Retirement'] as const;
 const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#8B5CF6', '#EC4899'];
+
+// D1 optimization: Client-side cache
+interface CacheEntry<T> { data: T; timestamp: number; }
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface CreditGroup { name: string; value: number; }
 interface CarbonCredit { id: string; standard: string; quantity: number; status: string; price_per_unit?: number; price_cents?: number; vintage_year: number; project_name: string; project_id?: string; }
@@ -46,11 +50,31 @@ export default function Carbon() {
   // F13: Registry import state
   const [registryImporting, setRegistryImporting] = useState(false);
   const [registrySource, setRegistrySource] = useState('verra');
+  // D1 optimization: Client-side cache
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+  const [cacheStore] = useState(() => new Map<string, { data: unknown; timestamp: number }>());
+  const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
+  const [cacheHit, setCacheHit] = useState(false);
 
   const [selectedCredits, setSelectedCredits] = useState<string[]>([]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true); setError(null);
+  const loadData = useCallback(async (forceRefresh = false) => {
+    const cacheKey = 'carbon-data';
+    const entry = cacheStore.get(cacheKey);
+    
+    // D1 optimization: Check cache first
+    if (!forceRefresh && entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+      const cached = entry.data as { credits: CarbonCredit[]; groups: CreditGroup[]; opts: CarbonOption[]; nav: typeof navData };
+      setAllCredits(cached.credits);
+      setCreditGroups(cached.groups);
+      setOptions(cached.opts);
+      setNavData(cached.nav);
+      setCacheHit(true);
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true); setError(null); setCacheHit(false);
     try {
       const [creditsRes, optionsRes, navRes] = await Promise.allSettled([
         carbonAPI.getCredits(), carbonAPI.getOptions(), carbonAPI.getFundNAV(),
@@ -65,9 +89,21 @@ export default function Carbon() {
       if (optionsRes.status === 'fulfilled' && optionsRes.value.data?.data) setOptions(Array.isArray(optionsRes.value.data.data) ? optionsRes.value.data.data as CarbonOption[] : []);
       if (navRes.status === 'fulfilled' && navRes.value.data?.data) setNavData(navRes.value.data.data);
       if (creditsRes.status === 'rejected' && optionsRes.status === 'rejected') setError('Failed to load carbon data. Please try again.');
+      
+      // Cache the results
+      cacheStore.set(cacheKey, { 
+        data: { 
+          credits: allCredits, 
+          groups: creditGroups, 
+          opts: options, 
+          nav: navData 
+        }, 
+        timestamp: Date.now() 
+      });
+      setLastRefresh(Date.now());
     } catch { setError('Failed to load carbon data. Please try again.'); }
     setLoading(false);
-  }, []);
+  }, [allCredits, creditGroups, options, navData]);
 
   const handleBatchRetire = async () => {
     if (selectedCredits.length === 0) return;
@@ -149,7 +185,7 @@ export default function Carbon() {
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">Credits, offsets, and carbon trading</p>
         </div>
         <button onClick={() => setShowWriteOption(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-blue-500 text-white shadow-lg shadow-blue-500/25 hover:bg-blue-600 transition-all flex items-center gap-2" aria-label="Write carbon option"><FiPlus className="w-4 h-4" /> Write Option</button>
-        <button onClick={loadData} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh carbon data">
+        <button onClick={() => loadData()} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 hover:bg-emerald-600 transition-all flex items-center gap-2" aria-label="Refresh carbon data">
           <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
@@ -312,6 +348,107 @@ export default function Carbon() {
               {tcfdGenerating ? <FiLoader className="w-4 h-4 animate-spin" /> : <FiDownload className="w-4 h-4" />} Generate Report
             </button>
           </div>
+          
+          {/* TCFD Scenario Analysis Charts */}
+          <div className="mb-5">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Climate Scenario Analysis</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Scenario 1: 1.5°C */}
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-emerald-500 uppercase">1.5°C Scenario</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">Paris Compliant</span>
+                </div>
+                <ResponsiveContainer width="100%" height={120}>
+                  <AreaChart data={[{name: '2025', value: 100}, {name: '2030', value: 85}, {name: '2040', value: 60}, {name: '2050', value: 30}]}>
+                    <defs><linearGradient id="tcfd1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity={0.3}/><stop offset="100%" stopColor="#10B981" stopOpacity={0}/></linearGradient></defs>
+                    <XAxis dataKey="name" tick={{fontSize: 9}} axisLine={false} tickLine={false}/>
+                    <YAxis hide/>
+                    <Tooltip contentStyle={{background: isDark?'#151F32':'#fff', border: 'none', borderRadius: 8, fontSize: 10}}/>
+                    <Area type="monotone" dataKey="value" stroke="#10B981" strokeWidth={2} fill="url(#tcfd1)" name="Carbon Intensity (%)"/>
+                  </AreaChart>
+                </ResponsiveContainer>
+                <p className="text-[10px] text-slate-500 mt-1">-70% emissions by 2050</p>
+              </div>
+              
+              {/* Scenario 2: 2°C */}
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-amber-500 uppercase">2°C Scenario</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400">NDC Pledge</span>
+                </div>
+                <ResponsiveContainer width="100%" height={120}>
+                  <AreaChart data={[{name: '2025', value: 100}, {name: '2030', value: 80}, {name: '2040', value: 50}, {name: '2050', value: 20}]}>
+                    <defs><linearGradient id="tcfd2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F59E0B" stopOpacity={0.3}/><stop offset="100%" stopColor="#F59E0B" stopOpacity={0}/></linearGradient></defs>
+                    <XAxis dataKey="name" tick={{fontSize: 9}} axisLine={false} tickLine={false}/>
+                    <YAxis hide/>
+                    <Tooltip contentStyle={{background: isDark?'#151F32':'#fff', border: 'none', borderRadius: 8, fontSize: 10}}/>
+                    <Area type="monotone" dataKey="value" stroke="#F59E0B" strokeWidth={2} fill="url(#tcfd2)" name="Carbon Intensity (%)"/>
+                  </AreaChart>
+                </ResponsiveContainer>
+                <p className="text-[10px] text-slate-500 mt-1">-80% emissions by 2050</p>
+              </div>
+              
+              {/* Scenario 3: BAU */}
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-red-500 uppercase">BAU Scenario</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400">High Risk</span>
+                </div>
+                <ResponsiveContainer width="100%" height={120}>
+                  <AreaChart data={[{name: '2025', value: 100}, {name: '2030', value: 105}, {name: '2040', value: 120}, {name: '2050', value: 140}]}>
+                    <defs><linearGradient id="tcfd3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#EF4444" stopOpacity={0.3}/><stop offset="100%" stopColor="#EF4444" stopOpacity={0}/></linearGradient></defs>
+                    <XAxis dataKey="name" tick={{fontSize: 9}} axisLine={false} tickLine={false}/>
+                    <YAxis hide/>
+                    <Tooltip contentStyle={{background: isDark?'#151F32':'#fff', border: 'none', borderRadius: 8, fontSize: 10}}/>
+                    <Area type="monotone" dataKey="value" stroke="#EF4444" strokeWidth={2} fill="url(#tcfd3)" name="Carbon Intensity (%)"/>
+                  </AreaChart>
+                </ResponsiveContainer>
+                <p className="text-[10px] text-slate-500 mt-1">+40% emissions by 2050</p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Vintage Distribution Chart */}
+          <div className="mb-5">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-3">Vintage Year Distribution</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={(() => {
+                      const vintages: Record<number, number> = {};
+                      allCredits.forEach(c => { const yr = c.vintage_year || 2020; vintages[yr] = (vintages[yr] || 0) + c.quantity; });
+                      return Object.entries(vintages).slice(0, 6).map(([name, value]) => ({ name: `${name}`, value }));
+                    })()} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value">
+                      {[0,1,2,3,4].map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]}/>)}
+                    </Pie>
+                    <Tooltip contentStyle={{background: isDark?'#151F32':'#fff', border: 'none', borderRadius: 8, fontSize: 10}}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.02]' : 'bg-slate-50'}`}>
+                <h5 className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Vintage Breakdown</h5>
+                <div className="space-y-2">
+                  {(() => {
+                    const vintages: Record<number, number> = {};
+                    allCredits.forEach(c => { const yr = c.vintage_year || 2020; vintages[yr] = (vintages[yr] || 0) + c.quantity; });
+                    return Object.entries(vintages).sort((a,b) => b[1]-a[1]).slice(0, 5).map(([yr, qty], i) => (
+                      <div key={yr} className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{backgroundColor: COLORS[i % COLORS.length]}}></span>
+                        <span className="text-xs text-slate-600 dark:text-slate-300">{yr}</span>
+                        <span className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <span className="block h-full bg-blue-500" style={{width: `${Math.min(100, (qty / (allCredits.reduce((s,c) => s + c.quantity, 0) || 1)) * 100)}%`}}></span>
+                        </span>
+                        <span className="text-xs font-medium text-slate-500 mono">{qty.toLocaleString()} t</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { pillar: 'Governance', desc: 'Board oversight of climate-related risks and opportunities', status: 'Complete' },
