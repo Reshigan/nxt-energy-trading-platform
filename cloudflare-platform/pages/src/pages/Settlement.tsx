@@ -188,31 +188,34 @@ export default function Settlement() {
           )}
           {activeTab === 'Disputes' && (
             disputeData.length === 0 ? <div className="p-8"><EmptyState title="No disputes" description="Disputes will appear once filed between counterparties." /></div> : (
-            <table className="w-full text-sm" role="table" aria-label="Disputes">
-              <thead><tr className={`text-xs border-b ${cv('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
-                <th className="text-left py-3.5 px-5 font-medium" scope="col">Dispute</th>
-                <th className="text-left py-3.5 px-4 font-medium" scope="col">Parties</th>
-                <th className="text-left py-3.5 px-4 font-medium" scope="col">Type</th>
-                <th className="text-right py-3.5 px-4 font-medium" scope="col">Amount</th>
-                <th className="text-left py-3.5 px-4 font-medium" scope="col">Status</th>
-                <th className="text-right py-3.5 px-5 font-medium" scope="col">Filed</th>
-              </tr></thead>
-              <tbody>{disputeData.map(d => (
-                <tr key={d.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</td>
-                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{d.parties}</td>
-                  <td className="py-3.5 px-4 text-slate-500">{d.type}</td>
-                  <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{formatZAR((d.amount || 0) / 100)}</td>
-                  <td className="py-3.5 px-4"><Badge status={d.status} /></td>
-                  <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{d.filed_at ? new Date(d.filed_at).toLocaleDateString() : 'N/A'}</td>
-                </tr>
-              ))}</tbody>
-            </table>)
-
-      <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
-        <ThreadPanel entityType="dispute" entityId={disputeData[0]?.id || ''} />
-      </div>
-
+              <>
+                <table className="w-full text-sm" role="table" aria-label="Disputes">
+                  <thead><tr className={`text-xs border-b ${cv('border-white/[0.06] text-slate-500', 'border-black/[0.06] text-slate-400')}`}>
+                    <th className="text-left py-3.5 px-5 font-medium" scope="col">Dispute</th>
+                    <th className="text-left py-3.5 px-4 font-medium" scope="col">Parties</th>
+                    <th className="text-left py-3.5 px-4 font-medium" scope="col">Type</th>
+                    <th className="text-right py-3.5 px-4 font-medium" scope="col">Amount</th>
+                    <th className="text-left py-3.5 px-4 font-medium" scope="col">Status</th>
+                    <th className="text-right py-3.5 px-5 font-medium" scope="col">Filed</th>
+                  </tr></thead>
+                  <tbody>{disputeData.map(d => (
+                    <tr key={d.id} className={`border-t ${cv('border-white/[0.04]', 'border-black/[0.04]')} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
+                      <td className="py-3.5 px-5 font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</td>
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{d.parties}</td>
+                      <td className="py-3.5 px-4 text-slate-500">{d.type}</td>
+                      <td className="py-3.5 px-4 text-right font-bold text-slate-900 dark:text-white mono">{formatZAR((d.amount || 0) / 100)}</td>
+                      <td className="py-3.5 px-4"><Badge status={d.status} /></td>
+                      <td className="py-3.5 px-5 text-right text-slate-400 text-xs">{d.filed_at ? new Date(d.filed_at).toLocaleDateString() : 'N/A'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                {disputeData.length > 0 && (
+                  <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+                    <ThreadPanel entityType="dispute" entityId={disputeData[0]?.id || ''} />
+                  </div>
+                )}
+              </>
+            )
           )}
         </div>
       </div>
