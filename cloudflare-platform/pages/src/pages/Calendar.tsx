@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { calendarAPI } from '../lib/api';
+import { useTheme } from '../contexts/ThemeContext';
 
 const TYPE_COLORS: Record<string, string> = {
   cp: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
@@ -14,13 +15,18 @@ const TYPE_COLORS: Record<string, string> = {
 type CalEvent = { id: string; title: string; date: string; type: string; entity_type?: string; entity_id?: string; severity?: string };
 
 export default function CalendarPage() {
+  const { isDark } = useTheme();
+  const c = (d: string, l: string) => isDark ? d : l;
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [overdue, setOverdue] = useState<Record<string, unknown>[]>([]);
-  const [view, setView] = useState<'month' | 'week' | 'list'>('list');
+  const [view, setView] = useState<'month' | 'week' | 'list'>('month');
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', event_date: '', description: '', event_type: 'reminder' });
   const [currentMonth, setCurrentMonth] = useState(() => new Date().toISOString().substring(0, 7));
+
+  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
 
   const loadEvents = () => {
     const from = `${currentMonth}-01`;
@@ -115,8 +121,47 @@ export default function CalendarPage() {
 
       {loading ? (
         <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-16 bg-slate-800/50 rounded-xl animate-pulse" />)}</div>
-      ) : events.length === 0 ? (
+      ) : events.length === 0 && view !== 'month' ? (
         <div className="text-center py-12 text-slate-500">No events this period</div>
+      ) : view === 'month' ? (
+        (() => {
+          const [year, month] = currentMonth.split('-').map(Number);
+          const daysInMonth = getDaysInMonth(year, month - 1);
+          const firstDay = getFirstDayOfMonth(year, month - 1);
+          const today = new Date().toISOString().substring(0, 10);
+          const dayCells: (number | null)[] = [];
+          for (let i = 0; i < firstDay; i++) dayCells.push(null);
+          for (let d = 1; d <= daysInMonth; d++) dayCells.push(d);
+          return (
+            <div className={`cp-card !p-0 overflow-hidden ${c('!bg-[#151F32] !border-white/[0.06]', '')}`}>
+              <div className="grid grid-cols-7">
+                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+                  <div key={d} className={`py-2 text-center text-xs font-semibold ${c('text-slate-500 border-b border-white/[0.06]', 'text-slate-500 border-b border-slate-100')}`}>{d}</div>
+                ))}
+                {dayCells.map((day, idx) => {
+                  const dayStr = day ? `${currentMonth}-${String(day).padStart(2, '0')}` : null;
+                  const dayEvents = dayStr ? (groupedByDate[dayStr] || []) : [];
+                  const isToday = dayStr === today;
+                  return (
+                    <div key={idx} className={`min-h-[100px] border-t border-r p-1.5 ${c('border-white/[0.04]', 'border-slate-100')} ${!day ? c('bg-white/[0.01]', 'bg-slate-50') : ''}`}>
+                      {day && (
+                        <>
+                          <div className={`text-xs mb-1 w-6 h-6 flex items-center justify-center rounded-full font-semibold ${isToday ? 'bg-blue-500 text-white' : c('text-slate-400', 'text-slate-600')}`}>{day}</div>
+                          <div className="space-y-0.5">
+                            {dayEvents.slice(0, 3).map((ev) => (
+                              <div key={ev.id} className={`text-[10px] px-1 py-0.5 rounded truncate ${TYPE_COLORS[ev.type] || TYPE_COLORS.custom}`}>{ev.title}</div>
+                            ))}
+                            {dayEvents.length > 3 && <div className="text-[10px] text-slate-500">+{dayEvents.length - 3} more</div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()
       ) : (
         <div className="space-y-4">
           {Object.entries(groupedByDate).sort(([a], [b]) => a.localeCompare(b)).map(([date, evs]) => (
