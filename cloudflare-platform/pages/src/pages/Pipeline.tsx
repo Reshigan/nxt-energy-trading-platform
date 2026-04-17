@@ -16,7 +16,7 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; bg: string }>
 };
 
 export default function Pipeline() {
-import { useToast } from '../contexts/ToastContext';
+  const toast = useToast();
 
   const moveDeal = async (dealId: string, newStage: string) => {
     try {

@@ -47,12 +47,27 @@ export default function Carbon() {
   const [registryImporting, setRegistryImporting] = useState(false);
   const [registrySource, setRegistrySource] = useState('verra');
 
+  const [selectedCredits, setSelectedCredits] = useState<string[]>([]);
+
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const [creditsRes, optionsRes, navRes] = await Promise.allSettled([
         carbonAPI.getCredits(), carbonAPI.getOptions(), carbonAPI.getFundNAV(),
-  const [selectedCredits, setSelectedCredits] = useState<string[]>([]);
+      ]);
+      if (creditsRes.status === 'fulfilled' && creditsRes.value.data?.data) {
+        const raw = Array.isArray(creditsRes.value.data.data) ? creditsRes.value.data.data : [];
+        setAllCredits(raw as CarbonCredit[]);
+        const grouped: Record<string, number> = {};
+        for (const c of raw) { const std = (c as CarbonCredit).standard || 'Other'; grouped[std] = (grouped[std] || 0) + ((c as CarbonCredit).quantity || 0); }
+        setCreditGroups(Object.entries(grouped).map(([name, value]) => ({ name, value })));
+      }
+      if (optionsRes.status === 'fulfilled' && optionsRes.value.data?.data) setOptions(Array.isArray(optionsRes.value.data.data) ? optionsRes.value.data.data as CarbonOption[] : []);
+      if (navRes.status === 'fulfilled' && navRes.value.data?.data) setNavData(navRes.value.data.data);
+      if (creditsRes.status === 'rejected' && optionsRes.status === 'rejected') setError('Failed to load carbon data. Please try again.');
+    } catch { setError('Failed to load carbon data. Please try again.'); }
+    setLoading(false);
+  }, []);
 
   const handleBatchRetire = async () => {
     if (selectedCredits.length === 0) return;
@@ -71,21 +86,6 @@ export default function Carbon() {
       setLoading(false);
     }
   };
-
-      ]);
-      if (creditsRes.status === 'fulfilled' && creditsRes.value.data?.data) {
-        const raw = Array.isArray(creditsRes.value.data.data) ? creditsRes.value.data.data : [];
-        setAllCredits(raw as CarbonCredit[]);
-        const grouped: Record<string, number> = {};
-        for (const c of raw) { const std = (c as CarbonCredit).standard || 'Other'; grouped[std] = (grouped[std] || 0) + ((c as CarbonCredit).quantity || 0); }
-        setCreditGroups(Object.entries(grouped).map(([name, value]) => ({ name, value })));
-      }
-      if (optionsRes.status === 'fulfilled' && optionsRes.value.data?.data) setOptions(Array.isArray(optionsRes.value.data.data) ? optionsRes.value.data.data as CarbonOption[] : []);
-      if (navRes.status === 'fulfilled' && navRes.value.data?.data) setNavData(navRes.value.data.data);
-      if (creditsRes.status === 'rejected' && optionsRes.status === 'rejected') setError('Failed to load carbon data. Please try again.');
-    } catch { setError('Failed to load carbon data. Please try again.'); }
-    setLoading(false);
-  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
