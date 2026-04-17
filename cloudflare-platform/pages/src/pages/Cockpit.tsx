@@ -300,12 +300,6 @@ export default function Cockpit() {
         <button
           onClick={() => fetchCockpit(true)}
           disabled={refreshing}
-
-      {/* ── Intelligence Panel ────────────────────────────────── */}
-      <IntelligencePanel />
-      
-      {/* ── Action Queue + Module Cards ──────────────────── */}
-
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
             isDark
               ? 'bg-white/[0.06] text-slate-400 hover:bg-white/[0.1]'
@@ -317,6 +311,9 @@ export default function Cockpit() {
           {wsStatus === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1" title="Real-time connected" />}
         </button>
       </div>
+
+      {/* ── Intelligence Panel ────────────────────────────────── */}
+      <IntelligencePanel />
 
       {/* ── Alerts (top, if any) ─────────────────────────── */}
       <AlertsPanel alerts={data.alerts} />

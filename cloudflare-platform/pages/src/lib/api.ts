@@ -343,6 +343,13 @@ export const lenderAPI = {
   rejectDisbursement: (id: string, data: { reason: string }) => api.post(`/lender/disbursements/${id}/reject`, data),
   getCovenants: () => api.get('/lender/covenants'),
   getExposure: () => api.get('/lender/exposure'),
+  getPortfolioReport: () => api.get('/lender/report/portfolio'),
+  getCPMatrix: () => api.get('/lender/cp-matrix'),
+  getFacilityUtil: () => api.get('/lender/facility-util'),
+  getWatchlist: () => api.get('/lender/watchlist'),
+  addToWatchlist: (data: { project_id: string; reason: string; exposure_cents?: number }) => api.post('/lender/watchlist', data),
+  removeFromWatchlist: (projectId: string) => api.delete(`/lender/watchlist/${projectId}`),
+  getDisbursementsPending: () => api.get('/lender/disbursements/pending'),
 };
 
 // Surveillance / Regulator Tools
@@ -634,6 +641,7 @@ export const surveillanceEnhancedAPI = {
 export const pipelineAPI = {
   getDeals: () => api.get('/pipeline'),
   getStats: () => api.get('/pipeline/stats'),
+  updateStage: (dealId: string, data: { stage: string }) => api.patch(`/pipeline/${dealId}/stage`, data),
 };
 
 // Entity Threads (Conversations)
