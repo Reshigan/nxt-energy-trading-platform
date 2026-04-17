@@ -7,6 +7,8 @@ import KPIRow, { KPI } from '../components/cockpit/KPIRow';
 import ActionQueue, { ActionItem } from '../components/cockpit/ActionQueue';
 import ModuleCard, { ModuleCardData } from '../components/cockpit/ModuleCard';
 import AlertsPanel, { Alert } from '../components/cockpit/AlertsPanel';
+import IntelligencePanel from '../components/IntelligencePanel';
+
 import ActivityFeed, { ActivityItem } from '../components/cockpit/ActivityFeed';
 import CockpitSkeleton from '../components/cockpit/CockpitSkeleton';
 import { FiRefreshCw } from '../lib/fi-icons-shim';
@@ -298,6 +300,12 @@ export default function Cockpit() {
         <button
           onClick={() => fetchCockpit(true)}
           disabled={refreshing}
+
+      {/* ── Intelligence Panel ────────────────────────────────── */}
+      <IntelligencePanel />
+      
+      {/* ── Action Queue + Module Cards ──────────────────── */}
+
           className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
             isDark
               ? 'bg-white/[0.06] text-slate-400 hover:bg-white/[0.1]'
