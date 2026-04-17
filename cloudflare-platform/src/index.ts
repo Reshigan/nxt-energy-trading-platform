@@ -1312,7 +1312,7 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
     // 9. Daily Intelligence Generation (06:00 AM)
     if (new Date().getHours() === 6) {
       try {
-        const { intelligence } = await import('./routes/intelligence');
+        const intelligence = (await import('./routes/intelligence')).default;
         // We call the logic directly via a mock context or by triggering the endpoint
         // For simplicity in Workers cron, we'll invoke the generator function if exported, 
         // or simulate the request. Since intelligence is a Hono app, we can't easily 'call' it without a request object.
@@ -1341,11 +1341,11 @@ const scheduled: ExportedHandler<AppBindings>['scheduled'] = async (_event, env)
     // 10. Morning Briefing Emails (06:00 AM)
     if (new Date().getHours() === 6) {
       try {
-        const { sendEmail } = await import('./email');
+        const { sendEmail } = await import('./utils/email');
         const participants = await env.DB.prepare("SELECT id, email FROM participants WHERE email IS NOT NULL").all();
         for (const p of participants.results) {
           await sendEmail(env, {
-            to: p.email,
+            to: String(p.email),
             subject: `NXT Morning Briefing - ${nowISO().split('T')[0]}`,
             html: `<p>Good morning. Your daily energy trading briefing is ready. Please log in to the platform to view your intelligence insights and portfolio status.</p>`
           });
