@@ -52,6 +52,26 @@ export default function Carbon() {
     try {
       const [creditsRes, optionsRes, navRes] = await Promise.allSettled([
         carbonAPI.getCredits(), carbonAPI.getOptions(), carbonAPI.getFundNAV(),
+  const [selectedCredits, setSelectedCredits] = useState<string[]>([]);
+
+  const handleBatchRetire = async () => {
+    if (selectedCredits.length === 0) return;
+    setLoading(true);
+    try {
+      const results = await Promise.all(selectedCredits.map(id => 
+        carbonAPI.retireCredit(id, { quantity: 1, reason: 'Bulk voluntary offset' })
+      ));
+      const successCount = results.filter(r => r.data?.success).length;
+      toast.success(`Successfully retired ${successCount} credits`);
+      setSelectedCredits([]);
+      loadData();
+    } catch (err) {
+      toast.error('Batch retirement failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
       ]);
       if (creditsRes.status === 'fulfilled' && creditsRes.value.data?.data) {
         const raw = Array.isArray(creditsRes.value.data.data) ? creditsRes.value.data.data : [];

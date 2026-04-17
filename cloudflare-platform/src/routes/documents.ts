@@ -17,7 +17,7 @@ async function checkDocumentAccess(db: D1Database, docId: string, userId: string
 
 // Spec 13 Shift 5: Document Intelligence — extract and parse commercial terms
 
-// POST /documents/extract — Extract key terms from a contract document
+// POST /documents/extract — Extract key terms from a contract document using Cloudflare Workers AI
 app.post('/extract', async (c) => {
   try {
     const { document_id } = await c.req.json();
@@ -26,10 +26,39 @@ app.post('/extract', async (c) => {
     const db = c.env.DB;
     const user = c.get('user');
     if (!await checkDocumentAccess(db, document_id, user.sub, user.role)) return c.json({ success: false, error: 'Not authorized to access this document' }, 403);
+    
     const doc = await db.prepare('SELECT * FROM contract_documents WHERE id = ?').bind(document_id).first();
     if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
 
-    // Extract key commercial terms from document metadata
+    // 1. Fetch the actual document content from R2
+    // Assuming the document key is stored as a field or derived from ID
+    const docKey = `contracts/${document_id}.pdf`;
+    const r2Object = await c.env.R2.get(docKey);
+    if (!r2Object) return c.json({ success: false, error: 'Document file not found in storage' }, 404);
+    const content = await r2Object.text(); // Rough approximation for PDF text extraction
+
+    // 2. Call Workers AI model for structured extraction
+    // We use a prompt to guide the LLM to return a JSON object matching our target schema
+    const prompt = `Extract the following commercial terms from this energy contract text. 
+    Return ONLY a valid JSON object.
+    Fields: tariff_cents_kwh, escalation_pct, contract_term_years, volume_mwh, effective_date, expiry_date, governing_law, bbbee_level.
+    
+    Contract Text:
+    ${content.substring(0, 10000)}`; // limit context window
+
+    const aiResponse = await c.env.AI.run('llama-3-8b-instruct', {
+      prompt: prompt
+    });
+
+    // Parse AI response into our structured format
+    let aiData: any = {};
+    try {
+      aiData = JSON.parse(aiResponse.response);
+    } catch {
+      // Fallback if AI returns non-JSON text
+      aiData = { raw: aiResponse.response };
+    }
+
     const extractedTerms = {
       document_id,
       document_title: doc.title || doc.document_type,
@@ -40,19 +69,19 @@ app.post('/extract', async (c) => {
           offtaker: doc.offtaker_id || null,
         },
         commercial: {
-          tariff_cents_kwh: doc.tariff_cents_kwh || null,
-          escalation_pct: doc.escalation_pct || null,
-          contract_term_years: doc.contract_term_years || null,
-          volume_mwh: doc.volume_mwh || null,
+          tariff_cents_kwh: aiData.tariff_cents_kwh || doc.tariff_cents_kwh || null,
+          escalation_pct: aiData.escalation_pct || doc.escalation_pct || null,
+          contract_term_years: aiData.contract_term_years || doc.contract_term_years || null,
+          volume_mwh: aiData.volume_mwh || doc.volume_mwh || null,
           technology: doc.technology || null,
         },
         dates: {
-          effective_date: doc.effective_date || null,
-          expiry_date: doc.expiry_date || null,
+          effective_date: aiData.effective_date || doc.effective_date || null,
+          expiry_date: aiData.expiry_date || doc.expiry_date || null,
           cod_date: doc.cod_date || null,
         },
         legal: {
-          governing_law: 'South African Law',
+          governing_law: aiData.governing_law || 'South African Law',
           jurisdiction: 'Republic of South Africa',
           dispute_resolution: doc.dispute_resolution || 'Arbitration per Arbitration Act 42 of 1965',
           force_majeure: true,
@@ -62,17 +91,34 @@ app.post('/extract', async (c) => {
           nersa_licence_required: true,
           era_registration: doc.era_registration || null,
           grid_code_compliance: true,
-          bbbee_level: doc.bbbee_level || null,
+          bbbee_level: aiData.bbbee_level || doc.bbbee_level || null,
         },
       },
       confidence_scores: {
         parties: 0.95,
-        commercial: doc.tariff_cents_kwh ? 0.92 : 0.45,
-        dates: doc.effective_date ? 0.90 : 0.40,
+        commercial: aiData.tariff_cents_kwh ? 0.92 : 0.45,
+        dates: aiData.effective_date ? 0.90 : 0.40,
         legal: 0.85,
         regulatory: 0.80,
       },
     };
+
+    // Persist the extraction for future use
+    await db.prepare(
+      `INSERT OR REPLACE INTO document_metadata (id, document_id, tariff_cents_kwh, escalation_formula, annual_volume_mwh, contract_term_years, effective_date, expiry_date, governing_law, bbbee_level, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+    ).bind(
+      generateId(), 
+      document_id, 
+      aiData.tariff_cents_kwh, 
+      aiData.escalation_pct ? `${aiData.escalation_pct}%` : null, 
+      aiData.volume_mwh, 
+      aiData.contract_term_years, 
+      aiData.effective_date, 
+      aiData.expiry_date, 
+      aiData.governing_law, 
+      aiData.bbbee_level
+    ).run();
 
     return c.json({ success: true, data: extractedTerms });
   } catch (e) {

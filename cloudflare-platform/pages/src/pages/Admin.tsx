@@ -49,6 +49,26 @@ export default function Admin() {
   const [revenueData, setRevenueData] = useState<{ total: number; monthly: number; fees: number; subscriptions: number; monthly_trend: Array<{ month: string; revenue: number }> } | null>(null);
   const [revenueLoading, setRevenueLoading] = useState(false);
 
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+
+  const handleBatchSuspend = async () => {
+    if (selectedParticipants.length === 0) return;
+    setLoading(true);
+    try {
+      const results = await Promise.all(selectedParticipants.map(id => 
+        participantsAPI.suspend(id, { reason: 'Bulk administrative suspension' })
+      ));
+      const successCount = results.filter(r => r.data?.success).length;
+      toast.success(`Successfully suspended ${successCount} participants`);
+      setSelectedParticipants([]);
+      loadData();
+    } catch (err) {
+      toast.error('Batch suspension failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
     try {
