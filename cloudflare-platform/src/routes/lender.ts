@@ -161,9 +161,8 @@ lender.delete('/watchlist/:projectId', authMiddleware({ roles: ['lender', 'admin
 lender.get('/disbursements/pending', authMiddleware({ roles: ['lender', 'admin'] }), async (c) => {
   try {
     const results = await c.env.DB.prepare(
-      'SELECT d.*, p.name as project_name FROM disbursements d LEFT JOIN projects p ON d.project_id = p.id WHERE d.status = ? ORDER BY d.created_at ASC', 
-      'pending'
-    ).all();
+      'SELECT d.*, p.name as project_name FROM disbursements d LEFT JOIN projects p ON d.project_id = p.id WHERE d.status = ? ORDER BY d.created_at ASC'
+    ).bind('pending').all();
     return c.json({ success: true, data: results.results });
   } catch (err) {
     return c.json({ success: false, error: 'Failed to fetch pending' }, 500);
