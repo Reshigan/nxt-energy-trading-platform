@@ -3,9 +3,11 @@ on:
   push:
     branches:
       - main
+      - fix/typescript-compilation-errors
   pull_request:
     branches:
       - main
+      - fix/typescript-compilation-errors
 
 env:
   CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
