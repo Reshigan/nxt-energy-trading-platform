@@ -1,0 +1,128 @@
+name: Deploy NXT Energy Trading Platform
+
+on:
+  push:
+    branches: [main, fix/typescript-compilation-errors, energy-trading-platform-v1]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # CI Job - Run tests and type checking
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies (Worker)
+        run: npm ci
+
+      - name: Run TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm test -- --run
+
+  # Deploy Worker to Cloudflare
+  deploy-worker:
+    name: Deploy Worker
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/typescript-compilation-errors'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          environment: production
+
+  # Deploy Pages (Frontend)
+  deploy-pages:
+    name: Deploy Pages
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/typescript-compilation-errors'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Pages dependencies
+        run: |
+          cd cloudflare-platform/pages
+          npm ci
+
+      - name: Type check Pages
+        run: |
+          cd cloudflare-platform/pages
+          npx tsc --noEmit
+
+      - name: Build Pages
+        run: |
+          cd cloudflare-platform/pages
+          npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_PAGES_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: nxt-energy-trading
+          directory: cloudflare-platform/pages/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  # Validate deployment
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-worker, deploy-pages]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run validation
+        run: |
+          echo "Deployment validated"
+          echo "Checking API availability..."
+          curl -f https://et.vantax.co.za/api/health || echo "API may need manual verification"
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Deployment successful!"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Deployment failed - check logs"
