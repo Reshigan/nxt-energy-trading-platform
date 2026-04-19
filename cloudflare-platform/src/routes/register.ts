@@ -45,17 +45,21 @@ register.post('/', async (c) => {
   const id = generateId();
   const { hash, salt } = await hashPassword(data.password);
 
+  // Get PII_SECRET with fallback for development
+  const piiSecret = (c.env as Record<string, unknown>).PII_SECRET as string | undefined;
+  const encryptionKey = piiSecret || 'dev-pii-fallback-key';
+
   await c.env.DB.prepare(`
     INSERT INTO participants (id, company_name, registration_number, tax_number, vat_number, role,
       contact_person, email, password_hash, password_salt, phone, physical_address,
-      sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled, email_verified)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0)
+      sa_id_number, bbbee_level, nersa_licence, fsca_licence, kyc_status, trading_enabled)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0)
   `).bind(
     id, data.company_name, data.registration_number,
-    data.tax_number ? await encryptPII(data.tax_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
+    data.tax_number ? await encryptPII(data.tax_number, encryptionKey) : null,
     data.vat_number || null, data.role, data.contact_person, data.email,
     hash, salt, data.phone, data.physical_address,
-    data.sa_id_number ? await encryptPII(data.sa_id_number, (c.env as Record<string, unknown>).PII_SECRET as string) : null,
+    data.sa_id_number ? await encryptPII(data.sa_id_number, encryptionKey) : null,
     data.bbbee_level || null,
     data.nersa_licence || null, data.fsca_licence || null
   ).run();
@@ -124,6 +128,7 @@ register.post('/', async (c) => {
     },
   }, 201);
   } catch (err) {
+    console.error('Registration error:', err);
     captureException(c, err);
     return c.json({ success: false, error: 'Internal server error' }, 500);
   }

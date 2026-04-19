@@ -2,10 +2,11 @@ name = "nxt-energy-trading-api"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "08596e523c096f04b56d7ae43f7821f4"
 
 # Route configuration for custom domain
 routes = [
-  { pattern = "et.vantax.co.za/api/*", zone_name = "vantax.co.za" }
+  { pattern = "et.vantax.co.za/api/*", zone_id = "bf309894b764e179f0299ddcc266ca7a" }
 ]
 
 [vars]
