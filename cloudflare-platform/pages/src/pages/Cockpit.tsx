@@ -7,6 +7,8 @@ import KPIRow, { KPI } from '../components/cockpit/KPIRow';
 import ActionQueue, { ActionItem } from '../components/cockpit/ActionQueue';
 import ModuleCard, { ModuleCardData } from '../components/cockpit/ModuleCard';
 import AlertsPanel, { Alert } from '../components/cockpit/AlertsPanel';
+import IntelligencePanel from '../components/IntelligencePanel';
+
 import ActivityFeed, { ActivityItem } from '../components/cockpit/ActivityFeed';
 import CockpitSkeleton from '../components/cockpit/CockpitSkeleton';
 import { FiRefreshCw } from '../lib/fi-icons-shim';
@@ -309,6 +311,9 @@ export default function Cockpit() {
           {wsStatus === 'connected' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ml-1" title="Real-time connected" />}
         </button>
       </div>
+
+      {/* ── Intelligence Panel ────────────────────────────────── */}
+      <IntelligencePanel />
 
       {/* ── Alerts (top, if any) ─────────────────────────── */}
       <AlertsPanel alerts={data.alerts} />

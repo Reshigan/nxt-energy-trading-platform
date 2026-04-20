@@ -9,6 +9,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+
 interface LenderData {
   total_facilities: number;
   total_disbursed_cents: number;
@@ -50,6 +52,24 @@ export default function LenderDashboard() {
   const [disbursements, setDisbursements] = useState<Disbursement[]>([]);
   const [covenants, setCovenants] = useState<Covenant[]>([]);
   const [activeTab, setActiveTab] = useState<typeof TABS[number]>('Portfolio');
+  const [selectedDisbursements, setSelectedDisbursements] = useState<string[]>([]);
+
+  const handleBatchApprove = async () => {
+    if (selectedDisbursements.length === 0) return;
+    setLoading(true);
+    try {
+      const results = await Promise.all(selectedDisbursements.map(id => lenderAPI.approveDisbursement(id)));
+      const successCount = results.filter(r => r.data?.success).length;
+      toast.success(`Successfully approved ${successCount} disbursements`);
+      setSelectedDisbursements([]);
+      loadData();
+    } catch (err) {
+      toast.error('Batch approval failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -170,27 +190,55 @@ export default function LenderDashboard() {
 
       {activeTab === 'Disbursements' && (
         <div className={`cp-card !p-0 overflow-hidden ${c('!bg-[#151F32] !border-white/[0.06]', '')}`} style={{ animation: 'cardFadeUp 500ms ease 300ms both' }}>
-          {loading ? <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="w-full h-12" />)}</div> : disbursements.length === 0 ? <div className="p-6"><EmptyState title="No disbursements" description="No disbursement records found." /></div> : (
-            <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className={c('bg-white/[0.02]', 'bg-slate-50')}>
-              <th className="text-left py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Project</th>
-              <th className="text-right py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Amount</th>
-              <th className="text-left py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Status</th>
-              <th className="text-right py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Date</th>
-              <th className="text-center py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Actions</th>
-            </tr></thead><tbody>{disbursements.map(d => (
-              <tr key={d.id} className={`border-t ${c('border-white/[0.04] hover:bg-white/[0.02]', 'border-black/[0.04] hover:bg-slate-50')} transition-colors`}>
-                <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{d.project_name || d.project_id}</td>
-                <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-slate-300">{formatZAR((d.amount_cents || 0) / 100)}</td>
-                <td className="py-3 px-4"><span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${d.status === 'approved' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : d.status === 'rejected' ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{d.status}</span></td>
-                <td className="py-3 px-4 text-right text-slate-400 text-xs">{d.created_at ? new Date(d.created_at).toLocaleDateString('en-ZA') : '\u2014'}</td>
-                <td className="py-3 px-4 text-center">{d.status === 'pending' && (
-                  <div className="flex gap-2 justify-center">
-                    <button onClick={() => handleApprove(d.id)} className="text-xs text-emerald-500 hover:text-emerald-600 font-medium">Approve</button>
-                    <button onClick={() => handleReject(d.id)} className="text-xs text-red-500 hover:text-red-600 font-medium">Reject</button>
+          {loading ? (
+            <div className="p-4 space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="w-full h-12" />)}</div>
+          ) : disbursements.length === 0 ? (
+            <div className="p-6"><EmptyState title="No disbursements" description="No disbursement records found." /></div>
+          ) : (
+            <>
+              {selectedDisbursements.length > 0 && (
+                <div className={`flex items-center justify-between px-4 py-3 ${c('bg-blue-500/10 border-b border-blue-500/20', 'bg-blue-50 border-b border-blue-100')}`}>
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{selectedDisbursements.length} selected</span>
+                  <div className="flex gap-2">
+                    <button onClick={handleBatchApprove} disabled={loading} className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-50 transition-all">Approve All</button>
+                    <button onClick={() => setSelectedDisbursements([])} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${c('bg-white/[0.06] text-slate-400', 'bg-slate-100 text-slate-500')}`}>Clear</button>
                   </div>
-                )}</td>
-              </tr>
-            ))}</tbody></table></div>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={c('bg-white/[0.02]', 'bg-slate-50')}>
+                      <th className="py-3 px-4 text-xs w-8">
+                        <input type="checkbox" checked={selectedDisbursements.length === disbursements.filter(d => d.status === 'pending').length && selectedDisbursements.length > 0} onChange={(e) => setSelectedDisbursements(e.target.checked ? disbursements.filter(d => d.status === 'pending').map(d => d.id) : [])} className="rounded" />
+                      </th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Project</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Amount</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Status</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Date</th>
+                      <th className="text-center py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {disbursements.map(d => (
+                      <tr key={d.id} className={`border-t ${c('border-white/[0.04] hover:bg-white/[0.02]', 'border-black/[0.04] hover:bg-slate-50')} transition-colors`}>
+                        <td className="py-3 px-4">{d.status === 'pending' && <input type="checkbox" checked={selectedDisbursements.includes(d.id)} onChange={(e) => setSelectedDisbursements(prev => e.target.checked ? [...prev, d.id] : prev.filter(id => id !== d.id))} className="rounded" />}</td>
+                        <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{d.project_name || d.project_id}</td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-slate-300">{formatZAR((d.amount_cents || 0) / 100)}</td>
+                        <td className="py-3 px-4"><span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${d.status === 'approved' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : d.status === 'rejected' ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>{d.status}</span></td>
+                        <td className="py-3 px-4 text-right text-slate-400 text-xs">{d.created_at ? new Date(d.created_at).toLocaleDateString('en-ZA') : '\u2014'}</td>
+                        <td className="py-3 px-4 text-center">{d.status === 'pending' && (
+                          <div className="flex gap-2 justify-center">
+                            <button onClick={() => handleApprove(d.id)} className="text-xs text-emerald-500 hover:text-emerald-600 font-medium">Approve</button>
+                            <button onClick={() => handleReject(d.id)} className="text-xs text-red-500 hover:text-red-600 font-medium">Reject</button>
+                          </div>
+                        )}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

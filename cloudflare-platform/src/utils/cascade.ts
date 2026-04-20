@@ -353,16 +353,34 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       execute: async (env, event) => {
         const { from_id, to_id, tonnes } = event.data;
         await notifyParticipant(env.DB, from_id as string, 'Credit Transferred', `${tonnes}t transferred out.`, 'carbon', 'credit', event.entity_id);
-        await notifyParticipant(env.DB, to_id as string, 'Credit Received', `${tonnes}t received.`, 'carbon', 'credit', event.entity_id);
+        await notifyParticipant(env.DB, to_id as string, 'Credit Transferred', `${tonnes}t transferred in.`, 'carbon', 'credit', event.entity_id);
       },
     },
     {
-      type: 'webhook',
+      type: 'notify',
       execute: async (env, event) => {
-        await deliverWebhook(env.DB, 'credit.transferred', event.data);
+        const { from_id, to_id, tonnes } = event.data;
+        const email = await getParticipantEmail(env.DB, to_id as string);
+        if (email) {
+          await sendEmail(env, {
+            to: email,
+            subject: `Carbon Credit Transfer Received: ${tonnes}t`,
+            html: `<p>You have received ${tonnes} tonnes of carbon credits.</p>`,
+          });
+        }
       },
     },
   ],
+
+  'concierge.step_completed': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { participant_id, step_number, project_name } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'Concierge Step Completed', `Step ${step_number} completed for ${project_name}. Great progress!`, 'concierge', 'step', event.entity_id);
+        },
+      },
+    ],
 
   'option.exercised': [
     {
@@ -1168,6 +1186,196 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       },
     },
   ],
+
+  // ─── GRID EVENTS ─────────────────────────────────────────────────────────────
+
+  'grid.connection_applied': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { project_name, capacity_mw, connection_point } = event.data;
+        const grids = await env.DB.prepare("SELECT id FROM participants WHERE participant_type = 'grid'").all();
+        for (const g of grids.results) {
+          await notifyParticipant(env.DB, g.id as string, 'New Grid Connection Application',
+            `${project_name} (${capacity_mw} MW) applied for connection at ${connection_point}`,
+            'grid', 'grid_connection', event.entity_id);
+        }
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'grid.connection_applied', event.data);
+      },
+    },
+  ],
+
+  'grid.connection_energised': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { project_name, connection_point, generator_id, offtaker_id, lender_id } = event.data;
+        for (const pid of [generator_id as string, offtaker_id as string, lender_id as string].filter(Boolean)) {
+          await notifyParticipant(env.DB, pid, 'Grid Connection Energised',
+            `${project_name} is now connected and energised at ${connection_point}`,
+            'success', 'grid_connection', event.entity_id);
+        }
+      },
+    },
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        // Auto-activate wheeling for this connection
+        // Create first delivery schedule
+        // Mark project milestone as complete if 'grid_connection' milestone exists
+        const { project_id } = event.data;
+        if (project_id) {
+          await env.DB.prepare(
+            "UPDATE project_milestones SET status = 'completed', completed_at = datetime('now') WHERE project_id = ? AND milestone_type = 'grid_connection' AND status = 'pending'"
+          ).bind(project_id as string).run();
+        }
+      },
+    },
+  ],
+
+  // ─── PROCUREMENT EVENTS ──────────────────────────────────────────────────────
+
+  'procurement.rfp_published': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { offtaker_name, volume_mwh, technology, location } = event.data;
+        const matches = await env.DB.prepare(
+          "SELECT id FROM participants WHERE participant_type IN ('ipp','generator') AND province = ?"
+        ).bind(location as string).all();
+        for (const g of matches.results) {
+          await notifyParticipant(env.DB, g.id as string, 'New RFP Matches Your Profile',
+            `${offtaker_name} wants ${volume_mwh} MWh/yr of ${technology} energy. Submit your bid.`,
+            'opportunity', 'rfp', event.entity_id);
+        }
+      },
+    },
+  ],
+
+  'procurement.bid_selected': [
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        // Auto-create LOI from winning bid
+        const loiId = crypto.randomUUID();
+        const { offtaker_name, generator_name, offtaker_id, generator_id, bid_value_cents, volume_mwh } = event.data;
+        await env.DB.prepare(
+          "INSERT INTO contract_documents (id, title, document_type, phase, creator_id, counterparty_id, value_cents, created_at) VALUES (?, ?, 'loi', 'loi', ?, ?, ?, datetime('now'))"
+        ).bind(loiId, `LOI: ${offtaker_name} → ${generator_name}`, offtaker_id as string, generator_id as string, bid_value_cents).run();
+      },
+    },
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { offtaker_name, generator_id, volume_mwh, entity_id } = event.data;
+        await notifyParticipant(env.DB, generator_id as string, 'Your Bid Was Selected!',
+          `${offtaker_name} selected your bid for ${volume_mwh} MWh/yr. LOI created.`,
+          'success', 'rfp', entity_id as string);
+      },
+    },
+  ],
+
+  // ─── CONVERSATION EVENTS ──────────────────────────────────────────────────────
+
+  'thread.new_comment': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { entity_type, entity_id, commenter_id, commenter_name, message_preview } = event.data;
+        let participants: string[] = [];
+        if (entity_type === 'contract') {
+          const doc = await env.DB.prepare('SELECT creator_id, counterparty_id FROM contract_documents WHERE id = ?').bind(entity_id as string).first();
+          if (doc) participants = [doc.creator_id as string, doc.counterparty_id as string].filter(Boolean);
+        } else if (entity_type === 'trade') {
+          const trade = await env.DB.prepare('SELECT buyer_id, seller_id FROM trades WHERE id = ?').bind(entity_id as string).first();
+          if (trade) participants = [trade.buyer_id as string, trade.seller_id as string].filter(Boolean);
+        } else if (entity_type === 'project') {
+          const proj = await env.DB.prepare('SELECT developer_id, lender_id, grid_operator_id, offtaker_id FROM projects WHERE id = ?').bind(entity_id as string).first();
+          if (proj) participants = [proj.developer_id, proj.lender_id, proj.grid_operator_id, proj.offtaker_id].filter(Boolean) as string[];
+        }
+        for (const pid of participants.filter(p => p !== commenter_id)) {
+          await notifyParticipant(env.DB, pid, `New comment from ${commenter_name}`,
+            `"${((message_preview as string) || '').substring(0, 80)}..."`,
+            'info', entity_type as string, entity_id as string);
+        }
+      },
+    },
+  ],
+
+  // ─── INTELLIGENCE EVENTS ───────────────────────────────────────────────────────
+
+  'intelligence.generated': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { severity, participant_id, title, description, entity_id } = event.data;
+        if (severity === 'critical') {
+          await notifyParticipant(env.DB, participant_id as string, `⚠ ${title}`, description as string,
+            'warning', 'intelligence', entity_id as string);
+        }
+      },
+    },
+  ],
+
+  // ─── FUND EVENTS ──────────────────────────────────────────────────────────────
+
+  'fund.nav_snapshot': [
+    {
+      type: 'db_update',
+      execute: async (env, event) => {
+        const { participant_id, nav_cents } = event.data;
+        await env.DB.prepare(
+          "INSERT INTO fund_nav_history (id, participant_id, nav_cents, record_date, created_at) VALUES (?, ?, ?, date('now'), datetime('now'))"
+        ).bind(crypto.randomUUID(), participant_id as string, nav_cents).run();
+      },
+    },
+  ],
+
+  // ─── SETTLEMENT EVENTS ───────────────────────────────────────────────────────
+
+  'settlement.invoice_generated': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents, invoice_type } = event.data;
+        await notifyParticipant(env.DB, participant_id as string, 'Invoice Generated',
+          `Invoice of R${(Number(amount_cents) / 100).toFixed(2)} has been generated for ${invoice_type}.`,
+          'settlement', 'invoice', event.entity_id);
+      },
+    },
+    {
+      type: 'email',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents, invoice_type } = event.data;
+        const email = await getParticipantEmail(env.DB, participant_id as string);
+        if (email) {
+          await sendEmail(env, {
+            to: email,
+            subject: `Invoice: R${(Number(amount_cents) / 100).toFixed(2)} ${invoice_type}`,
+            html: `<p>Your invoice for R${(Number(amount_cents) / 100).toFixed(2)} (${invoice_type}) has been generated.</p>`,
+          });
+        }
+      },
+    },
+  ],
+
+  'settlement.payment_received': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents } = event.data;
+        await notifyParticipant(env.DB, participant_id as string, 'Payment Received',
+          `Payment of R${(Number(amount_cents) / 100).toFixed(2)} has been received and processed.`,
+          'settlement', 'payment', event.entity_id);
+      },
+    },
+  ],
+
 };
 
 // ─── MAIN CASCADE FUNCTION ───────────────────────────────────────────────────
