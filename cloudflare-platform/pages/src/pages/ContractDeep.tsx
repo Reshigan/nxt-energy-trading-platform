@@ -225,6 +225,7 @@ export default function ContractDeep() {
       // The response is a blob (HTML or PDF binary from R2)
       const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
+// Open in new tab so the browser renders HTML (user can print-to-PDF)
       if (tab) {
         tab.location.href = url;
       } else {
