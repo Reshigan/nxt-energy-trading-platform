@@ -164,7 +164,8 @@ odse.post('/ingest', async (c) => {
           if (blacklisted) {
             return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token has been revoked'), 401);
           }
-        } catch {
+        } catch (err) {
+          console.error(err);
           // If KV fails, allow through (consistent with authMiddleware)
         }
         // Check password-change invalidation
@@ -173,11 +174,13 @@ odse.post('/ingest', async (c) => {
           if (pwChanged && payload.iat < Math.floor(new Date(pwChanged).getTime() / 1000)) {
             return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token invalidated by password reset'), 401);
           }
-        } catch {
+        } catch (err) {
+          console.error(err);
           // If KV fails, allow through
         }
         authenticatedParticipantId = payload.sub;
-      } catch {
+      } catch (err) {
+        console.error(err);
         return c.json(errorResponse(ErrorCodes.AUTH_FAILED, 'Token validation failed'), 401);
       }
     }
@@ -324,7 +327,7 @@ odse.get('/analytics/summary', authMiddleware(), async (c) => {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
     const projectId = c.req.query('project_id');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -404,6 +407,7 @@ odse.get('/analytics/summary', authMiddleware(), async (c) => {
         net_kwh: Math.round((genKwh - conKwh) * 100) / 100,
         by_tariff_period: byTariff.results,
         by_direction: byDirection.results,
+        avoided_emissions_tco2: Math.round(genKwh * (conCarbon || 950) / 1000 / 1000 * 100) / 100,
         avg_power_factor: Math.round(((avgPF as Record<string, number>)?.avg_pf ?? 0) * 1000) / 1000,
         schema: 'odse/v1',
       },
@@ -419,7 +423,7 @@ odse.get('/analytics/hourly', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -458,7 +462,7 @@ odse.get('/analytics/daily', authMiddleware(), async (c) => {
     const user = c.get('user');
     const assetId = c.req.query('asset_id');
     const direction = c.req.query('direction');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -503,7 +507,7 @@ odse.get('/analytics/daily', authMiddleware(), async (c) => {
 odse.get('/analytics/carbon', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     const params: unknown[] = [];
@@ -580,7 +584,7 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const direction = c.req.query('direction') || 'consumption';
-    const days = parseInt(c.req.query('days') || '30', 10);
+    const days = Math.max(1, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 30));
 
     let assetFilter = '';
     let denomAssetFilter = '';
@@ -636,6 +640,43 @@ odse.get('/analytics/tariff', authMiddleware(), async (c) => {
         daily: dailyByTariff.results,
       },
     });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /odse/daily-aggregations — Pre-aggregated daily energy data
+odse.get('/daily-aggregations', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const asset_id = c.req.query('asset_id');
+    const direction = c.req.query('direction');
+    const days = parseInt(c.req.query('days') || '30', 10);
+
+    let query = `SELECT da.* FROM odse_daily_aggregations da
+      JOIN odse_assets oa ON da.asset_id = oa.asset_id`;
+    const params: (string | number)[] = [];
+
+    if (user.role !== 'admin') {
+      query += ' WHERE oa.participant_id = ?';
+      params.push(user.sub);
+    } else {
+      query += ' WHERE 1=1';
+    }
+
+    if (asset_id) {
+      query += ' AND da.asset_id = ?';
+      params.push(asset_id);
+    }
+    if (direction) {
+      query += ' AND da.direction = ?';
+      params.push(direction);
+    }
+    query += ` AND da.date >= date('now', '-${days} days') ORDER BY da.date DESC`;
+
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

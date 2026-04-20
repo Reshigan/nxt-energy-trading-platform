@@ -12,45 +12,59 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { Modal } from '../components/ui/Modal';
 
+import ThreadPanel from '../components/ThreadPanel';
+
 interface ContractDetail {
   id: string;
   title: string;
-  type: string;
-  status: string;
+  document_type: string;
   phase: string;
-  counterparty_name: string;
-  value: number;
-  start_date: string;
-  end_date: string;
+  creator_id: string;
+  counterparty_id: string;
+  project_id: string | null;
+  commercial_terms: Record<string, unknown> | null;
+  template_id: string | null;
+  version: string;
+  previous_version_id: string | null;
+  sha256_hash: string | null;
+  page_count: number | null;
   created_at: string;
   updated_at: string;
-  terms: Record<string, unknown>;
+  signatories?: Array<{ id: string; signatory_name: string; signed: number }>;
+  statutory_checks?: Array<{ id: string; regulation: string; status: string }>;
 }
 
 interface Signature {
   id: string;
-  signer_name: string;
-  signer_email: string;
+  document_id: string;
+  participant_id: string;
+  signatory_name: string;
+  signatory_designation: string;
+  signed: number;
   signed_at: string | null;
-  status: string;
-  ip_address?: string;
+  signature_r2_key: string | null;
+  ip_address: string | null;
+  document_hash_at_signing: string | null;
+  created_at: string;
 }
 
 interface Amendment {
   id: string;
-  version: number;
-  reason: string;
-  major: boolean;
+  version: string;
+  phase: string;
+  previous_version_id: string | null;
   created_at: string;
-  created_by: string;
 }
 
 interface AuditEntry {
   id: string;
+  actor_id: string;
   action: string;
-  actor_name: string;
-  timestamp: string;
+  entity_type: string;
+  entity_id: string;
   details: string;
+  ip_address: string | null;
+  created_at: string;
 }
 
 const TABS = ['Details', 'Signatures', 'Versions', 'Audit Trail'] as const;
@@ -74,6 +88,11 @@ export default function ContractDeep() {
   const [amendReason, setAmendReason] = useState('');
   const [amendMajor, setAmendMajor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [signName, setSignName] = useState('');
+  const [signDesignation, setSignDesignation] = useState('');
+  const sigCanvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSigned, setHasSigned] = useState(false);
 
   const loadContract = useCallback(async () => {
     if (!id) return;
@@ -86,8 +105,14 @@ export default function ContractDeep() {
         contractsAPI.getVersions(id),
         contractsAPI.getAuditTrail(id),
       ]);
-      if (detailRes.status === 'fulfilled' && detailRes.value.data?.data) setContract(detailRes.value.data.data);
-      else if (detailRes.status === 'rejected') setError('Failed to load contract details');
+      if (detailRes.status === 'fulfilled' && detailRes.value.data?.data) {
+        const d = detailRes.value.data.data;
+        setContract(d);
+        // Also populate signatures from the detail response if the signatures endpoint didn't return data
+        if (d.signatories && Array.isArray(d.signatories)) {
+          setSignatures(d.signatories);
+        }
+      } else if (detailRes.status === 'rejected') setError('Failed to load contract details');
       if (sigRes.status === 'fulfilled' && Array.isArray(sigRes.value.data?.data)) setSignatures(sigRes.value.data.data);
       if (verRes.status === 'fulfilled' && Array.isArray(verRes.value.data?.data)) setVersions(verRes.value.data.data);
       if (auditRes.status === 'fulfilled' && Array.isArray(auditRes.value.data?.data)) setAuditTrail(auditRes.value.data.data);
@@ -119,14 +144,68 @@ export default function ContractDeep() {
     setSubmitting(false);
   };
 
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setIsDrawing(true);
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = ('touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left) * scaleX;
+    const y = ('touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top) * scaleY;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = ('touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left) * scaleX;
+    const y = ('touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top) * scaleY;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = isDark ? '#fff' : '#1e293b';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setHasSigned(true);
+  };
+
+  const stopDrawing = () => setIsDrawing(false);
+
+  const clearSignature = () => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSigned(false);
+  };
+
   const handleSign = async () => {
     if (!id) return;
+    if (!signName.trim()) { toast.error('Please enter your full name'); return; }
+    if (!signDesignation.trim()) { toast.error('Please enter your designation'); return; }
+    if (!hasSigned) { toast.error('Please draw your signature'); return; }
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const signatureImage = canvas.toDataURL('image/png');
     setSubmitting(true);
     try {
-      const res = await contractsAPI.sign(id, { method: 'electronic' });
+      const res = await contractsAPI.sign(id, { signatory_name: signName, signatory_designation: signDesignation, signature_image: signatureImage });
       if (res.data?.success) {
         toast.success('Contract signed successfully');
         setShowSignModal(false);
+        setSignName('');
+        setSignDesignation('');
+        clearSignature();
         loadContract();
       } else {
         toast.error(res.data?.error || 'Failed to sign contract');
@@ -139,19 +218,27 @@ export default function ContractDeep() {
 
   const handleDownloadPdf = async () => {
     if (!id) return;
+    // Open tab synchronously (before await) to avoid popup blocker
+    const tab = window.open('', '_blank');
     try {
       const res = await contractsAPI.getPdf(id);
-      if (res.data) {
-        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
+      // The response is a blob (HTML or PDF binary from R2)
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        // Fallback: trigger download if popup was blocked
         const a = document.createElement('a');
         a.href = url;
-        a.download = `contract-${id}.pdf`;
+        a.download = `contract-${id}.html`;
         a.click();
-        URL.revokeObjectURL(url);
-        toast.success('PDF downloaded');
       }
+      // Revoke after a short delay to allow the tab to load
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast.success('Document opened in new tab');
     } catch {
+      if (tab) tab.close();
       toast.error('Failed to download PDF');
     }
   };
@@ -174,7 +261,7 @@ export default function ContractDeep() {
   };
 
   const statusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch ((status || '').toLowerCase()) {
       case 'active': case 'signed': case 'completed': return 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
       case 'draft': case 'pending': return 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400';
       case 'expired': case 'cancelled': return 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400';
@@ -196,8 +283,8 @@ export default function ContractDeep() {
             </h1>
             {!loading && contract && (
               <div className="flex items-center gap-2 mt-1">
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor(contract.status)}`}>{contract.status}</span>
-                <span className="text-sm text-slate-500 dark:text-slate-400">Phase: {contract.phase}</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColor(contract.phase)}`}>{contract.phase}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">Type: {contract.document_type?.replace(/_/g, ' ')}</span>
               </div>
             )}
           </div>
@@ -205,6 +292,11 @@ export default function ContractDeep() {
         {!loading && contract && (
           <div className="flex flex-wrap gap-2">
             <button onClick={handleDownloadPdf} className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${c('bg-white/[0.04] hover:bg-white/[0.08] text-slate-300', 'bg-slate-100 hover:bg-slate-200 text-slate-600')}`} aria-label="Download PDF">
+
+      <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+        <ThreadPanel entityType="contract" entityId={id || ''} />
+      </div>
+
               <FiDownload className="w-3.5 h-3.5" /> PDF
             </button>
             <button onClick={() => setShowAmendModal(true)} className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${c('bg-white/[0.04] hover:bg-white/[0.08] text-slate-300', 'bg-slate-100 hover:bg-slate-200 text-slate-600')}`} aria-label="Amend contract">
@@ -249,11 +341,11 @@ export default function ContractDeep() {
             ) : contract ? (
               <div className="space-y-3">
                 {[
-                  ['Type', contract.type],
-                  ['Counterparty', contract.counterparty_name],
-                  ['Value', formatZAR(contract.value / 100)],
-                  ['Start Date', new Date(contract.start_date).toLocaleDateString('en-ZA')],
-                  ['End Date', new Date(contract.end_date).toLocaleDateString('en-ZA')],
+                  ['Document Type', contract.document_type?.replace(/_/g, ' ') || 'N/A'],
+                  ['Version', contract.version || 'v1.0'],
+                  ['Creator', contract.creator_id],
+                  ['Counterparty', contract.counterparty_id],
+                  ['Project', contract.project_id || 'N/A'],
                   ['Created', new Date(contract.created_at).toLocaleDateString('en-ZA')],
                   ['Last Updated', new Date(contract.updated_at).toLocaleDateString('en-ZA')],
                 ].map(([label, value]) => (
@@ -272,7 +364,7 @@ export default function ContractDeep() {
               <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="w-full h-10" />)}</div>
             ) : contract ? (
               <div className="space-y-3">
-                {['negotiation', 'review', 'signing', 'active', 'completed'].map(phase => (
+                {['draft', 'loi', 'term_sheet', 'hoa', 'draft_agreement', 'legal_review', 'statutory_check', 'execution', 'active', 'amended', 'terminated'].map(phase => (
                   <div key={phase} className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
                     contract.phase === phase
                       ? 'bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20'
@@ -282,7 +374,7 @@ export default function ContractDeep() {
                       {contract.phase === phase ? <FiCheckCircle className="w-4 h-4 text-blue-500" /> : <FiClock className="w-4 h-4 text-slate-400" />}
                       <span className={`text-sm font-medium capitalize ${contract.phase === phase ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}>{phase}</span>
                     </div>
-                    {contract.phase !== phase && contract.phase !== 'completed' && (
+                    {contract.phase !== phase && contract.phase !== 'terminated' && (
                       <button onClick={() => handleAdvancePhase(phase)} disabled={submitting}
                         className="text-xs text-blue-500 hover:text-blue-600 font-medium" aria-label={`Advance to ${phase}`}>
                         Move here
@@ -310,14 +402,14 @@ export default function ContractDeep() {
               {signatures.map(sig => (
                 <div key={sig.id} className={`flex items-center justify-between px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div>
-                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{sig.signer_name}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">{sig.signer_email}</div>
+                    <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{sig.signatory_name}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{sig.signatory_designation || sig.participant_id}</div>
                   </div>
                   <div className="text-right">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                      sig.status === 'signed' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                      sig.signed ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                         : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                    }`}>{sig.status}</span>
+                    }`}>{sig.signed ? 'signed' : 'pending'}</span>
                     {sig.signed_at && <div className="text-[10px] text-slate-400 mt-1">{new Date(sig.signed_at).toLocaleString('en-ZA')}</div>}
                   </div>
                 </div>
@@ -341,14 +433,14 @@ export default function ContractDeep() {
                 <div key={ver.id} className={`px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${ver.major ? 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
-                        v{ver.version} {ver.major ? '(Major)' : '(Minor)'}
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        {ver.version}
                       </span>
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{ver.reason}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(ver.phase)}`}>{ver.phase}</span>
                     </div>
                     <span className="text-xs text-slate-400">{new Date(ver.created_at).toLocaleDateString('en-ZA')}</span>
                   </div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">By {ver.created_by}</div>
+                  {ver.previous_version_id && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Previous: {ver.previous_version_id}</div>}
                 </div>
               ))}
             </div>
@@ -369,20 +461,20 @@ export default function ContractDeep() {
               {auditTrail.map(entry => (
                 <div key={entry.id} className={`flex items-start gap-3 px-4 py-3 rounded-xl ${c('bg-white/[0.02]', 'bg-slate-50')}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    entry.action.includes('sign') ? 'bg-emerald-50 dark:bg-emerald-500/10' :
-                    entry.action.includes('amend') ? 'bg-amber-50 dark:bg-amber-500/10' :
+                                        (entry.action || '').includes('sign') ? 'bg-emerald-50 dark:bg-emerald-500/10' :
+                                        (entry.action || '').includes('amend') ? 'bg-amber-50 dark:bg-amber-500/10' :
                     'bg-blue-50 dark:bg-blue-500/10'
                   }`}>
-                    {entry.action.includes('sign') ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> :
-                     entry.action.includes('amend') ? <FiEdit3 className="w-4 h-4 text-amber-500" /> :
+                                        {(entry.action || '').includes('sign') ? <FiCheckCircle className="w-4 h-4 text-emerald-500" /> :
+                                         (entry.action || '').includes('amend') ? <FiEdit3 className="w-4 h-4 text-amber-500" /> :
                      <FiFileText className="w-4 h-4 text-blue-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{entry.action.replace(/_/g, ' ')}</span>
-                      <span className="text-[10px] text-slate-400">{new Date(entry.timestamp).toLocaleString('en-ZA')}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{(entry.action || '').replace(/_/g, ' ')}</span>
+                      <span className="text-[10px] text-slate-400">{new Date(entry.created_at).toLocaleString('en-ZA')}</span>
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_name} — {entry.details}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{entry.actor_id}{entry.details ? ` — ${entry.details}` : ''}</div>
                   </div>
                 </div>
               ))}
@@ -416,7 +508,7 @@ export default function ContractDeep() {
       </Modal>
 
       {/* Sign Modal */}
-      <Modal isOpen={showSignModal} onClose={() => setShowSignModal(false)} title="Sign Contract" size="sm">
+      <Modal isOpen={showSignModal} onClose={() => { setShowSignModal(false); setSignName(''); setSignDesignation(''); clearSignature(); }} title="Sign Contract" size="md">
         <div className="space-y-4">
           <div className={`p-4 rounded-xl ${c('bg-amber-500/10', 'bg-amber-50')}`}>
             <div className="flex items-center gap-2 mb-2">
@@ -424,12 +516,34 @@ export default function ContractDeep() {
               <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">Legal Notice</span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              By signing this contract, you agree to be legally bound by its terms. This constitutes an electronic signature under the Electronic Communications and Transactions Act 25 of 2002 (ECT Act).
+              By signing this contract, you agree to be legally bound by its terms. This constitutes an electronic signature under the Electronic Communications and Transactions Act 25 of 2002 (ECT Act), Section 13.
             </p>
           </div>
+          <div>
+            <label htmlFor="sign-name" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Full Name *</label>
+            <input id="sign-name" value={signName} onChange={e => setSignName(e.target.value)} placeholder="e.g. John Smith"
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+          </div>
+          <div>
+            <label htmlFor="sign-designation" className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">Designation / Title *</label>
+            <input id="sign-designation" value={signDesignation} onChange={e => setSignDesignation(e.target.value)} placeholder="e.g. Chief Executive Officer"
+              className={`w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all border ${c('bg-white/[0.04] border-white/[0.06] text-white placeholder-slate-500 focus:border-blue-500/50', 'bg-slate-50 border-black/[0.06] text-slate-800 placeholder-slate-400 focus:border-blue-500')}`} />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">Signature *</label>
+              <button type="button" onClick={clearSignature} className="text-[10px] text-blue-500 hover:text-blue-600">Clear</button>
+            </div>
+            <canvas ref={sigCanvasRef} width={400} height={120}
+              onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
+              className={`w-full rounded-xl border cursor-crosshair ${c('bg-white/[0.04] border-white/[0.06]', 'bg-white border-black/[0.06]')}`}
+              style={{ touchAction: 'none' }} />
+            <p className="text-[10px] text-slate-400 mt-1">Draw your signature above using mouse or touch</p>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setShowSignModal(false)} className={`px-4 py-2 rounded-xl text-sm font-medium ${c('text-slate-400 hover:text-white', 'text-slate-500 hover:text-slate-700')}`}>Cancel</button>
-            <button onClick={handleSign} disabled={submitting} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center gap-2">
+            <button onClick={() => { setShowSignModal(false); setSignName(''); setSignDesignation(''); clearSignature(); }} className={`px-4 py-2 rounded-xl text-sm font-medium ${c('text-slate-400 hover:text-white', 'text-slate-500 hover:text-slate-700')}`}>Cancel</button>
+            <button onClick={handleSign} disabled={submitting || !signName.trim() || !signDesignation.trim() || !hasSigned} className="px-4 py-2 rounded-xl text-sm font-semibold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/25 disabled:opacity-50 flex items-center gap-2">
               {submitting && <FiLoader className="w-4 h-4 animate-spin" />} Sign Electronically
             </button>
           </div>

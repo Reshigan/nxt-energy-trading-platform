@@ -171,6 +171,67 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         }
       },
     },
+    // ── NEW: Auto-create escrow for high-value trades (>R100K) ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { buyer_id, seller_id, total_cents } = event.data;
+        const totalC = Number(total_cents) || 0;
+        if (totalC >= 10000000) { // R100K+
+          const escrowId = crypto.randomUUID();
+          await env.DB.prepare(
+            "INSERT INTO escrows (id, trade_id, depositor_id, beneficiary_id, amount_cents, conditions, status, created_at) VALUES (?, ?, ?, ?, ?, 'Settlement confirmation from both parties', 'created', datetime('now'))"
+          ).bind(escrowId, event.entity_id, buyer_id as string, seller_id as string, totalC).run();
+          await notifyParticipant(env.DB, buyer_id as string, 'Escrow Created', `Escrow of R${(totalC / 100).toFixed(2)} created for high-value trade.`, 'settlement', 'escrow', escrowId);
+          await notifyParticipant(env.DB, seller_id as string, 'Escrow Created', `Escrow of R${(totalC / 100).toFixed(2)} created for high-value trade.`, 'settlement', 'escrow', escrowId);
+        }
+      },
+    },
+    // ── NEW: Auto-generate invoice for settlement ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { buyer_id, seller_id, total_cents, volume, price_cents } = event.data;
+        const invId = crypto.randomUUID();
+        const invNum = `INV-${Date.now().toString(36).toUpperCase()}`;
+        const subtotal = Number(total_cents) || 0;
+        const vat = Math.round(subtotal * 0.15);
+        const dueDate = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+        await env.DB.prepare(
+          `INSERT INTO invoices (id, invoice_number, trade_id, from_participant_id, to_participant_id, invoice_type, metered_volume, unit_rate_cents, subtotal_cents, vat_cents, total_cents, due_date, status, created_at)
+           VALUES (?, ?, ?, ?, ?, 'trade_settlement', ?, ?, ?, ?, ?, ?, 'outstanding', datetime('now'))`
+        ).bind(invId, invNum, event.entity_id, seller_id as string, buyer_id as string, Number(volume) || 0, Number(price_cents) || 0, subtotal, vat, subtotal + vat, dueDate).run();
+        await notifyParticipant(env.DB, buyer_id as string, 'Invoice Generated', `Invoice ${invNum} for R${((subtotal + vat) / 100).toFixed(2)} due ${dueDate}.`, 'settlement', 'invoice', invId);
+      },
+    },
+    // ── NEW: Link trade to active contract between parties ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { buyer_id, seller_id } = event.data;
+        const contract = await env.DB.prepare(
+          "SELECT id FROM contract_documents WHERE phase = 'active' AND ((creator_id = ? AND counterparty_id = ?) OR (creator_id = ? AND counterparty_id = ?)) LIMIT 1"
+        ).bind(buyer_id as string, seller_id as string, seller_id as string, buyer_id as string).first();
+        if (contract) {
+          await env.DB.prepare('UPDATE trades SET contract_id = ? WHERE id = ?').bind(contract.id, event.entity_id).run();
+        }
+      },
+    },
+    // ── NEW: Action queue items for buyer + seller cockpits ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { buyer_id, seller_id, volume, market } = event.data;
+        const aq1 = crypto.randomUUID();
+        const aq2 = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO action_queue (id, participant_id, action_type, title, description, entity_type, entity_id, priority, status, created_at) VALUES (?, ?, 'confirm_settlement', ?, ?, 'trade', ?, 'high', 'pending', datetime('now'))"
+        ).bind(aq1, buyer_id as string, `Confirm settlement for ${volume} MWh ${market} trade`, `Review and confirm settlement for Trade ${event.entity_id.substring(0, 8)}`, event.entity_id).run();
+        await env.DB.prepare(
+          "INSERT INTO action_queue (id, participant_id, action_type, title, description, entity_type, entity_id, priority, status, created_at) VALUES (?, ?, 'confirm_delivery', ?, ?, 'trade', ?, 'high', 'pending', datetime('now'))"
+        ).bind(aq2, seller_id as string, `Confirm delivery for ${volume} MWh ${market} trade`, `Confirm energy delivery for Trade ${event.entity_id.substring(0, 8)}`, event.entity_id).run();
+      },
+    },
   ],
 
 
@@ -243,6 +304,47 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         await computeFee(env.DB, 'carbon_retirement', Number(value_cents || 0), owner_id as string, 'credit', event.entity_id);
       },
     },
+    // ── NEW: Burn token if credit was tokenized ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const token = await env.DB.prepare("SELECT id FROM tokens WHERE source_type = 'carbon_credit' AND source_id = ? AND status = 'active'").bind(event.entity_id).first();
+        if (token) {
+          await env.DB.prepare("UPDATE tokens SET status = 'burned', burned_at = datetime('now') WHERE id = ?").bind(token.id).run();
+        }
+      },
+    },
+    // ── NEW: Update offtaker ESG score ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { owner_id, tonnes } = event.data;
+        if (owner_id) {
+          const participant = await env.DB.prepare('SELECT id, esg_score FROM participants WHERE id = ?').bind(owner_id as string).first();
+          if (participant) {
+            const currentScore = Number(participant.esg_score) || 50;
+            const boost = Math.min(Number(tonnes) || 0, 10);
+            const newScore = Math.min(currentScore + boost, 100);
+            await env.DB.prepare('UPDATE participants SET esg_score = ? WHERE id = ?').bind(newScore, owner_id as string).run();
+          }
+        }
+      },
+    },
+    // ── NEW: Cross-ref RECs from same project ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const credit = await env.DB.prepare('SELECT project_id FROM carbon_credits WHERE id = ?').bind(event.entity_id).first();
+        if (credit && credit.project_id) {
+          const recs = await env.DB.prepare("SELECT id FROM recs WHERE project_id = ? AND status = 'active' LIMIT 5").bind(credit.project_id).all();
+          if (recs.results.length > 0) {
+            await env.DB.prepare(
+              "INSERT INTO audit_log (id, actor_id, action, entity_type, entity_id, details, ip_address, created_at) VALUES (?, ?, 'credit.rec_crossref', 'credit', ?, ?, '', datetime('now'))"
+            ).bind(crypto.randomUUID(), event.actor_id, event.entity_id, JSON.stringify({ rec_ids: recs.results.map((r: Record<string, unknown>) => r.id), project_id: credit.project_id })).run();
+          }
+        }
+      },
+    },
   ],
 
   'credit.transferred': [
@@ -251,16 +353,34 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       execute: async (env, event) => {
         const { from_id, to_id, tonnes } = event.data;
         await notifyParticipant(env.DB, from_id as string, 'Credit Transferred', `${tonnes}t transferred out.`, 'carbon', 'credit', event.entity_id);
-        await notifyParticipant(env.DB, to_id as string, 'Credit Received', `${tonnes}t received.`, 'carbon', 'credit', event.entity_id);
+        await notifyParticipant(env.DB, to_id as string, 'Credit Transferred', `${tonnes}t transferred in.`, 'carbon', 'credit', event.entity_id);
       },
     },
     {
-      type: 'webhook',
+      type: 'notify',
       execute: async (env, event) => {
-        await deliverWebhook(env.DB, 'credit.transferred', event.data);
+        const { from_id, to_id, tonnes } = event.data;
+        const email = await getParticipantEmail(env.DB, to_id as string);
+        if (email) {
+          await sendEmail(env, {
+            to: email,
+            subject: `Carbon Credit Transfer Received: ${tonnes}t`,
+            html: `<p>You have received ${tonnes} tonnes of carbon credits.</p>`,
+          });
+        }
       },
     },
   ],
+
+  'concierge.step_completed': [
+      {
+        type: 'notify',
+        execute: async (env, event) => {
+          const { participant_id, step_number, project_name } = event.data;
+          await notifyParticipant(env.DB, participant_id as string, 'Concierge Step Completed', `Step ${step_number} completed for ${project_name}. Great progress!`, 'concierge', 'step', event.entity_id);
+        },
+      },
+    ],
 
   'option.exercised': [
     {
@@ -333,6 +453,63 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
             body: JSON.stringify({ rule_type: 'auto_invoice', document_id: event.entity_id, ...event.data }),
           }));
         }
+      },
+    },
+    // ── NEW: Auto-create smart rules for PPA contracts ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { doc_type, creator_id, counterparty_id } = event.data;
+        const ppaTypes = ['ppa_wheeling', 'ppa_btm'];
+        if (ppaTypes.includes(doc_type as string)) {
+          const ruleTypes = ['auto_invoice', 'escalation', 'threshold_alert'];
+          for (const rt of ruleTypes) {
+            const ruleId = crypto.randomUUID();
+            await env.DB.prepare(
+              "INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, name, conditions, actions, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'))"
+            ).bind(ruleId, event.entity_id, rt, `Auto ${rt.replace('_', ' ')} rule`, JSON.stringify({ trigger: rt, parties: [creator_id, counterparty_id] }), JSON.stringify({ action: rt, target: 'all_parties' })).run();
+          }
+        }
+      },
+    },
+    // ── NEW: Link contract to project if PPA/EPC ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { doc_type, creator_id, counterparty_id } = event.data;
+        if (['ppa_wheeling', 'ppa_btm', 'epc'].includes(doc_type as string)) {
+          const project = await env.DB.prepare(
+            "SELECT id FROM projects WHERE participant_id = ? OR participant_id = ? LIMIT 1"
+          ).bind(creator_id as string, counterparty_id as string).first();
+          if (project) {
+            await env.DB.prepare('UPDATE contract_documents SET related_project_id = ? WHERE id = ? AND related_project_id IS NULL')
+              .bind(project.id, event.entity_id).run();
+          }
+        }
+      },
+    },
+    // ── NEW: Action queue for IPP, Grid, Offtaker on contract signing ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { creator_id, counterparty_id, title, doc_type } = event.data;
+        const parties = [creator_id as string, counterparty_id as string].filter(Boolean);
+        for (const pid of parties) {
+          const aqId = crypto.randomUUID();
+          await env.DB.prepare(
+            "INSERT INTO action_queue (id, participant_id, action_type, title, description, entity_type, entity_id, priority, status, created_at) VALUES (?, ?, 'activate_metering', ?, ?, 'contract', ?, 'normal', 'pending', datetime('now'))"
+          ).bind(aqId, pid, `Review signed contract: ${title || doc_type}`, `Contract "${title}" fully signed. Review terms and activate related services.`, event.entity_id).run();
+        }
+      },
+    },
+    // ── NEW: Trigger statutory re-check on contract signing ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const checkId = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO statutory_checks (id, entity_type, entity_id, check_type, status, reason, created_at) VALUES (?, 'document', ?, 'post_signing_compliance', 'pending', 'Auto-triggered on contract signing', datetime('now'))"
+        ).bind(checkId, event.entity_id).run();
       },
     },
   ],
@@ -443,6 +620,53 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         }
       },
     },
+    // ── NEW: Auto-release linked escrow on invoice payment ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { trade_id } = event.data;
+        if (trade_id) {
+          const escrow = await env.DB.prepare("SELECT id FROM escrows WHERE trade_id = ? AND status IN ('created', 'funded', 'held')").bind(trade_id as string).first();
+          if (escrow) {
+            await env.DB.prepare("UPDATE escrows SET status = 'released', updated_at = datetime('now') WHERE id = ?").bind(escrow.id).run();
+          }
+        }
+      },
+    },
+    // ── NEW: Update linked trade to 'settled' on invoice payment ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { trade_id } = event.data;
+        if (trade_id) {
+          await env.DB.prepare("UPDATE trades SET status = 'settled', updated_at = datetime('now') WHERE id = ? AND status != 'settled'").bind(trade_id as string).run();
+        }
+      },
+    },
+    // ── NEW: Mark linked fee as 'paid' ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        await env.DB.prepare("UPDATE fees SET status = 'paid', paid_at = datetime('now') WHERE entity_type = 'invoice' AND entity_id = ? AND status != 'paid'").bind(event.entity_id).run();
+      },
+    },
+    // ── NEW: Clear action queue items for this invoice/trade ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { trade_id, buyer_id } = event.data;
+        await env.DB.prepare("UPDATE action_queue SET status = 'completed', completed_at = datetime('now') WHERE entity_type = 'invoice' AND entity_id = ? AND status = 'pending'").bind(event.entity_id).run();
+        if (trade_id) {
+          await env.DB.prepare("UPDATE action_queue SET status = 'completed', completed_at = datetime('now') WHERE entity_type = 'trade' AND entity_id = ? AND status = 'pending'").bind(trade_id as string).run();
+        }
+        if (buyer_id) {
+          const aqId = crypto.randomUUID();
+          await env.DB.prepare(
+            "INSERT INTO action_queue (id, participant_id, action_type, title, description, entity_type, entity_id, priority, status, completed_at, created_at) VALUES (?, ?, 'pay_invoice', 'Invoice paid', 'Invoice payment confirmed and processed', 'invoice', ?, 'normal', 'completed', datetime('now'), datetime('now'))"
+          ).bind(aqId, buyer_id as string, event.entity_id).run();
+        }
+      },
+    },
   ],
 
   'dispute.filed': [
@@ -545,6 +769,60 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
         }
       },
     },
+    // ── NEW: Check all CPs and notify lender if FC ready ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { project_id } = event.data;
+        const pid = (project_id || event.entity_id) as string;
+        const allCps = await env.DB.prepare('SELECT COUNT(*) as total FROM conditions_precedent WHERE project_id = ?').bind(pid).first();
+        const satisfiedCps = await env.DB.prepare("SELECT COUNT(*) as count FROM conditions_precedent WHERE project_id = ? AND status IN ('satisfied', 'waived')").bind(pid).first();
+        const total = Number(allCps?.total) || 0;
+        const satisfied = Number(satisfiedCps?.count) || 0;
+        if (total > 0 && satisfied >= total) {
+          const project = await env.DB.prepare('SELECT lender_id, name FROM projects WHERE id = ?').bind(pid).first();
+          if (project && project.lender_id) {
+            await notifyParticipant(env.DB, project.lender_id as string, 'All CPs Satisfied — FC Ready', `Project "${project.name}": all ${total} conditions precedent satisfied. Financial close is ready.`, 'project', 'project', pid);
+          }
+        }
+      },
+    },
+    // ── NEW: Unlock linked disbursement ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { milestone_id, project_id } = event.data;
+        const mid = (milestone_id || event.entity_id) as string;
+        const pid = (project_id || '') as string;
+        const disbursement = await env.DB.prepare("SELECT id, amount_cents FROM disbursements WHERE project_id = ? AND milestone_id = ? AND status = 'pending' LIMIT 1").bind(pid, mid).first();
+        if (disbursement) {
+          await env.DB.prepare("UPDATE disbursements SET status = 'ready', updated_at = datetime('now') WHERE id = ?").bind(disbursement.id).run();
+          const project = await env.DB.prepare('SELECT lender_id FROM projects WHERE id = ?').bind(pid).first();
+          if (project && project.lender_id) {
+            const aqId = crypto.randomUUID();
+            await env.DB.prepare(
+              "INSERT INTO action_queue (id, participant_id, action_type, title, description, entity_type, entity_id, priority, status, created_at) VALUES (?, ?, 'review_forecast', ?, ?, 'project', ?, 'high', 'pending', datetime('now'))"
+            ).bind(aqId, project.lender_id as string, `Disbursement ready: R${(Number(disbursement.amount_cents) / 100).toFixed(2)}`, `Milestone completed — disbursement unlocked for approval`, pid).run();
+          }
+        }
+      },
+    },
+    // ── NEW: REC eligibility if COD milestone ──
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        const { milestone_name, project_id } = event.data;
+        const name = ((milestone_name || '') as string).toLowerCase();
+        if (name.includes('cod') || name.includes('commercial') || name.includes('commissioning')) {
+          const pid = (project_id || event.entity_id) as string;
+          await env.DB.prepare("UPDATE projects SET rec_eligible = 1, updated_at = datetime('now') WHERE id = ?").bind(pid).run();
+          const project = await env.DB.prepare('SELECT participant_id, name FROM projects WHERE id = ?').bind(pid).first();
+          if (project) {
+            await notifyParticipant(env.DB, project.participant_id as string, 'REC Eligibility Activated', `Project "${project.name}" is now eligible for Renewable Energy Certificates.`, 'project', 'project', pid);
+          }
+        }
+      },
+    },
   ],
 
   'project.cp_satisfied': [
@@ -586,7 +864,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       type: 'notify',
       execute: async (env, event) => {
         const { participant_id, company_name } = event.data;
-        await notifyParticipant(env.DB, participant_id as string, 'Welcome to NXT Energy', `Registration successful for ${company_name}. Your KYC verification is in progress.`, 'info', 'participant', event.entity_id);
+        await notifyParticipant(env.DB, participant_id as string, 'Welcome to Ionvex', `Registration successful for ${company_name}. Your KYC verification is in progress.`, 'info', 'participant', event.entity_id);
       },
     },
     {
@@ -611,7 +889,7 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       execute: async (env, event) => {
         const email = await getParticipantEmail(env.DB, event.data.participant_id as string);
         if (email) {
-          await sendEmail(env, { to: email, subject: 'Welcome to NXT Energy — KYC Approved', html: '<p>Your identity verification is complete. You can now place orders and trade on the platform.</p>' });
+          await sendEmail(env, { to: email, subject: 'Welcome to Ionvex — KYC Approved', html: '<p>Your identity verification is complete. You can now place orders and trade on the platform.</p>' });
         }
       },
     },
@@ -908,6 +1186,196 @@ const CASCADE_MAP: Record<string, CascadeAction[]> = {
       },
     },
   ],
+
+  // ─── GRID EVENTS ─────────────────────────────────────────────────────────────
+
+  'grid.connection_applied': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { project_name, capacity_mw, connection_point } = event.data;
+        const grids = await env.DB.prepare("SELECT id FROM participants WHERE participant_type = 'grid'").all();
+        for (const g of grids.results) {
+          await notifyParticipant(env.DB, g.id as string, 'New Grid Connection Application',
+            `${project_name} (${capacity_mw} MW) applied for connection at ${connection_point}`,
+            'grid', 'grid_connection', event.entity_id);
+        }
+      },
+    },
+    {
+      type: 'webhook',
+      execute: async (env, event) => {
+        await deliverWebhook(env.DB, 'grid.connection_applied', event.data);
+      },
+    },
+  ],
+
+  'grid.connection_energised': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { project_name, connection_point, generator_id, offtaker_id, lender_id } = event.data;
+        for (const pid of [generator_id as string, offtaker_id as string, lender_id as string].filter(Boolean)) {
+          await notifyParticipant(env.DB, pid, 'Grid Connection Energised',
+            `${project_name} is now connected and energised at ${connection_point}`,
+            'success', 'grid_connection', event.entity_id);
+        }
+      },
+    },
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        // Auto-activate wheeling for this connection
+        // Create first delivery schedule
+        // Mark project milestone as complete if 'grid_connection' milestone exists
+        const { project_id } = event.data;
+        if (project_id) {
+          await env.DB.prepare(
+            "UPDATE project_milestones SET status = 'completed', completed_at = datetime('now') WHERE project_id = ? AND milestone_type = 'grid_connection' AND status = 'pending'"
+          ).bind(project_id as string).run();
+        }
+      },
+    },
+  ],
+
+  // ─── PROCUREMENT EVENTS ──────────────────────────────────────────────────────
+
+  'procurement.rfp_published': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { offtaker_name, volume_mwh, technology, location } = event.data;
+        const matches = await env.DB.prepare(
+          "SELECT id FROM participants WHERE participant_type IN ('ipp','generator') AND province = ?"
+        ).bind(location as string).all();
+        for (const g of matches.results) {
+          await notifyParticipant(env.DB, g.id as string, 'New RFP Matches Your Profile',
+            `${offtaker_name} wants ${volume_mwh} MWh/yr of ${technology} energy. Submit your bid.`,
+            'opportunity', 'rfp', event.entity_id);
+        }
+      },
+    },
+  ],
+
+  'procurement.bid_selected': [
+    {
+      type: 'cross_module',
+      execute: async (env, event) => {
+        // Auto-create LOI from winning bid
+        const loiId = crypto.randomUUID();
+        const { offtaker_name, generator_name, offtaker_id, generator_id, bid_value_cents, volume_mwh } = event.data;
+        await env.DB.prepare(
+          "INSERT INTO contract_documents (id, title, document_type, phase, creator_id, counterparty_id, value_cents, created_at) VALUES (?, ?, 'loi', 'loi', ?, ?, ?, datetime('now'))"
+        ).bind(loiId, `LOI: ${offtaker_name} → ${generator_name}`, offtaker_id as string, generator_id as string, bid_value_cents).run();
+      },
+    },
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { offtaker_name, generator_id, volume_mwh, entity_id } = event.data;
+        await notifyParticipant(env.DB, generator_id as string, 'Your Bid Was Selected!',
+          `${offtaker_name} selected your bid for ${volume_mwh} MWh/yr. LOI created.`,
+          'success', 'rfp', entity_id as string);
+      },
+    },
+  ],
+
+  // ─── CONVERSATION EVENTS ──────────────────────────────────────────────────────
+
+  'thread.new_comment': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { entity_type, entity_id, commenter_id, commenter_name, message_preview } = event.data;
+        let participants: string[] = [];
+        if (entity_type === 'contract') {
+          const doc = await env.DB.prepare('SELECT creator_id, counterparty_id FROM contract_documents WHERE id = ?').bind(entity_id as string).first();
+          if (doc) participants = [doc.creator_id as string, doc.counterparty_id as string].filter(Boolean);
+        } else if (entity_type === 'trade') {
+          const trade = await env.DB.prepare('SELECT buyer_id, seller_id FROM trades WHERE id = ?').bind(entity_id as string).first();
+          if (trade) participants = [trade.buyer_id as string, trade.seller_id as string].filter(Boolean);
+        } else if (entity_type === 'project') {
+          const proj = await env.DB.prepare('SELECT developer_id, lender_id, grid_operator_id, offtaker_id FROM projects WHERE id = ?').bind(entity_id as string).first();
+          if (proj) participants = [proj.developer_id, proj.lender_id, proj.grid_operator_id, proj.offtaker_id].filter(Boolean) as string[];
+        }
+        for (const pid of participants.filter(p => p !== commenter_id)) {
+          await notifyParticipant(env.DB, pid, `New comment from ${commenter_name}`,
+            `"${((message_preview as string) || '').substring(0, 80)}..."`,
+            'info', entity_type as string, entity_id as string);
+        }
+      },
+    },
+  ],
+
+  // ─── INTELLIGENCE EVENTS ───────────────────────────────────────────────────────
+
+  'intelligence.generated': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { severity, participant_id, title, description, entity_id } = event.data;
+        if (severity === 'critical') {
+          await notifyParticipant(env.DB, participant_id as string, `⚠ ${title}`, description as string,
+            'warning', 'intelligence', entity_id as string);
+        }
+      },
+    },
+  ],
+
+  // ─── FUND EVENTS ──────────────────────────────────────────────────────────────
+
+  'fund.nav_snapshot': [
+    {
+      type: 'db_update',
+      execute: async (env, event) => {
+        const { participant_id, nav_cents } = event.data;
+        await env.DB.prepare(
+          "INSERT INTO fund_nav_history (id, participant_id, nav_cents, record_date, created_at) VALUES (?, ?, ?, date('now'), datetime('now'))"
+        ).bind(crypto.randomUUID(), participant_id as string, nav_cents).run();
+      },
+    },
+  ],
+
+  // ─── SETTLEMENT EVENTS ───────────────────────────────────────────────────────
+
+  'settlement.invoice_generated': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents, invoice_type } = event.data;
+        await notifyParticipant(env.DB, participant_id as string, 'Invoice Generated',
+          `Invoice of R${(Number(amount_cents) / 100).toFixed(2)} has been generated for ${invoice_type}.`,
+          'settlement', 'invoice', event.entity_id);
+      },
+    },
+    {
+      type: 'email',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents, invoice_type } = event.data;
+        const email = await getParticipantEmail(env.DB, participant_id as string);
+        if (email) {
+          await sendEmail(env, {
+            to: email,
+            subject: `Invoice: R${(Number(amount_cents) / 100).toFixed(2)} ${invoice_type}`,
+            html: `<p>Your invoice for R${(Number(amount_cents) / 100).toFixed(2)} (${invoice_type}) has been generated.</p>`,
+          });
+        }
+      },
+    },
+  ],
+
+  'settlement.payment_received': [
+    {
+      type: 'notify',
+      execute: async (env, event) => {
+        const { participant_id, amount_cents } = event.data;
+        await notifyParticipant(env.DB, participant_id as string, 'Payment Received',
+          `Payment of R${(Number(amount_cents) / 100).toFixed(2)} has been received and processed.`,
+          'settlement', 'payment', event.entity_id);
+      },
+    },
+  ],
+
 };
 
 // ─── MAIN CASCADE FUNCTION ───────────────────────────────────────────────────

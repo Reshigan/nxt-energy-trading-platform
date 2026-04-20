@@ -9,6 +9,8 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 
+import ThreadPanel from '../components/ThreadPanel';
+
 interface Project {
   id: string;
   name: string;
@@ -179,6 +181,11 @@ export default function IPPDeep() {
           ))}
         </div>
       )}
+
+      <div className="fixed right-0 top-0 w-96 h-full bg-slate-900 border-l border-slate-700 shadow-2xl z-50 flex flex-col">
+        <ThreadPanel entityType="project" entityId={projects[0]?.id || ''} />
+      </div>
+
     </motion.div>
   );
 }

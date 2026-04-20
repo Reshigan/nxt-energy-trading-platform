@@ -539,14 +539,14 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
     }
 
     const sigs = await c.env.DB.prepare(
-      'SELECT signatory_name, signatory_designation, signed, signed_at FROM document_signatories WHERE document_id = ?'
+      'SELECT signatory_name, signatory_designation, signed, signed_at, ip_address FROM document_signatories WHERE document_id = ?'
     ).bind(id).all();
 
     const checks = await c.env.DB.prepare(
       "SELECT regulation, status FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
     ).bind(id).all();
 
-    // If document has R2 key, return the actual document
+    // If document has R2 key, return the actual stored document
     if (doc.r2_key) {
       const obj = await c.env.R2.get(doc.r2_key as string);
       if (obj) {
@@ -557,29 +557,17 @@ contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
       }
     }
 
-    // Otherwise return metadata cover page as JSON (for MVP)
-    return c.json({
-      success: true,
-      data: {
-        cover_page: {
-          document_id: doc.id,
-          title: doc.title,
-          document_type: doc.document_type,
-          version: doc.version,
-          phase: doc.phase,
-          created_at: doc.created_at,
-          parties: sigs.results.map((s) => ({
-            name: s.signatory_name,
-            designation: s.signatory_designation,
-            signed: s.signed === 1,
-            signed_at: s.signed_at,
-          })),
-          statutory_compliance: checks.results.map((ch) => ({
-            regulation: ch.regulation,
-            status: ch.status,
-          })),
-          document_hash: 'N/A',
-        },
+    // Fall back to generating an HTML document (print-optimised for PDF)
+    const html = generateContractPDF(
+      doc as unknown as Parameters<typeof generateContractPDF>[0],
+      sigs.results as unknown as Parameters<typeof generateContractPDF>[1],
+      checks.results as unknown as Parameters<typeof generateContractPDF>[2],
+    );
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `inline; filename="${(doc.title as string || 'contract').replace(/["\r\n]/g, '_')}.html"`,
       },
     });
   } catch (err) {
@@ -922,45 +910,644 @@ contracts.post('/documents/:id/verify-2fa', authMiddleware(), async (c) => {
   }
 });
 
-// GET /contracts/documents/:id/pdf — Generate contract PDF (HTML-based)
-contracts.get('/documents/:id/pdf', authMiddleware(), async (c) => {
+// NOTE: Duplicate /documents/:id/pdf route removed — merged into the handler above (line ~528)
+
+// ═══════════════════════════════════════════════════════════════════════
+// Contract Agreements — CRUD + Digital Signature Workflow + Activity Feed
+// Uses the `contracts`, `contract_signers`, `contract_field_values`,
+// and `contract_activity` tables from migration 010.
+// ═══════════════════════════════════════════════════════════════════════
+
+// POST /contracts/agreements — Create a new contract agreement
+contracts.post('/agreements', authMiddleware(), async (c) => {
   try {
-    const { id } = c.req.param();
-
-    const doc = await c.env.DB.prepare(
-      'SELECT * FROM contract_documents WHERE id = ?'
-    ).bind(id).first();
-    if (!doc) return c.json({ success: false, error: 'Document not found' }, 404);
-
-    // Authorization: non-admin users can only view documents where they are creator or counterparty
     const user = c.get('user');
-    if (user.role !== 'admin') {
-      const pid = user.sub;
-      if (doc.creator_id !== pid && doc.counterparty_id !== pid) {
-        return c.json({ success: false, error: 'Not authorized to view this document' }, 403);
-      }
+    const body = await c.req.json() as {
+      contract_type: string;
+      counterparty_id: string;
+      title: string;
+      project_id?: string;
+      document_id?: string;
+      start_date?: string;
+      end_date?: string;
+      value_cents?: number;
+      term_months?: number;
+      notes?: string;
+      commercial_terms?: string;
+      nersa_licence_ref?: string;
+      era_registration_ref?: string;
+      bbbee_level_required?: number;
+    };
+
+    if (!body.contract_type || !body.counterparty_id || !body.title) {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'contract_type, counterparty_id, and title are required'), 400);
     }
 
-    const sigs = await c.env.DB.prepare(
-      'SELECT * FROM document_signatories WHERE document_id = ?'
-    ).bind(id).all();
+    const id = generateId();
+    await c.env.DB.prepare(`
+      INSERT INTO contracts (id, contract_type, participant_id, counterparty_id, project_id,
+        document_id, title, status, start_date, end_date, value_cents, term_months,
+        notes, commercial_terms, nersa_licence_ref, era_registration_ref, bbbee_level_required)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      id, body.contract_type, user.sub, body.counterparty_id,
+      body.project_id ?? null, body.document_id ?? null,
+      body.title, body.start_date ?? null, body.end_date ?? null,
+      body.value_cents ?? null, body.term_months ?? null,
+      body.notes ?? null, body.commercial_terms ?? null,
+      body.nersa_licence_ref ?? null, body.era_registration_ref ?? null,
+      body.bbbee_level_required ?? null
+    ).run();
 
-    const checks = await c.env.DB.prepare(
-      "SELECT * FROM statutory_checks WHERE entity_type = 'document' AND entity_id = ?"
-    ).bind(id).all();
+    // Add creator and counterparty as default signers
+    const creatorP = await c.env.DB.prepare(
+      'SELECT contact_person, email FROM participants WHERE id = ?'
+    ).bind(user.sub).first<{ contact_person: string; email: string }>();
+    const counterP = await c.env.DB.prepare(
+      'SELECT contact_person, email FROM participants WHERE id = ?'
+    ).bind(body.counterparty_id).first<{ contact_person: string; email: string }>();
 
-    const html = generateContractPDF(
-      doc as unknown as Parameters<typeof generateContractPDF>[0],
-      sigs.results as unknown as Parameters<typeof generateContractPDF>[1],
-      checks.results as unknown as Parameters<typeof generateContractPDF>[2],
-    );
+    if (creatorP) {
+      await c.env.DB.prepare(`
+        INSERT INTO contract_signers (id, contract_id, participant_id, signer_name, signer_email, signer_role, signing_order)
+        VALUES (?, ?, ?, ?, ?, 'signatory', 1)
+      `).bind(generateId(), id, user.sub, creatorP.contact_person || user.email, creatorP.email || user.email).run();
+    }
+    if (counterP) {
+      await c.env.DB.prepare(`
+        INSERT INTO contract_signers (id, contract_id, participant_id, signer_name, signer_email, signer_role, signing_order)
+        VALUES (?, ?, ?, ?, ?, 'signatory', 2)
+      `).bind(generateId(), id, body.counterparty_id, counterP.contact_person, counterP.email).run();
+    }
 
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': `inline; filename="contract-${id}.html"`,
+    // Log activity
+    await c.env.DB.prepare(`
+      INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+      VALUES (?, ?, ?, ?, 'created', ?, 'all_parties')
+    `).bind(generateId(), id, user.sub, user.email, JSON.stringify({ contract_type: body.contract_type, title: body.title })).run();
+
+    return c.json({ success: true, data: { id, status: 'draft' } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /contracts/agreements — List contract agreements
+contracts.get('/agreements', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const { status, contract_type } = c.req.query();
+    const pg = parsePagination(c.req.query());
+
+    let query: string;
+    const params: unknown[] = [];
+
+    if (user.role === 'admin' || user.role === 'regulator') {
+      query = 'SELECT * FROM contracts';
+    } else {
+      query = 'SELECT * FROM contracts WHERE (participant_id = ? OR counterparty_id = ?)';
+      params.push(user.sub, user.sub);
+    }
+
+    if (status) {
+      query += params.length > 0 ? ' AND status = ?' : ' WHERE status = ?';
+      params.push(status);
+    }
+    if (contract_type) {
+      query += params.length > 0 ? ' AND contract_type = ?' : ' WHERE contract_type = ?';
+      params.push(contract_type);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(pg.per_page, pg.offset);
+
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /contracts/agreements/:id — Get contract detail with signers, fields, and activity
+contracts.get('/agreements/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    const contract = await c.env.DB.prepare('SELECT * FROM contracts WHERE id = ?').bind(id).first();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+
+    // Access check
+    if (user.role !== 'admin' && user.role !== 'regulator' &&
+        contract.participant_id !== user.sub && contract.counterparty_id !== user.sub) {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Access denied'), 403);
+    }
+
+    const [signers, fields, activity] = await Promise.all([
+      c.env.DB.prepare('SELECT * FROM contract_signers WHERE contract_id = ? ORDER BY signing_order').bind(id).all(),
+      c.env.DB.prepare('SELECT * FROM contract_field_values WHERE contract_id = ? ORDER BY section, field_key').bind(id).all(),
+      c.env.DB.prepare('SELECT * FROM contract_activity WHERE contract_id = ? ORDER BY created_at DESC LIMIT 50').bind(id).all(),
+    ]);
+
+    // Get template info
+    const template = getTemplate(contract.contract_type as string);
+
+    return c.json({
+      success: true,
+      data: {
+        ...contract,
+        signers: signers.results,
+        field_values: fields.results,
+        activity: activity.results,
+        template: template ? {
+          name: template.name,
+          type_specific_clauses: template.type_specific_clauses,
+          fields: template.fields,
+          mandatory_clauses: template.mandatory_clauses,
+        } : null,
       },
     });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// PATCH /contracts/agreements/:id — Update contract fields
+contracts.patch('/agreements/:id', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as Record<string, unknown>;
+
+    const contract = await c.env.DB.prepare('SELECT * FROM contracts WHERE id = ?').bind(id).first();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+    if (contract.participant_id !== user.sub && user.role !== 'admin') {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Only the creator can update this contract'), 403);
+    }
+    if (contract.status !== 'draft') {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'Only draft contracts can be updated'), 400);
+    }
+
+    const allowed = ['title', 'start_date', 'end_date', 'value_cents', 'term_months', 'notes', 'commercial_terms',
+      'nersa_licence_ref', 'era_registration_ref', 'bbbee_level_required', 'auto_renew'];
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    for (const key of allowed) {
+      if (body[key] !== undefined) {
+        sets.push(`${key} = ?`);
+        vals.push(body[key]);
+      }
+    }
+    if (sets.length === 0) return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'No valid fields to update'), 400);
+
+    sets.push('updated_at = ?');
+    vals.push(nowISO());
+    vals.push(id);
+
+    await c.env.DB.prepare(`UPDATE contracts SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+
+    // Log activity
+    await c.env.DB.prepare(`
+      INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+      VALUES (?, ?, ?, ?, 'updated', ?, 'all_parties')
+    `).bind(generateId(), id, user.sub, user.email, JSON.stringify({ fields: Object.keys(body).filter(k => allowed.includes(k)) })).run();
+
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/agreements/:id/fields — Save form field values
+contracts.post('/agreements/:id/fields', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { fields: Array<{ field_key: string; field_value: string; field_type?: string; section?: string }> };
+
+    const contract = await c.env.DB.prepare('SELECT participant_id, counterparty_id, status FROM contracts WHERE id = ?').bind(id).first<{ participant_id: string; counterparty_id: string; status: string }>();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+    if (contract.participant_id !== user.sub && user.role !== 'admin') {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Access denied'), 403);
+    }
+
+    if (!body.fields || !Array.isArray(body.fields)) {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'fields array is required'), 400);
+    }
+
+    const stmts = body.fields.map(f =>
+      c.env.DB.prepare(`
+        INSERT INTO contract_field_values (id, contract_id, field_key, field_value, field_type, section, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(contract_id, field_key) DO UPDATE SET field_value = ?, field_type = ?, section = ?, updated_at = ?
+      `).bind(
+        generateId(), id, f.field_key, f.field_value || null, f.field_type || 'text', f.section || null, nowISO(),
+        f.field_value || null, f.field_type || 'text', f.section || null, nowISO()
+      )
+    );
+    await c.env.DB.batch(stmts);
+
+    // Log activity
+    await c.env.DB.prepare(`
+      INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+      VALUES (?, ?, ?, ?, 'field_updated', ?, 'all_parties')
+    `).bind(generateId(), id, user.sub, user.email, JSON.stringify({ fields_count: body.fields.length })).run();
+
+    return c.json({ success: true, data: { saved: body.fields.length } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/agreements/:id/signers — Add signers
+contracts.post('/agreements/:id/signers', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as {
+      signers: Array<{ participant_id: string; signer_name: string; signer_email: string; signer_role?: string; signing_order?: number }>;
+    };
+
+    const contract = await c.env.DB.prepare('SELECT participant_id, status FROM contracts WHERE id = ?').bind(id).first<{ participant_id: string; status: string }>();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+    if (contract.participant_id !== user.sub && user.role !== 'admin') {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Only the creator can add signers'), 403);
+    }
+
+    if (!body.signers || !Array.isArray(body.signers)) {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'signers array is required'), 400);
+    }
+
+    const stmts = body.signers.map((s, i) =>
+      c.env.DB.prepare(`
+        INSERT INTO contract_signers (id, contract_id, participant_id, signer_name, signer_email, signer_role, signing_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(generateId(), id, s.participant_id, s.signer_name, s.signer_email, s.signer_role || 'signatory', s.signing_order || (i + 1))
+    );
+    await c.env.DB.batch(stmts);
+
+    return c.json({ success: true, data: { added: body.signers.length } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/agreements/:id/send — Send contract for signing
+contracts.post('/agreements/:id/send', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    const contract = await c.env.DB.prepare('SELECT * FROM contracts WHERE id = ?').bind(id).first();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+    if (contract.participant_id !== user.sub && user.role !== 'admin') {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Only the creator can send for signing'), 403);
+    }
+    if (contract.status !== 'draft') {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'Only draft contracts can be sent for signing'), 400);
+    }
+
+    // Mark all signers as 'sent'
+    await c.env.DB.prepare(
+      "UPDATE contract_signers SET status = 'sent', updated_at = ? WHERE contract_id = ? AND status = 'pending'"
+    ).bind(nowISO(), id).run();
+
+    // Update contract status to 'pending' (pending signatures)
+    await c.env.DB.prepare(
+      "UPDATE contracts SET status = 'pending', updated_at = ? WHERE id = ?"
+    ).bind(nowISO(), id).run();
+
+    // Log activity
+    await c.env.DB.prepare(`
+      INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+      VALUES (?, ?, ?, ?, 'sent_for_signing', ?, 'all_parties')
+    `).bind(generateId(), id, user.sub, user.email, JSON.stringify({ title: contract.title })).run();
+
+    // Notify signers via cascade
+    c.executionCtx.waitUntil(cascade(c.env, {
+      type: 'contract.sent_for_signing',
+      actor_id: user.sub,
+      entity_type: 'contract',
+      entity_id: id,
+      data: { parties: [contract.participant_id, contract.counterparty_id], title: contract.title },
+      ip: c.req.header('CF-Connecting-IP') || 'unknown',
+      request_id: c.get('requestId'),
+    }));
+
+    return c.json({ success: true, data: { status: 'pending' } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/agreements/:id/sign — Sign a contract agreement
+contracts.post('/agreements/:id/sign', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+    const ipAddress = c.req.header('CF-Connecting-IP') || 'unknown';
+    const userAgent = c.req.header('User-Agent') || 'unknown';
+
+    const contract = await c.env.DB.prepare('SELECT * FROM contracts WHERE id = ?').bind(id).first();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+
+    // Verify the caller is a listed signer
+    const signer = await c.env.DB.prepare(
+      "SELECT id, status, signing_order FROM contract_signers WHERE contract_id = ? AND participant_id = ?"
+    ).bind(id, user.sub).first<{ id: string; status: string; signing_order: number }>();
+
+    if (!signer) return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'You are not a signer for this contract'), 403);
+    if (signer.status === 'signed') return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'Already signed'), 400);
+
+    // Check signing order — ensure all lower-order signers have signed
+    const pendingBefore = await c.env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM contract_signers WHERE contract_id = ? AND signing_order < ? AND status != 'signed'"
+    ).bind(id, signer.signing_order).first<{ cnt: number }>();
+    if (pendingBefore && pendingBefore.cnt > 0) {
+      return c.json(errorResponse(ErrorCodes.VALIDATION_ERROR, 'Waiting for prior signers to complete'), 400);
+    }
+
+    // Compute signature hash
+    const signData = `${id}:${user.sub}:${nowISO()}:${ipAddress}`;
+    const signatureHash = await sha256(new TextEncoder().encode(signData).buffer as ArrayBuffer);
+
+    // Update signer record
+    await c.env.DB.prepare(`
+      UPDATE contract_signers SET status = 'signed', signed_at = ?, signature_hash = ?, ip_address = ?, user_agent = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(nowISO(), signatureHash, ipAddress, userAgent, nowISO(), signer.id).run();
+
+    // Log activity
+    await c.env.DB.prepare(`
+      INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+      VALUES (?, ?, ?, ?, 'signed', ?, 'all_parties')
+    `).bind(generateId(), id, user.sub, user.email, JSON.stringify({ ip: ipAddress, signature_hash: signatureHash })).run();
+
+    // Check if all signers have signed → activate contract
+    const allSigners = await c.env.DB.prepare(
+      'SELECT status FROM contract_signers WHERE contract_id = ?'
+    ).bind(id).all();
+    const allSigned = allSigners.results.length > 0 && allSigners.results.every(s => s.status === 'signed');
+
+    if (allSigned) {
+      await c.env.DB.prepare(
+        "UPDATE contracts SET status = 'active', updated_at = ? WHERE id = ?"
+      ).bind(nowISO(), id).run();
+
+      await c.env.DB.prepare(`
+        INSERT INTO contract_activity (id, contract_id, actor_id, actor_name, action, details, visibility)
+        VALUES (?, ?, ?, ?, 'activated', ?, 'all_parties')
+      `).bind(generateId(), id, 'system', 'System', JSON.stringify({ reason: 'All parties have signed' })).run();
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        signed: true,
+        all_signed: allSigned,
+        contract_status: allSigned ? 'active' : 'pending',
+        ect_act_notice: 'Signed in accordance with the Electronic Communications and Transactions Act 25 of 2002, Section 13.',
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /contracts/agreements/:id/activity — Get contract activity feed
+contracts.get('/agreements/:id/activity', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const user = c.get('user');
+
+    const contract = await c.env.DB.prepare('SELECT participant_id, counterparty_id FROM contracts WHERE id = ?').bind(id).first<{ participant_id: string; counterparty_id: string }>();
+    if (!contract) return c.json(errorResponse(ErrorCodes.NOT_FOUND, 'Contract not found'), 404);
+
+    // Access check
+    if (user.role !== 'admin' && user.role !== 'regulator' &&
+        contract.participant_id !== user.sub && contract.counterparty_id !== user.sub) {
+      return c.json(errorResponse(ErrorCodes.FORBIDDEN, 'Access denied'), 403);
+    }
+
+    // Filter by visibility based on user role
+    let visFilter = '';
+    if (contract.participant_id === user.sub) {
+      visFilter = "AND visibility IN ('all_parties', 'creator_only')";
+    } else if (user.role !== 'admin') {
+      visFilter = "AND visibility = 'all_parties'";
+    }
+
+    const activity = await c.env.DB.prepare(`
+      SELECT * FROM contract_activity WHERE contract_id = ? ${visFilter} ORDER BY created_at DESC LIMIT 100
+    `).bind(id).all();
+
+    return c.json({ success: true, data: activity.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /contracts/activity/feed — Cross-platform activity feed for all contracts
+contracts.get('/activity/feed', authMiddleware(), async (c) => {
+  try {
+    const user = c.get('user');
+    const pg = parsePagination(c.req.query());
+
+    let query: string;
+    const params: unknown[] = [];
+
+    if (user.role === 'admin' || user.role === 'regulator') {
+      query = `
+        SELECT ca.*, c.title as contract_title, c.contract_type, c.status as contract_status
+        FROM contract_activity ca
+        JOIN contracts c ON ca.contract_id = c.id
+        WHERE ca.visibility = 'all_parties'
+        ORDER BY ca.created_at DESC LIMIT ? OFFSET ?
+      `;
+      params.push(pg.per_page, pg.offset);
+    } else {
+      query = `
+        SELECT ca.*, c.title as contract_title, c.contract_type, c.status as contract_status
+        FROM contract_activity ca
+        JOIN contracts c ON ca.contract_id = c.id
+        WHERE (c.participant_id = ? OR c.counterparty_id = ?)
+          AND ca.visibility IN ('all_parties', CASE WHEN c.participant_id = ? THEN 'creator_only' ELSE 'none' END)
+        ORDER BY ca.created_at DESC LIMIT ? OFFSET ?
+      `;
+      params.push(user.sub, user.sub, user.sub, pg.per_page, pg.offset);
+    }
+
+    const results = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// ─── Contract-scoped smart rules CRUD ───
+
+// GET /contracts/:contractId/rules — List rules for a specific contract document
+contracts.get('/:contractId/rules', authMiddleware(), async (c) => {
+  try {
+    const { contractId } = c.req.param();
+    const user = c.get('user');
+
+    // Verify access
+    const doc = await c.env.DB.prepare(
+      'SELECT id FROM contract_documents WHERE id = ? AND (creator_id = ? OR counterparty_id = ? OR ? IN (SELECT id FROM participants WHERE role = \'admin\'))'
+    ).bind(contractId, user.sub, user.sub, user.sub).first();
+    if (!doc && user.role !== 'admin') {
+      return c.json({ success: false, error: 'Access denied' }, 403);
+    }
+
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM smart_contract_rules WHERE contract_doc_id = ? ORDER BY created_at DESC'
+    ).bind(contractId).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/:contractId/rules — Create rule for a contract
+contracts.post('/:contractId/rules', authMiddleware(), async (c) => {
+  try {
+    const { contractId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { rule_type: string; trigger_condition: string; action: string };
+
+    if (!body.rule_type || !body.trigger_condition || !body.action) {
+      return c.json({ success: false, error: 'rule_type, trigger_condition, and action are required' }, 400);
+    }
+
+    const id = generateId();
+    await c.env.DB.prepare(
+      'INSERT INTO smart_contract_rules (id, contract_doc_id, rule_type, trigger_condition, action, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, contractId, body.rule_type, body.trigger_condition, body.action, nowISO()).run();
+
+    return c.json({ success: true, data: { id } }, 201);
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// PATCH /contracts/:contractId/rules/:ruleId — Update a rule
+contracts.patch('/:contractId/rules/:ruleId', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    const body = await c.req.json() as Record<string, unknown>;
+
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    for (const key of ['rule_type', 'trigger_condition', 'action', 'active']) {
+      if (body[key] !== undefined) {
+        updates.push(`${key} = ?`);
+        values.push(body[key]);
+      }
+    }
+    if (updates.length === 0) {
+      return c.json({ success: false, error: 'No fields to update' }, 400);
+    }
+
+    values.push(ruleId, contractId);
+    await c.env.DB.prepare(
+      `UPDATE smart_contract_rules SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ? AND contract_doc_id = ?`
+    ).bind(...values).run();
+
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// DELETE /contracts/:contractId/rules/:ruleId — Delete a rule
+contracts.delete('/:contractId/rules/:ruleId', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    await c.env.DB.prepare(
+      'DELETE FROM smart_contract_rules WHERE id = ? AND contract_doc_id = ?'
+    ).bind(ruleId, contractId).run();
+    return c.json({ success: true });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/:contractId/rules/:ruleId/pause — Toggle pause on a rule
+contracts.post('/:contractId/rules/:ruleId/pause', authMiddleware(), async (c) => {
+  try {
+    const { contractId, ruleId } = c.req.param();
+    const rule = await c.env.DB.prepare(
+      'SELECT active FROM smart_contract_rules WHERE id = ? AND contract_doc_id = ?'
+    ).bind(ruleId, contractId).first<{ active: number }>();
+    if (!rule) return c.json({ success: false, error: 'Rule not found' }, 404);
+
+    const newActive = rule.active === 1 ? 0 : 1;
+    await c.env.DB.prepare(
+      "UPDATE smart_contract_rules SET active = ?, updated_at = datetime('now') WHERE id = ?"
+    ).bind(newActive, ruleId).run();
+
+    return c.json({ success: true, data: { active: newActive === 1 } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// ─── Document attachments ───
+
+// GET /contracts/documents/:id/attachments — List document attachments
+contracts.get('/documents/:id/attachments', authMiddleware(), async (c) => {
+  try {
+    const { id } = c.req.param();
+    const results = await c.env.DB.prepare(
+      'SELECT id, document_id, filename, r2_key, uploaded_by, created_at FROM contract_attachments WHERE document_id = ? ORDER BY created_at DESC'
+    ).bind(id).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /contracts/documents/:id/attachments — Upload attachment
+contracts.post('/documents/:id/attachments', authMiddleware(), async (c) => {
+  try {
+    const { id: docId } = c.req.param();
+    const user = c.get('user');
+    const body = await c.req.json() as { filename: string; content_base64?: string };
+
+    if (!body.filename) {
+      return c.json({ success: false, error: 'filename is required' }, 400);
+    }
+
+    const attachId = generateId();
+    const r2Key = `attachments/${docId}/${attachId}_${body.filename}`;
+
+    if (body.content_base64) {
+      const buffer = Uint8Array.from(atob(body.content_base64), (ch) => ch.charCodeAt(0));
+      await c.env.R2.put(r2Key, buffer);
+    }
+
+    await c.env.DB.prepare(
+      'INSERT INTO contract_attachments (id, document_id, filename, r2_key, uploaded_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(attachId, docId, body.filename, r2Key, user.sub, nowISO()).run();
+
+    return c.json({ success: true, data: { id: attachId, r2_key: r2Key } }, 201);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

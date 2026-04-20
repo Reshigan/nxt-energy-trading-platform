@@ -35,7 +35,7 @@ function generateWebhookSecret(): string {
 }
 
 // POST /developer/keys — Create API key
-developer.post('/keys', async (c) => {
+developer.post('/keys', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as {
@@ -86,7 +86,7 @@ developer.post('/keys', async (c) => {
 });
 
 // GET /developer/keys — List API keys (no key values, only prefixes)
-developer.get('/keys', async (c) => {
+developer.get('/keys', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(
@@ -107,7 +107,7 @@ developer.get('/keys', async (c) => {
 });
 
 // DELETE /developer/keys/:id — Revoke API key
-developer.delete('/keys/:id', async (c) => {
+developer.delete('/keys/:id', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -131,7 +131,7 @@ developer.delete('/keys/:id', async (c) => {
 });
 
 // POST /developer/webhooks — Create webhook subscription
-developer.post('/webhooks', async (c) => {
+developer.post('/webhooks', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const body = await c.req.json() as {
@@ -164,7 +164,7 @@ developer.post('/webhooks', async (c) => {
 });
 
 // GET /developer/webhooks — List webhooks
-developer.get('/webhooks', async (c) => {
+developer.get('/webhooks', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(
@@ -185,7 +185,7 @@ developer.get('/webhooks', async (c) => {
 });
 
 // DELETE /developer/webhooks/:id — Delete webhook
-developer.delete('/webhooks/:id', async (c) => {
+developer.delete('/webhooks/:id', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -200,7 +200,7 @@ developer.delete('/webhooks/:id', async (c) => {
 });
 
 // PATCH /developer/webhooks/:id — Toggle webhook
-developer.patch('/webhooks/:id', async (c) => {
+developer.patch('/webhooks/:id', authMiddleware(), async (c) => {
   try {
     const id = c.req.param('id');
     const user = c.get('user');
@@ -216,7 +216,7 @@ developer.patch('/webhooks/:id', async (c) => {
 });
 
 // GET /developer/usage — API usage stats
-developer.get('/usage', async (c) => {
+developer.get('/usage', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const keys = await c.env.DB.prepare(
@@ -244,8 +244,63 @@ developer.get('/usage', async (c) => {
   }
 });
 
+// POST /developer/webhooks/:id/test — Send test webhook event
+developer.post('/webhooks/:id/test', authMiddleware(), async (c) => {
+  try {
+    const id = c.req.param('id');
+    const user = c.get('user');
+
+    const webhook = await c.env.DB.prepare(
+      'SELECT id, url, secret, events FROM webhooks WHERE id = ? AND participant_id = ?'
+    ).bind(id, user.sub).first<{ id: string; url: string; secret: string; events: string }>();
+
+    if (!webhook) {
+      return c.json({ success: false, error: 'Webhook not found' }, 404);
+    }
+
+    const testPayload = {
+      event: 'test.ping',
+      webhook_id: webhook.id,
+      timestamp: nowISO(),
+      data: { message: 'This is a test webhook event from Ionvex.' },
+    };
+
+    // Sign the payload with HMAC-SHA256
+    const encoder = new TextEncoder();
+    const keyData = await crypto.subtle.importKey(
+      'raw', encoder.encode(webhook.secret),
+      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    );
+    const signature = await crypto.subtle.sign('HMAC', keyData, encoder.encode(JSON.stringify(testPayload)));
+    const sigHex = Array.from(new Uint8Array(signature)).map((b) => b.toString(16).padStart(2, '0')).join('');
+
+    // Send the test webhook
+    const response = await fetch(webhook.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Signature': sigHex,
+        'X-Webhook-Id': webhook.id,
+      },
+      body: JSON.stringify(testPayload),
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        delivered: response.ok,
+        status_code: response.status,
+        response_time_ms: 0,
+      },
+    });
+  } catch (err) {
+    captureException(c, err);
+    return c.json({ success: false, error: 'Failed to send test webhook' }, 500);
+  }
+});
+
 // GET /developer/docs — OpenAPI spec summary
-developer.get('/docs', async (c) => {
+developer.get('/docs', authMiddleware(), async (c) => {
   try {
     return c.json({
       success: true,

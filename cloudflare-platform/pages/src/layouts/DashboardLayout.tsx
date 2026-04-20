@@ -13,8 +13,13 @@ import {
   IconSystemHealth, IconTenant, IconAdmin,
   IconVault, IconLender, IconSurveillance, IconTradeJournal,
   IconCarbonDeep, IconIPPDeep, IconOfftakerDeep, IconReportingEngine,
+  IconTOU, IconCurves, IconScheduling, IconCurrency, IconValuation,
+  IconESG, IconDealRoom, IconVPP, IconScenario, IconRegulatory, IconRetention, IconVintage,
 } from '../components/icons';
+import SearchModal from '../components/SearchModal';
 import AIChatWidget from '../components/AIChatWidget';
+import EntityDetailPanel from '../components/EntityDetailPanel';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 import GuidedTour from '../components/GuidedTour';
 import KYCBanner from '../components/KYCBanner';
 import HelpPanel from '../components/HelpPanel';
@@ -36,13 +41,39 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Operations', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+    ]},
+    { label: 'World Leader', items: [
+      { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
+      { name: 'ESG Scoring', href: '/esg', icon: IconESG },
+    ]},
+    { label: 'Platform Evolution', items: [
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
+    ]},
+    { label: 'Staff', items: [
+      { name: 'Staff Management', href: '/staff', icon: IconAdmin },
+      { name: 'Support Dashboard', href: '/support-dashboard', icon: IconHelp },
+      { name: 'Platform Config', href: '/platform-config', icon: IconSettings },
+    ]},
+    { label: 'Finance & Compliance', items: [
+      { name: 'Payments', href: '/payments', icon: IconInvoices },
+      { name: 'AML Monitoring', href: '/aml-dashboard', icon: IconSurveillance },
+      { name: 'Regulatory', href: '/reporting-engine', icon: IconRegulatory },
     ]},
     { label: 'System', items: [
       { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
       { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
+      { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
+      { name: 'Data Retention', href: '/data-retention', icon: IconRetention },
       { name: 'Modules', href: '/modules', icon: IconAdmin },
       { name: 'Changelog', href: '/changelog', icon: IconReports },
     ]},
@@ -51,23 +82,30 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Energy', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Metering', href: '/metering', icon: IconMetering },
       { name: 'Analytics (ODSE)', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
     ]},
     { label: 'Finance', items: [
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'ESG', href: '/esg', icon: IconESG },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
     ]},
   ],
   ipp_developer: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Development', items: [
       { name: 'Metering', href: '/metering', icon: IconMetering },
@@ -88,47 +126,63 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     ]},
     { label: 'Trading', items: [
       { name: 'Trading', href: '/trading', icon: IconTrading },
+      { name: 'Forward Curves', href: '/forward-curves', icon: IconCurves },
       { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
       { name: 'Risk', href: '/risk', icon: IconRisk },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
       { name: 'Energy Analytics', href: '/metering-analytics', icon: IconAnalytics },
     ]},
     { label: 'Carbon & Finance', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
     ]},
   ],
   carbon_fund: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Fund Dashboard', href: '/fund-dashboard', icon: IconPortfolio },
       { name: 'Portfolio', href: '/portfolio', icon: IconPortfolio },
     ]},
     { label: 'Carbon', items: [
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
+      { name: 'Vintage Analysis', href: '/carbon-deep', icon: IconVintage },
       { name: 'Carbon Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Trading', href: '/trading', icon: IconTrading },
       { name: 'Markets', href: '/markets', icon: IconMarkets },
+      { name: 'ESG', href: '/esg', icon: IconESG },
     ]},
     { label: 'Finance', items: [
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Deal Room', href: '/deal-room', icon: IconDealRoom },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
   offtaker: [
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Procurement Hub', href: '/procurement', icon: IconMarketplace },
       { name: 'Demand', href: '/demand', icon: IconDemand },
     ]},
     { label: 'Supply', items: [
       { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
+      { name: 'PPA Valuation', href: '/ppa-valuation', icon: IconValuation },
       { name: 'Consumption Analytics', href: '/metering-analytics', icon: IconAnalytics },
       { name: 'Carbon', href: '/carbon', icon: IconCarbon },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Scenarios', href: '/scenarios', icon: IconScenario },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Finance', items: [
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
       { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
+      { name: 'ESG', href: '/esg', icon: IconESG },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
@@ -136,14 +190,17 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
     { label: 'Overview', items: [
       { name: 'Cockpit', href: '/', icon: IconDashboard },
       { name: 'Lender', href: '/lender', icon: IconLender },
+      { name: 'Deal Pipeline', href: '/pipeline', icon: IconContracts },
     ]},
     { label: 'Portfolio', items: [
       { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
       { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
     ]},
     { label: 'Finance', items: [
       { name: 'Settlement', href: '/settlement', icon: IconSettlement },
       { name: 'Invoices', href: '/invoices', icon: IconInvoices },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
     ]},
   ],
@@ -153,12 +210,34 @@ const ROLE_NAV: Record<string, NavGroup[]> = {
       { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
     ]},
     { label: 'Compliance', items: [
+      { name: 'Enhanced Surveillance', href: '/surveillance-enhanced', icon: IconSurveillance },
       { name: 'Compliance', href: '/compliance', icon: IconCompliance },
       { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
+      { name: 'ESG Scoring', href: '/esg', icon: IconESG },
     ]},
     { label: 'Market', items: [
       { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
       { name: 'Metering', href: '/metering', icon: IconMetering },
+      { name: 'Reports', href: '/reports', icon: IconReports },
+    ]},
+  ],
+  grid: [
+    { label: 'Overview', items: [
+      { name: 'Cockpit', href: '/', icon: IconDashboard },
+      { name: 'Grid Dashboard', href: '/grid-dashboard', icon: IconMetering },
+      { name: 'Metering', href: '/metering', icon: IconMetering },
+    ]},
+    { label: 'Grid Operations', items: [
+      { name: 'Metering Analytics', href: '/metering-analytics', icon: IconAnalytics },
+      { name: 'Scheduling', href: '/scheduling', icon: IconScheduling },
+      { name: 'VPP', href: '/vpp', icon: IconVPP },
+      { name: 'Compliance', href: '/compliance', icon: IconCompliance },
+      { name: 'Contracts', href: '/contracts', icon: IconContracts },
+      { name: 'Network Map', href: '/network', icon: IconP2P },
+    ]},
+    { label: 'Reports', items: [
+      { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
+      { name: 'Calendar', href: '/calendar', icon: IconScheduling },
       { name: 'Reports', href: '/reports', icon: IconReports },
     ]},
   ],
@@ -173,40 +252,7 @@ const ALL_MAIN_TABS = [
   { name: 'Analytics', href: '/analytics', icon: IconAnalytics },
 ];
 
-const ALL_MORE_LINKS = [
-  { name: 'Markets', href: '/markets', icon: IconMarkets },
-  { name: 'AI Portfolio', href: '/portfolio', icon: IconPortfolio },
-  { name: 'Risk Dashboard', href: '/risk', icon: IconRisk },
-  { name: 'Metering & IoT', href: '/metering', icon: IconMetering },
-  { name: 'P2P Trading', href: '/p2p', icon: IconP2P },
-  { name: 'IPP Projects', href: '/ipp', icon: IconIPP },
-  { name: 'Marketplace', href: '/marketplace', icon: IconMarketplace },
-  { name: 'Settlement', href: '/settlement', icon: IconSettlement },
-  { name: 'Compliance', href: '/compliance', icon: IconCompliance },
-  { name: 'Report Builder', href: '/reports', icon: IconReports },
-  { name: 'Developer Portal', href: '/developer', icon: IconDeveloper },
-  { name: 'Demand Profile', href: '/demand', icon: IconDemand },
-  { name: 'Offtaker Cost', href: '/offtaker-cost', icon: IconOfftakerCost },
-  { name: 'Disputes', href: '/disputes', icon: IconDisputes },
-  { name: 'Invoices', href: '/invoices', icon: IconInvoices },
-  { name: 'Smart Rules', href: '/smart-rules', icon: IconSmartRules },
-  { name: 'Audit Trail', href: '/audit-trail', icon: IconAuditTrail },
-  { name: 'System Health', href: '/system-health', icon: IconSystemHealth },
-  { name: 'Tenant Admin', href: '/tenant-admin', icon: IconTenant },
-  { name: 'Notifications', href: '/notifications', icon: IconNotifications },
-  { name: 'Admin', href: '/admin', icon: IconAdmin },
-  { name: 'Settings', href: '/settings', icon: IconSettings },
-  { name: 'Document Vault', href: '/vault', icon: IconVault },
-  { name: 'Lender Dashboard', href: '/lender', icon: IconLender },
-  { name: 'Surveillance', href: '/surveillance', icon: IconSurveillance },
-  { name: 'Trade Journal', href: '/trade-journal', icon: IconTradeJournal },
-  { name: 'Carbon Deep', href: '/carbon-deep', icon: IconCarbonDeep },
-  { name: 'IPP Deep', href: '/ipp-deep', icon: IconIPPDeep },
-  { name: 'Offtaker Deep', href: '/offtaker-deep', icon: IconOfftakerDeep },
-  { name: 'Reporting Engine', href: '/reporting-engine', icon: IconReportingEngine },
-];
-
-const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund'] as const;
+const roles = ['generator', 'trader', 'offtaker', 'ipp_developer', 'regulator', 'admin', 'lender', 'carbon_fund', 'grid'] as const;
 
 // Map nav hrefs to module names for feature-flag filtering
 const HREF_TO_MODULE: Record<string, string> = {
@@ -235,6 +281,7 @@ export default function DashboardLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, activeRole, switchRole, logout, isAuthenticated } = useAuthStore();
@@ -253,7 +300,9 @@ export default function DashboardLayout() {
   const roleConfig = getRoleConfig(activeRole || 'trader');
   const allowed = new Set(roleConfig.allowedPaths);
   const { isEnabled: isModuleEnabled } = useModules();
-  const roleGroups = ROLE_NAV[activeRole || 'trader'] || ROLE_NAV.trader;
+  // Map ipp → generator nav (same project-based workflow)
+  const navRole = activeRole === 'ipp' ? 'generator' : (activeRole || 'trader');
+  const roleGroups = ROLE_NAV[navRole] || ROLE_NAV.trader;
 
   // Filter nav items by module status — hide items whose module is disabled
   const filterByModule = (items: NavItem[]) =>
@@ -263,15 +312,18 @@ export default function DashboardLayout() {
     });
   // Primary tabs: first group items (cockpit + primary module), filtered by module status
   const mainTabs = filterByModule(roleGroups[0]?.items || ALL_MAIN_TABS.filter(t => allowed.has(t.href)));
-  // More links: remaining groups flattened + settings/notifications, filtered by module status
-  const moreLinks = filterByModule([
-    ...roleGroups.slice(1).flatMap(g => g.items),
-    ...ALL_MORE_LINKS.filter(l => allowed.has(l.href) && !roleGroups.flatMap(g => g.items).some(i => i.href === l.href)),
-  ].filter((item, idx, arr) => arr.findIndex(i => i.href === item.href) === idx));
+  // More links: ONLY items from ROLE_NAV groups (no generic ALL_MORE_LINKS leakage)
+  const moreGroups = roleGroups.slice(1).map(g => ({
+    ...g,
+    items: filterByModule(g.items),
+  })).filter(g => g.items.length > 0);
+  const moreLinks = moreGroups.flatMap(g => g.items);
 
   const isTabActive = (href: string) => {
     if (href === '/') return location.pathname === '/';
-    return location.pathname.startsWith(href);
+    // Exact match OR path continues with '/' to avoid prefix collisions
+    // e.g. '/surveillance' must NOT match '/surveillance-enhanced'
+    return location.pathname === href || location.pathname.startsWith(href + '/');
   };
 
   const isMoreActive = moreLinks.some(l => location.pathname === l.href);
@@ -337,7 +389,7 @@ export default function DashboardLayout() {
           {/* Right: Search + Actions */}
           <div className="flex items-center gap-2">
             {/* Search */}
-            <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm cursor-pointer transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:bg-white/[0.06]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
+            <div onClick={() => setSearchOpen(true)} className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full text-sm cursor-pointer transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:bg-white/[0.06]' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
               <IconSearch size={14} />
               <span className="text-xs">Search...</span>
               <kbd className={`text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-white/[0.06] text-slate-500' : 'bg-white text-slate-400'}`}>⌘K</kbd>
@@ -427,6 +479,7 @@ export default function DashboardLayout() {
       </AnimatePresence>
 
       {/* ── Main Content ─────────────────────────────── */}
+      <AnnouncementBanner />
       <main className="max-w-[1440px] mx-auto px-4 sm:px-8 py-6" data-tour="dashboard">
         <KYCBanner />
         <Outlet />
@@ -447,20 +500,26 @@ export default function DashboardLayout() {
               left: moreBtnRef.current ? moreBtnRef.current.getBoundingClientRect().left : 0,
             }}
             onClick={e => e.stopPropagation()}>
-            {moreLinks.map(link => {
-              const LinkIcon = link.icon;
-              return (
-                <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors ${
-                    location.pathname === link.href
-                      ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
-                      : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
-                  }`}>
-                  <LinkIcon size={16} />
-                  {link.name}
-                </Link>
-              );
-            })}
+            {moreGroups.map((group, gi) => (
+              <div key={group.label}>
+                {gi > 0 && <div className={`mx-3 my-1.5 border-t ${isDark ? 'border-white/[0.06]' : 'border-black/[0.06]'}`} />}
+                <div className={`px-4 pt-2.5 pb-1 text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{group.label}</div>
+                {group.items.map(link => {
+                  const LinkIcon = link.icon;
+                  return (
+                    <Link key={link.href} to={link.href} onClick={() => setMoreOpen(false)}
+                      className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                        location.pathname === link.href
+                          ? isDark ? 'text-blue-400 bg-blue-500/10' : 'text-blue-600 bg-blue-50'
+                          : isDark ? 'text-slate-300 hover:bg-white/[0.04]' : 'text-slate-600 hover:bg-slate-50'
+                      }`}>
+                      <LinkIcon size={16} />
+                      {link.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>,
         document.body
@@ -494,6 +553,12 @@ export default function DashboardLayout() {
         </div>,
         document.body
       )}
+
+      {/* ── Entity Detail Panel (Spec 11) ────────────── */}
+      <EntityDetailPanel />
+
+      {/* ── Platform-Wide Search (Spec 12) ────────────── */}
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

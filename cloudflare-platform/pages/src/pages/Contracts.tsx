@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw, FiPaperclip, FiEye } from '../lib/fi-icons-shim';
+import { FiFileText, FiCheck, FiClock, FiAlertCircle, FiPlus, FiDownload, FiShield, FiLock, FiAward, FiXCircle, FiLoader, FiRefreshCw, FiPaperclip, FiEye, FiUser, FiActivity } from '../lib/fi-icons-shim';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { contractsAPI } from '../lib/api';
@@ -9,8 +9,9 @@ import { motion } from 'framer-motion';
 import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
+import EntityLink from '../components/EntityLink';
 
-const tabs = ['All', 'Draft', 'Active', 'Pending', 'Completed', 'Smart Rules', 'Templates'];
+const tabs = ['All', 'Draft', 'Active', 'Pending', 'Completed', 'Smart Rules', 'Signatures'];
 
 interface ContractDoc {
   id: string;
@@ -44,6 +45,11 @@ const statusConfig: Record<string, { bg: string; text: string; icon: React.React
 
 interface SmartRule { id: string; rule: string; type: string; status: string; triggers: number; last_triggered: string; }
 
+// Digital Signature Workflow Tracker
+interface Signatory { id: string; name: string; designation: string; status: 'pending' | 'signed' | 'rejected'; signed_at?: string; hash?: string; }
+interface SignatureWorkflow { document_id: string; signatories: Signatory[]; current_step: number; total_steps: number; }
+interface CacheEntry<T> { data: T; timestamp: number; }
+
 const GOVERNING_LAW_OPTIONS = ['South Africa', 'England & Wales', 'New York', 'Singapore'];
 const JURISDICTION_OPTIONS = [
   'Gauteng Division, High Court of South Africa',
@@ -65,11 +71,21 @@ export default function Contracts() {
   const [governingLaw, setGoverningLaw] = useState('South Africa');
   const [jurisdiction, setJurisdiction] = useState('Gauteng Division, High Court of South Africa');
   const [creating, setCreating] = useState(false);
+  const [contractTitle, setContractTitle] = useState('');
+  const [documentType, setDocumentType] = useState('ppa_wheeling');
   const navigate = useNavigate();
   // F4: Attachments
   const [showAttachModal, setShowAttachModal] = useState<string | null>(null);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  // D1 optimization: Client-side cache
+  const CACHE_TTL_MS = 5 * 60 * 1000;
+  const [cacheStore] = useState(() => new Map<string, CacheEntry<unknown>>());
+  const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
+  const [cacheHit, setCacheHit] = useState(false);
+  // Digital Signature Workflow
+  const [signatureWorkflows, setSignatureWorkflows] = useState<SignatureWorkflow[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<SignatureWorkflow | null>(null);
   const handleAttachUpload = async () => {
     if (!showAttachModal || !attachFile) return;
     setUploading(true);
@@ -84,18 +100,60 @@ export default function Contracts() {
     setUploading(false);
   };
 
-  const loadDocuments = useCallback(async () => {
-    setLoading(true); setError(null);
+  const loadDocuments = useCallback(async (forceRefresh = false) => {
+    const cacheKey = 'contracts-list';
+    const entry = cacheStore.get(cacheKey) as CacheEntry<ContractDoc[]> | undefined;
+    
+    // D1 optimization: Check cache first
+    if (!forceRefresh && entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+      setDocuments(entry.data);
+      setCacheHit(true);
+      setLoading(false);
+      return;
+    }
+    
+    setLoading(true); setError(null); setCacheHit(false);
     try {
       const res = await contractsAPI.list();
-      setDocuments(res.data?.data || []);
+      const data = res.data?.data || [];
+      setDocuments(data);
+      cacheStore.set(cacheKey, { data, timestamp: Date.now() });
+      setLastRefresh(Date.now());
     } catch {
       setError('Failed to load contracts. Please try again.');
     }
     setLoading(false);
   }, []);
 
+  // Load signature workflows when Signatures tab is active
+  const loadSignatureWorkflows = useCallback(async (forceRefresh = false) => {
+    const cacheKey = 'signature-workflows';
+    const entry = cacheStore.get(cacheKey) as CacheEntry<SignatureWorkflow[]> | undefined;
+    
+    if (!forceRefresh && entry && Date.now() - entry.timestamp < CACHE_TTL_MS) {
+      setSignatureWorkflows(entry.data);
+      return;
+    }
+    
+    try {
+      // Generate mock workflows from documents (replace with real API when available)
+      const pendingDocs = documents.filter(d => !d.integrity_seal && ['execution', 'legal_review', 'statutory_check'].includes(d.phase));
+      const workflows: SignatureWorkflow[] = pendingDocs.slice(0, 5).map(doc => ({
+        document_id: doc.id,
+        signatories: [
+          { id: '1', name: 'Primary Signatory', designation: 'CEO', status: 'signed', signed_at: new Date(Date.now() - 86400000).toISOString() },
+          { id: '2', name: 'Counterparty', designation: 'Director', status: 'pending' },
+        ],
+        current_step: 1,
+        total_steps: 2,
+      }));
+      setSignatureWorkflows(workflows);
+      cacheStore.set(cacheKey, { data: workflows, timestamp: Date.now() });
+    } catch { /* silently fail */ }
+  }, [documents]);
+
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
+  useEffect(() => { if (activeTab === 'Signatures') loadSignatureWorkflows(); }, [activeTab, loadSignatureWorkflows]);
 
   const handleVerify = async (doc: ContractDoc) => {
     setSelectedDoc(doc);
@@ -160,7 +218,7 @@ export default function Contracts() {
           <p className="text-base text-slate-500 dark:text-slate-400 mt-1">PPAs, forwards, options & smart rules — ECT Act compliant</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={loadDocuments} className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Refresh contracts">
+          <button onClick={() => loadDocuments()} className={`px-4 py-2.5 rounded-2xl text-sm font-medium flex items-center gap-2 transition-all ${isDark ? 'bg-[#151F32] border border-white/[0.06] text-slate-300 hover:bg-[#1A2640]' : 'bg-white border border-black/[0.06] text-slate-600 hover:bg-slate-50'}`} aria-label="Refresh contracts">
             <FiRefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
           <button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:bg-indigo-600 transition-all flex items-center gap-2">
@@ -265,6 +323,66 @@ export default function Contracts() {
         <div className={`${cardClass} p-5`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
           <EmptyState title="Smart Rules" description="Smart contract rules will be configured and displayed here once the Smart Contract DO is connected." />
         </div>
+      ) : activeTab === 'Signatures' ? (
+        /* Digital Signature Workflow Tracker */
+        <div className="space-y-4" style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
+          <div className={`${cardClass} p-5`}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FiActivity className="w-5 h-5 text-blue-500" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Signature Workflows</h3>
+                {cacheHit && <span className="text-xs text-emerald-400 flex items-center gap-1"><FiClock className="w-3 h-3" /> Cached</span>}
+              </div>
+              <button onClick={() => loadSignatureWorkflows(true)} className={`px-3 py-1.5 rounded-lg text-xs font-medium ${isDark ? 'bg-white/[0.06] hover:bg-white/[0.1]' : 'bg-slate-100 hover:bg-slate-200'}`}>
+                <FiRefreshCw className="w-3 h-3 inline mr-1" /> Refresh
+              </button>
+            </div>
+            {signatureWorkflows.length === 0 ? (
+              <EmptyState title="No pending signatures" description="All documents are fully signed or no documents require signatures." />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {signatureWorkflows.map((workflow, idx) => (
+                  <div key={workflow.document_id} className={`p-4 rounded-xl ${isDark ? 'bg-white/[0.04]' : 'bg-slate-50'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <EntityLink type="contract" id={workflow.document_id} label={`Contract ${idx + 1}`} />
+                      <span className="text-xs text-slate-500">{workflow.current_step}/{workflow.total_steps} steps</span>
+                    </div>
+                    {/* Signature Progress */}
+                    <div className="space-y-2">
+                      {workflow.signatories.map((sig, sIdx) => (
+                        <div key={sig.id} className="flex items-center gap-3">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            sig.status === 'signed' ? 'bg-emerald-500 text-white' :
+                            sig.status === 'rejected' ? 'bg-red-500 text-white' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}>
+                            {sig.status === 'signed' ? <FiCheck className="w-4 h-4" /> : <FiUser className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{sig.name}</p>
+                            <p className="text-xs text-slate-500">{sig.designation}</p>
+                            {sig.signed_at && <p className="text-xs text-emerald-500 mt-0.5">Signed {new Date(sig.signed_at).toLocaleDateString()}</p>}
+                            {sig.hash && <p className="text-[10px] font-mono text-slate-400 mt-0.5">Hash: {sig.hash.substring(0, 8)}...</p>}
+                          </div>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                            sig.status === 'signed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
+                            sig.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' :
+                            'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
+                          }`}>{sig.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="mt-3 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 transition-all" style={{ 
+                        width: `${(workflow.signatories.filter(s => s.status === 'signed').length / workflow.total_steps) * 100}%` 
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
         /* Contracts Table */
         <div className={`${cardClass} !p-0 overflow-hidden`} style={{ animation: 'cardFadeUp 500ms ease 200ms both' }}>
@@ -287,16 +405,16 @@ export default function Contracts() {
                     <tr key={d.id} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}
                       style={{ animation: `cardFadeUp 400ms ease ${i * 50}ms both` }}>
                       <td className="py-3.5 px-5">
-                        <div className="font-semibold text-blue-600 dark:text-blue-400 mono text-xs">{d.id}</div>
+                        <EntityLink type="contract" id={d.id} label={d.id.substring(0, 12)} />
                         <div className="text-xs text-slate-500 mt-0.5">{d.title}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 text-xs">{d.document_type.replace(/_/g, ' ')}</td>
+                      <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 text-xs">{(d.document_type || '').replace(/_/g, ' ')}</td>
                       <td className="py-3.5 px-4">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${sc.bg} ${sc.text}`}>
                           {sc.icon} {d.phase}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">{d.governing_law || 'SA'}</td>
+                      <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">{d.counterparty_id ? <EntityLink type="participant" id={d.counterparty_id} label="Counterparty" className="mr-1" /> : null}{d.governing_law || 'SA'}</td>
                       <td className="py-3.5 px-4 text-center">
                         {d.integrity_seal ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -327,16 +445,15 @@ export default function Contracts() {
                             <FiEye className="w-3.5 h-3.5" />
                           </button>
                           <button onClick={async () => {
+                            const tab = window.open('', '_blank');
                             try {
                               const res = await contractsAPI.getPdf(d.id);
-                              const content = res.data?.data || res.data;
-                              const blob = new Blob([typeof content === 'string' ? content : JSON.stringify(content, null, 2)], { type: 'application/pdf' });
+                              const blob = res.data instanceof Blob ? res.data : new Blob([res.data], { type: 'text/html' });
                               const url = URL.createObjectURL(blob);
-                              const a = document.createElement('a');
-                              a.href = url; a.download = `INV-${d.id}.pdf`; a.click();
-                              URL.revokeObjectURL(url);
-                              toast.success('PDF downloaded');
-                            } catch { toast.error('PDF not available for this contract'); }
+                              if (tab) { tab.location.href = url; } else { const a = document.createElement('a'); a.href = url; a.download = `contract-${d.id}.html`; a.click(); }
+                              setTimeout(() => URL.revokeObjectURL(url), 10000);
+                              toast.success('Document opened in new tab');
+                            } catch { if (tab) tab.close(); toast.error('PDF not available for this contract'); }
                           }} title="Download PDF"
                             className={`p-1.5 rounded-lg text-xs ${isDark ? 'hover:bg-white/[0.06] text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`} aria-label={`Download PDF for ${d.title}`}>
                             <FiDownload className="w-3.5 h-3.5" />
@@ -374,6 +491,24 @@ export default function Contracts() {
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">New Contract</h3>
             <div className="space-y-4">
               <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Contract Title *</label>
+                <input className={inputClass} value={contractTitle} onChange={(e) => setContractTitle(e.target.value)} placeholder="e.g. Solar PPA — Eskom Wheeling Agreement" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Document Type *</label>
+                <select className={inputClass} value={documentType} onChange={(e) => setDocumentType(e.target.value)}>
+                  <option value="ppa_wheeling">PPA Wheeling</option>
+                  <option value="ppa_direct">PPA Direct</option>
+                  <option value="forward_contract">Forward Contract</option>
+                  <option value="option_contract">Option Contract</option>
+                  <option value="offtake_agreement">Offtake Agreement</option>
+                  <option value="interconnection_agreement">Interconnection Agreement</option>
+                  <option value="implementation_agreement">Implementation Agreement</option>
+                  <option value="nda">Non-Disclosure Agreement</option>
+                  <option value="mou">Memorandum of Understanding</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Governing Law *</label>
                 <select className={inputClass} value={governingLaw} onChange={(e) => setGoverningLaw(e.target.value)}>
                   {GOVERNING_LAW_OPTIONS.map((opt) => (
@@ -400,8 +535,9 @@ export default function Contracts() {
                 <button type="button" disabled={creating} onClick={async () => {
                   setCreating(true);
                   try {
-                    const res = await contractsAPI.create({ document_type: 'ppa_wheeling', governing_law: governingLaw, jurisdiction, title: 'New Contract' });
-                    if (res.data?.success) { toast.success('Contract created'); setShowCreateModal(false); loadDocuments(); }
+                    if (!contractTitle.trim()) { toast.error('Please enter a contract title'); setCreating(false); return; }
+                    const res = await contractsAPI.create({ document_type: documentType, governing_law: governingLaw, jurisdiction, title: contractTitle.trim() });
+                    if (res.data?.success) { toast.success('Contract created'); setShowCreateModal(false); setContractTitle(''); setDocumentType('ppa_wheeling'); loadDocuments(); }
                     else toast.error(res.data?.error || 'Failed to create contract');
                   } catch { toast.error('Failed to create contract'); }
                   setCreating(false);

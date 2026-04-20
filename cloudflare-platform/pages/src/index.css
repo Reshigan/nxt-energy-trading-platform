@@ -126,6 +126,35 @@ body {
 
 .mono { font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace; font-variant-numeric: tabular-nums; }
 
+/* Spec 13 Shift 12: Mobile-First Core Actions (<768px) */
+@media (max-width: 767px) {
+  .cp-card { border-radius: 14px; padding: 16px; }
+  .cp-card:hover { transform: none; }
+  /* Stack KPI grids vertically on mobile */
+  .grid-cols-2 { grid-template-columns: 1fr !important; }
+  .grid-cols-3 { grid-template-columns: 1fr !important; }
+  .grid-cols-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-cols-5 { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Table horizontal scroll indicator */
+  .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+  .overflow-x-auto::after {
+    content: '';
+    position: sticky;
+    right: 0;
+    width: 24px;
+    background: linear-gradient(to right, transparent, var(--bg));
+    pointer-events: none;
+  }
+  /* Ensure tab bars wrap and don't overflow */
+  [role="tablist"] { flex-wrap: wrap; gap: 4px; }
+  [role="tab"] { font-size: 11px; padding: 6px 10px; }
+  /* Touch-friendly primary action buttons (exclude small utility buttons) */
+  button:not([class*="text-xs"]):not([class*="text-sm"]):not([class*="py-0"]):not([role="tab"]) { min-height: 40px; }
+  /* Kanban pipeline: horizontal scroll instead of grid */
+  .pipeline-kanban { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; padding-bottom: 8px; }
+  .pipeline-kanban > div { min-width: 280px; scroll-snap-align: start; flex-shrink: 0; }
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }

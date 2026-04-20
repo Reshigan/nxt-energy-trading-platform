@@ -136,7 +136,7 @@ function generateScenarios(
 }
 
 // POST /ai/optimise — Run LP optimisation
-ai.post('/optimise', async (c) => {
+ai.post('/optimise', authMiddleware(), async (c) => {
   try {
     const start = Date.now();
     const user = c.get('user');
@@ -189,7 +189,7 @@ ai.post('/optimise', async (c) => {
 });
 
 // GET /ai/history — Past optimisations
-ai.get('/history', async (c) => {
+ai.get('/history', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const results = await c.env.DB.prepare(
@@ -203,7 +203,7 @@ ai.get('/history', async (c) => {
 });
 
 // POST /ai/chat — Workers AI natural language interface
-ai.post('/chat', async (c) => {
+ai.post('/chat', authMiddleware(), async (c) => {
   try {
     const user = c.get('user');
     const { message } = await c.req.json() as { message: string };
@@ -236,7 +236,8 @@ ai.post('/chat', async (c) => {
         max_tokens: 512,
       });
       aiResponse = (response as { response: string }).response;
-    } catch {
+    } catch (err) {
+      console.error(err);
       // AI unavailable — use fallback response
     }
 
@@ -269,7 +270,7 @@ ai.post('/chat', async (c) => {
 });
 
 // GET /ai/weather/:projectId — Weather-linked generation forecast
-ai.get('/weather/:projectId', async (c) => {
+ai.get('/weather/:projectId', authMiddleware(), async (c) => {
   try {
     const projectId = c.req.param('projectId');
     const project = await c.env.DB.prepare('SELECT * FROM projects WHERE id = ?').bind(projectId).first();
@@ -343,7 +344,7 @@ ai.get('/weather/:projectId', async (c) => {
 });
 
 // GET /ai/risk/:participantId — Risk metrics from RiskEngineDO
-ai.get('/risk/:participantId', async (c) => {
+ai.get('/risk/:participantId', authMiddleware(), async (c) => {
   try {
     const participantId = c.req.param('participantId');
 

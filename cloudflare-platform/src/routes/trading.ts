@@ -7,6 +7,7 @@ import { parsePagination, paginatedResponse, errorResponse, ErrorCodes } from '.
 import { deliverWebhook } from '../utils/webhooks';
 import { captureException } from '../utils/sentry';
 import { cascade } from '../utils/cascade';
+import { getConfigNumber } from '../utils/config';
 
 const trading = new Hono<HonoEnv>();
 
@@ -47,7 +48,7 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
     ).bind(user.sub, user.sub).first<{ exposure_cents: number }>();
     const currentExposureCents = exposureResult?.exposure_cents || 0;
     const orderValueCents = Math.round((data.volume || 0) * (data.price || 0) * 100); // Convert Rand to cents
-    const marginLimitCents = 10000000; // Default R100k limit
+    const marginLimitCents = await getConfigNumber(c.env.DB, c.env.KV, 'margin_limit_cents', 10000000);
     if (currentExposureCents + orderValueCents > marginLimitCents) {
       return c.json({ success: false, error: `Insufficient margin. Current exposure: R${(currentExposureCents / 100).toFixed(2)}, Order: R${(orderValueCents / 100).toFixed(2)}, Limit: R${(marginLimitCents / 100).toFixed(2)}` }, 400);
     }
@@ -67,8 +68,9 @@ trading.post('/orders', authMiddleware({ roles: ['admin', 'trader', 'carbon_fund
         if (lastPrice > 0) {
           const priceCentsCheck = Math.round(data.price * 100);
           const deviation = Math.abs(priceCentsCheck - lastPrice) / lastPrice;
-          if (deviation > 0.20) {
-            return c.json({ success: false, error: `Price deviates ${(deviation * 100).toFixed(1)}% from last trade (${lastPrice / 100}). Maximum allowed deviation is 20%.` }, 400);
+          const maxDeviation = await getConfigNumber(c.env.DB, c.env.KV, 'price_band_deviation', 0.20);
+          if (deviation > maxDeviation) {
+            return c.json({ success: false, error: `Price deviates ${(deviation * 100).toFixed(1)}% from last trade (${lastPrice / 100}). Maximum allowed deviation is ${(maxDeviation * 100).toFixed(0)}%.` }, 400);
           }
         }
       }
@@ -463,6 +465,36 @@ trading.post('/admin/markets/:market/halt', authMiddleware({ roles: ['admin'] })
     ).run();
 
     return c.json({ success: true, data: { market, halted: body.halt } });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// GET /trading/market-sessions — List market sessions and their schedules
+trading.get('/market-sessions', authMiddleware(), async (c) => {
+  try {
+    const results = await c.env.DB.prepare(
+      'SELECT * FROM market_sessions ORDER BY market ASC'
+    ).all();
+    return c.json({ success: true, data: results.results });
+  } catch (err) {
+    captureException(c, err);
+    return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);
+  }
+});
+
+// POST /trading/market-sessions — Create or update a market session
+trading.post('/market-sessions', authMiddleware({ roles: ['admin'] }), async (c) => {
+  try {
+    const body = await c.req.json<{ market: string; session_type?: string; open_time: string; close_time: string; days: string }>();
+    const id = generateId();
+    await c.env.DB.prepare(
+      `INSERT INTO market_sessions (id, market, session_type, open_time, close_time, days)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET open_time = excluded.open_time, close_time = excluded.close_time, days = excluded.days`
+    ).bind(id, body.market, body.session_type || 'continuous', body.open_time, body.close_time, body.days).run();
+    return c.json({ success: true, data: { id, market: body.market } }, 201);
   } catch (err) {
     captureException(c, err);
     return c.json(errorResponse(ErrorCodes.INTERNAL_ERROR, 'Internal server error'), 500);

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { FiTrendingUp, FiRefreshCw, FiLoader, FiDownload } from '../lib/fi-icons-shim';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FiTrendingUp, FiRefreshCw, FiLoader, FiDownload, FiAlertCircle, FiBell } from '../lib/fi-icons-shim';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, BarChart, Bar } from 'recharts';
 import { useTheme } from '../contexts/ThemeContext';
 import { tradingAPI } from '../lib/api';
@@ -10,10 +10,13 @@ import { Skeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorBanner } from '../components/ui/ErrorBanner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import EntityLink from '../components/EntityLink';
 
 interface Position { market: string; direction: string; net_volume: number; avg_entry_price: number; current_price: number; unrealised_pnl: number; avg_entry_price_cents?: number; current_price_cents?: number; unrealised_pnl_cents?: number; }
-interface OrderBookEntry { price: number; size: number; total: number; }
+interface OrderBookEntry { price: number; size: number; total: number; volume?: number; orderCount?: number; }
 interface PricePoint { time: string; price: number; volume: number; }
+interface TradeTick { market: string; direction: string; volume: number; price: number; timestamp: string; }
+interface PriceAlert { id: string; market: string; threshold: number; direction: 'above' | 'below'; active: boolean; }
 
 const MARKETS = ['solar', 'wind', 'gas', 'carbon', 'battery', 'hydro'] as const;
 const TIMEFRAMES = ['1H', '4H', '1D', '1W', '1M'] as const;
@@ -35,6 +38,14 @@ export default function Trading() {
   const [submitting, setSubmitting] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  // Trade ticker for live scrolling feed
+  const [tradeTicker, setTradeTicker] = useState<TradeTick[]>([]);
+  // Price alerts
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState('');
+  const [alertDirection, setAlertDirection] = useState<'above' | 'below'>('above');
+  const tickerRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true); setError(null);
@@ -45,7 +56,19 @@ export default function Trading() {
         tradingAPI.getPrices(selectedMarket, selectedTimeframe.toLowerCase()),
       ]);
       if (posRes.status === 'fulfilled' && posRes.value.data?.data) setPositions(Array.isArray(posRes.value.data.data) ? posRes.value.data.data : []);
-      if (obRes.status === 'fulfilled' && obRes.value.data?.data) setObData(obRes.value.data.data);
+      if (obRes.status === 'fulfilled' && obRes.value.data?.data) {
+        const raw = obRes.value.data.data;
+        // Normalize orderbook fields: API may return {price, volume, orderCount} instead of {price, size, total}
+        const normalizeSide = (entries: OrderBookEntry[]) => {
+          let cumulative = 0;
+          return (entries || []).map(e => {
+            const size = e.size ?? e.volume ?? 0;
+            cumulative += size;
+            return { price: e.price ?? 0, size, total: e.total ?? cumulative };
+          });
+        };
+        setObData({ bids: normalizeSide(raw.bids), asks: normalizeSide(raw.asks) });
+      }
       if (priceRes.status === 'fulfilled') {
         const pd = priceRes.value.data?.data;
         if (Array.isArray(pd)) setPriceData(pd);
@@ -58,6 +81,18 @@ export default function Trading() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Handle price alert creation
+  const handleSetAlert = () => {
+    const threshold = Number(alertThreshold);
+    if (!threshold || threshold <= 0) { toast.error('Please enter a valid threshold'); return; }
+    const newAlert: PriceAlert = { id: crypto.randomUUID(), market: selectedMarket, threshold, direction: alertDirection, active: true };
+    setPriceAlerts(prev => [...prev, newAlert]);
+    setShowAlertModal(false);
+    setAlertThreshold('');
+    toast.success(`Alert set: ${selectedMarket} ${alertDirection} R${threshold.toFixed(2)}`);
+  };
+
+  // Handle order placement
   const handlePlaceOrder = async () => {
     if (!orderVolume || Number(orderVolume) <= 0) { toast.error('Please enter a valid volume'); return; }
     if (orderType === 'limit' && (!orderPrice || Number(orderPrice) <= 0)) { toast.error('Please enter a valid price'); return; }
@@ -91,7 +126,7 @@ export default function Trading() {
     if (positions.length === 0) { toast.error('No positions to export'); return; }
     const headers = ['Market', 'Direction', 'Volume (MWh)', 'Avg Entry (ZAR)', 'Current (ZAR)', 'Unrealised P&L (ZAR)'];
     const rows = positions.map(p => [
-      p.market.replace(/_/g, ' '),
+      (p.market || '').replace(/_/g, ' '),
       p.direction,
       p.net_volume,
       ((p.avg_entry_price_cents || p.avg_entry_price || 0) / 100).toFixed(2),
@@ -126,6 +161,23 @@ export default function Trading() {
         ))}
       </div>
 
+      {/* F1: Trade Ticker — live scrolling feed */}
+      {tradeTicker.length > 0 && (
+        <div className="overflow-hidden cp-card !p-3" style={{ animation: 'cardFadeUp 400ms ease both' }}>
+          <div className="flex gap-4 text-xs overflow-x-auto scrollbar-hide" ref={tickerRef}>
+            {tradeTicker.slice(-20).map((tick, i) => (
+              <span key={i} className="flex-shrink-0 flex items-center gap-1.5">
+                <span className="capitalize text-slate-500 dark:text-slate-400">{tick.market}</span>
+                <span className={tick.direction === 'buy' ? 'text-emerald-400' : 'text-red-400'}>{tick.direction.toUpperCase()}</span>
+                <span className="mono text-slate-200 dark:text-slate-300">{tick.volume.toLocaleString()} MWh</span>
+                <span className="mono text-slate-300 dark:text-slate-400">@ {formatZAR(tick.price)}</span>
+                <span className="text-slate-600 dark:text-slate-500 text-[10px]">{new Date(tick.timestamp).toLocaleTimeString()}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && <ErrorBanner message={error} onRetry={loadData} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -138,10 +190,20 @@ export default function Trading() {
                 {loading ? <Skeleton className="w-32 h-8" /> : midPrice > 0 ? (<><span className="text-2xl font-bold text-slate-900 dark:text-white mono">{formatZAR(midPrice)}</span><span className="text-sm font-semibold text-emerald-500 flex items-center gap-0.5"><FiTrendingUp className="w-3.5 h-3.5" aria-hidden="true" /> Live</span></>) : <span className="text-sm text-slate-400">No price data available</span>}
               </div>
             </div>
-            <div className="flex gap-1" role="tablist" aria-label="Timeframe selector">
-              {TIMEFRAMES.map(tf => (
-                <button key={tf} role="tab" aria-selected={selectedTimeframe === tf} onClick={() => setSelectedTimeframe(tf)} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selectedTimeframe === tf ? isDark ? 'bg-white/[0.1] text-white' : 'bg-slate-900 text-white' : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>{tf}</button>
-              ))}
+            <div className="flex items-center gap-2">
+              {/* F2: Price alert trigger */}
+              <button onClick={() => setShowAlertModal(true)} className={`p-2 rounded-xl transition-all ${isDark ? 'bg-white/[0.04] text-slate-400 hover:text-blue-400' : 'bg-slate-100 text-slate-500 hover:text-blue-600'}`} aria-label="Set price alert">
+                <FiBell className="w-4 h-4" />
+              </button>
+              {/* Active alerts count badge */}
+              {priceAlerts.filter(a => a.active).length > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500 text-white">{priceAlerts.filter(a => a.active).length}</span>
+              )}
+              <div className="flex gap-1" role="tablist" aria-label="Timeframe selector">
+                {TIMEFRAMES.map(tf => (
+                  <button key={tf} role="tab" aria-selected={selectedTimeframe === tf} onClick={() => setSelectedTimeframe(tf)} className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selectedTimeframe === tf ? isDark ? 'bg-white/[0.1] text-white' : 'bg-slate-900 text-white' : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>{tf}</button>
+                ))}
+              </div>
             </div>
           </div>
           {loading ? <Skeleton className="w-full h-[320px]" /> : priceData.length > 0 ? (<>
@@ -262,7 +324,7 @@ export default function Trading() {
             <tbody>
               {positions.map((p, i) => { const pnlPositive = (p.unrealised_pnl_cents ?? p.unrealised_pnl ?? 0) >= 0; return (
                 <tr key={i} className={`border-t ${isDark ? 'border-white/[0.04]' : 'border-black/[0.04]'} hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-colors`}>
-                  <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize">{(p.market || '').replace(/_/g, ' ')}</td>
+                  <td className="py-3 font-medium text-slate-800 dark:text-slate-200 capitalize"><EntityLink type="trade" id={`${p.market}-${i}`} label={(p.market || '').replace(/_/g, ' ')} /></td>
                   <td className="py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${p.direction === 'buy' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400'}`}>{p.direction === 'buy' ? 'Long' : 'Short'}</span></td>
                   <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{p.net_volume?.toLocaleString()} MWh</td>
                   <td className="py-3 text-right text-slate-600 dark:text-slate-400 mono">{formatZAR(p.avg_entry_price_cents || p.avg_entry_price || 0)}</td>
@@ -284,6 +346,33 @@ export default function Trading() {
         variant="danger"
         loading={cancelling}
       />
+      {/* F2: Price alert modal */}
+      {showAlertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Set price alert">
+          <div className={`cp-card !p-6 w-full max-w-sm ${isDark ? '!bg-[#151F32]' : 'bg-white'}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-800 dark:text-white">Set Price Alert</h3>
+              <button onClick={() => setShowAlertModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl leading-none" aria-label="Close">&times;</button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="alert-market" className="text-xs text-slate-400 mb-1 block">Market</label>
+                <input id="alert-market" type="text" value={selectedMarket} readOnly className={`w-full px-3 py-2 rounded-xl text-sm mono ${isDark ? 'bg-white/[0.04] border border-white/[0.06] text-slate-400' : 'bg-slate-50 border border-black/[0.06] text-slate-400'}`} />
+              </div>
+              <div className="flex gap-2">
+                {(['above', 'below'] as const).map(dir => (
+                  <button key={dir} type="button" onClick={() => setAlertDirection(dir)} className={`flex-1 py-2 rounded-xl text-xs font-bold capitalize transition-all ${alertDirection === dir ? dir === 'above' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white' : isDark ? 'bg-white/[0.04] text-slate-400' : 'bg-slate-100 text-slate-500'}`}>{dir}</button>
+                ))}
+              </div>
+              <div>
+                <label htmlFor="alert-threshold" className="text-xs text-slate-400 mb-1 block">Threshold (R/MWh)</label>
+                <input id="alert-threshold" type="number" min="0" step="0.01" value={alertThreshold} onChange={(e) => setAlertThreshold(e.target.value)} placeholder="e.g. 250.00" className={`w-full px-3 py-2 rounded-xl text-sm mono ${isDark ? 'bg-white/[0.04] border border-white/[0.06] text-white placeholder:text-slate-600' : 'bg-slate-50 border border-black/[0.06] text-slate-900 placeholder:text-slate-300'}`} />
+              </div>
+              <button type="button" onClick={handleSetAlert} className="w-full py-2.5 rounded-xl text-sm font-bold bg-blue-500 hover:bg-blue-600 text-white transition-all shadow-lg shadow-blue-500/25">Set Alert</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

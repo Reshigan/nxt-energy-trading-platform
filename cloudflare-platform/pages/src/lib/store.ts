@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer' | 'lender';
+export type UserRole = 'admin' | 'trader' | 'ipp' | 'offtaker' | 'carbon_fund' | 'epc' | 'advisor' | 'generator' | 'ipp_developer' | 'regulator' | 'observer' | 'lender' | 'grid';
 
 interface User {
   id: string;
@@ -9,6 +9,8 @@ interface User {
   company_name: string;
   kyc_status: string;
   kyc_checks_passed?: number;
+  admin_level?: 'superadmin' | 'admin' | 'support' | null;
+  impersonator_id?: string | null;
 }
 
 interface AuthState {

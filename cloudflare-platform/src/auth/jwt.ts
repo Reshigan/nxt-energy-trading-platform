@@ -30,14 +30,15 @@ async function getSigningKey(secret?: string): Promise<CryptoKey> {
 
 export async function signJwt(
   payload: Omit<JwtPayload, 'iat' | 'exp' | 'iss'>,
-  secret?: string
+  secret?: string,
+  expirySeconds?: number
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const fullPayload: JwtPayload = {
     ...payload,
     iss: 'nxt-energy-platform',
     iat: now,
-    exp: now + JWT_EXPIRY_SECONDS,
+    exp: now + (expirySeconds ?? JWT_EXPIRY_SECONDS),
   };
 
   const header = { alg: 'HS256', typ: 'JWT' };
@@ -74,7 +75,8 @@ export async function verifyJwt(token: string, secret?: string): Promise<JwtPayl
     if (payload.exp < now) return null;
 
     return payload;
-  } catch {
+  } catch (err) {
+    console.error(err);
     return null;
   }
 }
