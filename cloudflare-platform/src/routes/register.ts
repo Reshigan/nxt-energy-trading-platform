@@ -179,6 +179,10 @@ register.post('/verify-otp', async (c) => {
     }
 
     const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+    if (!jwtSecret) {
+      captureException(c, new Error('JWT_SECRET not configured'));
+      return c.json({ success: false, error: 'Server configuration error. Contact support.' }, 500);
+    }
     const token = await signJwt({
       sub: participant.id,
       email: participant.email,
@@ -650,6 +654,10 @@ register.post('/auth/login', async (c) => {
   }
 
   const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
+  if (!jwtSecret) {
+    captureException(c, new Error('JWT_SECRET not configured'));
+    return c.json({ success: false, error: 'Server configuration error. Contact support.' }, 500);
+  }
   const token = await signJwt({
     sub: participant.id,
     email: participant.email,
@@ -728,7 +736,11 @@ register.post('/auth/login/2fa', async (c) => {
     }
 
     const jwtSecret = (c.env as Record<string, unknown>).JWT_SECRET as string | undefined;
-    const token = await signJwt({
+    if (!jwtSecret) {
+      captureException(c, new Error('JWT_SECRET not configured'));
+      return c.json({ success: false, error: 'Server configuration error. Contact support.' }, 500);
+    }
+  const token = await signJwt({
       sub: participant.id,
       email: participant.email,
       role: participant.role as Role,

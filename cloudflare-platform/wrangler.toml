@@ -4,16 +4,10 @@ compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "08596e523c096f04b56d7ae43f7821f4"
 
-# Route configuration for custom domain
-routes = [
-  { pattern = "et.vantax.co.za/api/*", zone_id = "bf309894b764e179f0299ddcc266ca7a" }
-]
-
 [vars]
 ENVIRONMENT = "production"
 JWT_ISSUER = "nxt-energy-platform"
 API_BASE_URL = "https://et.vantax.co.za/api"
-JWT_SECRET = "change-me-in-production-use-wrangler-secret-put"
 
 [[d1_databases]]
 binding = "DB"
@@ -50,9 +44,6 @@ new_classes = ["P2PMatcherDO", "SmartContractDO", "RiskEngineDO"]
 
 [triggers]
 crons = ["0 * * * *", "0 6 * * *", "0 0 1 * *"]
-# Hourly: weather sync for active projects
-# Daily 06:00: statutory re-checks, market snapshots
-# Monthly 1st: REC auto-issuance
 
 [[queues.producers]]
 queue = "nxt-events"
@@ -67,11 +58,52 @@ max_retries = 3
 enabled = true
 head_sampling_rate = 1
 
-# Development environment
 [env.development]
 [env.development.vars]
 ENVIRONMENT = "development"
 API_BASE_URL = "http://localhost:8787"
 
-# Staging environment removed — placeholder IDs were invalid and caused deploy failures.
-# Re-add when real staging D1/KV/R2 resources are provisioned.
+[env.production]
+name = "nxt-energy-trading-api"
+routes = [
+  { pattern = "et.vantax.co.za/api/*", zone_id = "bf309894b764e179f0299ddcc266ca7a" }
+]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "nxt_energy_trading"
+database_id = "caa3ae48-3bdc-473b-b197-62c59288d9a9"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "0fd4da205bb54e8db8340c51c8865787"
+
+[[env.production.r2_buckets]]
+binding = "R2"
+bucket_name = "nxt-energy-assets"
+
+[env.production.ai]
+binding = "AI"
+
+[env.production.durable_objects]
+bindings = [
+  { name = "ORDER_BOOK", class_name = "OrderBookDO" },
+  { name = "ESCROW_MGR", class_name = "EscrowManagerDO" },
+  { name = "P2P_MATCHER", class_name = "P2PMatcherDO" },
+  { name = "SMART_CONTRACT", class_name = "SmartContractDO" },
+  { name = "RISK_ENGINE", class_name = "RiskEngineDO" },
+]
+
+[[env.production.queues.producers]]
+queue = "nxt-events"
+binding = "EVENTS_QUEUE"
+
+[[env.production.queues.consumers]]
+queue = "nxt-events"
+max_batch_size = 10
+max_retries = 3
+
+[env.production.vars]
+ENVIRONMENT = "production"
+JWT_ISSUER = "nxt-energy-platform"
+API_BASE_URL = "https://et.vantax.co.za/api"
