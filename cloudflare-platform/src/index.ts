@@ -84,6 +84,7 @@ import procurementRoute from './routes/procurement';
 import batchRoute from './routes/batch';
 import documentsRoute from './routes/documents';
 import autoSchedulingRoute from './routes/auto-scheduling';
+import onaRoute from './routes/ona';
 import { generateId, nowISO } from './utils/id';
 
 // Durable Object exports
@@ -377,6 +378,8 @@ api.use('/procurement/*', requireModule('procurement'));
 api.route('/procurement', procurementRoute);
 api.route('/batch', batchRoute);
 api.route('/documents', documentsRoute);
+api.use('/ona/*', requireModule('ona_integration'));
+api.route('/ona', onaRoute);
 api.route('/auto-scheduling', autoSchedulingRoute);
 
 // Dashboard summary (role-adaptive)
