@@ -13,6 +13,7 @@ routes = [
 ENVIRONMENT = "production"
 JWT_ISSUER = "nxt-energy-platform"
 API_BASE_URL = "https://et.vantax.co.za/api"
+JWT_SECRET = "change-me-in-production-use-wrangler-secret-put"
 
 [[d1_databases]]
 binding = "DB"
